@@ -1,8 +1,10 @@
-# HyperFeed Cache
+# HyperFeed Storage
 
-This package implements HyperFeed’s on-disk cache.
+This package implements HyperFeed’s on-disk storage.
 
-The `store` package reads `scheduler` and `subscription` state; it only writes the rebuildable artifacts under hyperfeed/cache/…. All frequently updated metadata (ETag, Last-Modified, backoff, stats) is maintained by the scheduler package in hyperfeed/scheduler/<domain>/<feedID>.json (see that package’s README).
+The `storage` package persists normalized subscriptions, feeds, items, and extended metadata.
+Frequently updated scheduler state (ETag, Last-Modified, backoff, stats) is maintained by the
+`scheduler` package (e.g., under `hyperfeed/scheduler/<domain>/<feedID>.json`; see that package’s README).
 
 
 
@@ -15,4 +17,3 @@ The `store` package reads `scheduler` and `subscription` state; it only writes t
 * Item
 * ItemExtendedMetadata (join table)
 * ExtendedMetadata
-
