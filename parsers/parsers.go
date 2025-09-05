@@ -19,9 +19,10 @@ type Parser interface {
 type FeedFormat string
 
 const (
-	FormatUnknown FeedFormat = "unknown"
-	FormatRSS     FeedFormat = "rss"
-	FormatAtom    FeedFormat = "atom"
+    FormatUnknown FeedFormat = "unknown"
+    FormatRSS     FeedFormat = "rss"
+    FormatAtom    FeedFormat = "atom"
+    FormatJSONFeed FeedFormat = "jsonfeed"
 )
 
 // ParserOptions configures parser behavior.

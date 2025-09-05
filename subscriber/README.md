@@ -26,3 +26,10 @@ Interaction with state package
 
 - Subscriber-specific state (e.g., last import/export times, change counters) is stored via the
   `state` package under the `subscriber/` namespace.
+
+Schedulers lifecycle
+
+- Exactly one Subscriber instance manages a given OPML file (singleton per OPML path).
+- On first run, parses OPML, normalizes subscriptions, persists initial subscription state.
+- Adds/removes per-feed Schedulers for active/inactive feeds.
+- Communicates feed stats, errors, and changes upward without exposing shared mutable state.

@@ -18,3 +18,7 @@ Conventions
 - Coordinator files: `subscriptions.opml`, `subscriptions.json` with `.lock` companions
 - Scheduler files: `scheduler.json` (top-level) and `feeds/<feedID>.json` per feed
 
+Root directory
+
+- By default, the client sets the root state directory to `filepath.Dir(opmlPath)`.
+- Implementations should ensure write access or return informative errors.
