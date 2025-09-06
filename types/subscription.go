@@ -16,7 +16,7 @@ type SubscriptionList struct {
 
 	// Standard metadata properties
 	Title     string    `json:"title,omitempty"`
-	Owner     Author    `json:"owner,omitempty"`
+	Owner     Owner     `json:"owner,omitempty"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 
@@ -42,4 +42,14 @@ func (sl *SubscriptionList) Load() (err error) {
 		return err
 	}
 	return nil
+}
+
+type Owner struct {
+	// Standard properties
+	Name  string `json:"name,omitempty"`
+	ID    string `json:"id,omitempty"`
+	Email string `json:"email,omitempty"`
+
+	// Non-standard/extension properties
+	Metadata Metadata `json:"metadata,omitempty"`
 }
