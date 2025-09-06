@@ -22,7 +22,6 @@ The `herdworks/hyperfeed-go` project contains the following high-level packages:
 * `herdworks/hyperfeed-go/scheduler`: request orchestration
 * `herdworks/hyperfeed-go/transporter`: conditional request management
 * `herdworks/hyperfeed-go/storage`: storage management
-* `herdworks/hyperfeed-go/parsers`: parse RSS/Atom documents into types
 * `herdworks/hyperfeed-go/state`: operational runtime state for scheduler/subscriber
 * `herdworks/hyperfeed-go/cache`: asset cache for images/enclosures
 
@@ -34,6 +33,9 @@ The `herdworks/hyperfeed-go` packages should operate on a core set of types (def
 * `hyperfeed.Feed` (an individual RSS or Atom feed)
 * `hyperfeed.Item` (an individual item in a feed)
 * `hyperfeed.Metadata` (extension metadata for SubscriptionList, Feed, and Item structs)
+* `hyperfeed.RSS` (types/rss.go)
+* `hyperfeed.Atom` (types/atom.go)
+* `hyperfeed.JSONFeed` Feed (types/jsonfeed.go)
 
 Shared logic about common type operations will live in the corresponding type source file (e.g. `types/feed.go`), whereas package-specific operations will live in the package methods with typed receivers (e.g. `Scheduler.Enqueue(feed hyperfeed.Feed)`).
 

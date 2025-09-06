@@ -1,22 +1,45 @@
 package hyperfeed
 
 import (
-    "net/url"
+	"net/url"
+	"time"
 
-    opml "github.com/herdworks/hypertemplates-go/opml"
+	opml "github.com/herdworks/hypertemplates-go/opml"
 )
 
 type SubscriptionList struct {
-    // URI is the location of the OPML file representing the subscription list.
-    URI *url.URL `json:"uri,omitempty"`
+	// URI is the location of the OPML file representing the subscription list.
+	URI *url.URL `json:"uri,omitempty"`
 
-    // Title is a human-friendly name for the subscription list.
-    Title string `json:"title,omitempty"`
+	// OPML holds the parsed OPML document.
+	OPML *opml.OPML `json:"-"`
 
-    // OPML holds the parsed OPML document.
-    OPML *opml.OPML `json:"-"`
+	// Standard metadata properties
+	Title     string    `json:"title,omitempty"`
+	Owner     Author    `json:"owner,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 
-    // Metadata holds extension data for other packages (subscriber, scheduler, etc.).
-    Metadata Metadata `json:"metadata,omitempty"`
+	// Non-standard/extension properties
+	Metadata Metadata `json:"metadata,omitempty"`
+
+	// Feeds contains the list of feeds in the subscription list.
+	Feeds []*Feed `json:"feeds,omitempty"`
 }
+
 type SubscriptionLists []*SubscriptionList
+
+func (sl *SubscriptionList) Load() (err error) {
+	sl.OPML = &opml.OPML{URI: sl.URI}
+	if err = sl.OPML.Load(); err != nil {
+		return err
+	}
+	sl.Title = sl.OPML.Head.Title
+	if sl.CreatedAt, err = sl.OPML.DateCreated(); err != nil {
+		return err
+	}
+	if sl.UpdatedAt, err = sl.OPML.DateModified(); err != nil {
+		return err
+	}
+	return nil
+}
