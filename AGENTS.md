@@ -1,21 +1,23 @@
----
-description: Default instructions
-applyTo: "**"
----
+# AGENTS.md
 
-# Default Development Instructions
-
-These are generic instructions that may be applied as software development best practices for AI coding agents.
-These instructions should be treated as defaults, so if/when domain-specific instructions conflict (e.g. programming language-specific instructions), the other/conflicting instructions should take precedent.
+Greetings, coding agent. Welcome to the team!
 
 ## General Instructions
 
+* Always refer to `README.md` for a description of this project's goals
 * Write simple, clear, and idiomatic code
 * Favor clarity and simplicity over cleverness
 * Follow the principle of least surprise
 * Write "straightline" (left-aligned) code wherever possible, exiting early to avoid nesting
 * Keep line length reasonable (no hard limit, but assume readability suffers beyond 120 characters)
 * Add blank lines to separate logical groups of code
+* When asked to do something that deviates from these instruction (AGENTS.md), ask for clarification!
+
+## Development Environment
+
+* Use `curl` for performing HTTP requests or when documenting example HTTP requests
+* Use `git` for revision control
+* Use `.envrc` files to manage environment variables (see: https://direnv.net)
 
 ## Dependency Management
 
@@ -50,8 +52,7 @@ These instructions should be treated as defaults, so if/when domain-specific ins
 
 ## Serialization & Deserialization
 
-* We are big believers in "as code" workflows (e.g. infrastructure as code), so we are always thinking about serialization & deserialization
-* When implementing types, always add support for serialization & deserialization
+* When implementing custom types, always add support for serialization & deserialization
 * Serialization & deserialization implementations should always support JSON
 * Where possible, serialization & deserialization implementations should also support YAML
 * If serialization & deserialization support for TOML and/or XML is cheap, add them as well
@@ -125,6 +126,7 @@ These instructions should be treated as defaults, so if/when domain-specific ins
 * Keep commits focused and atomic
 * Review diffs before committing
 * Write meaningful commit messages
+* Follow semantic versioning best practices (https://semver.org)
 
 ## Common Pitfalls to Avoid
 
@@ -135,4 +137,35 @@ These instructions should be treated as defaults, so if/when domain-specific ins
 * Swallowing errors instead of handling or propagating them
 * Over-optimizing prematurely (especially around concurrency)
 
-<!-- See https://github.com/github/awesome-copilot/tree/main/instructions for examples -->
+## Operations
+
+* Assume all source code will be hosted on GitHub.com
+* Assume all projects will use GitHub Actions for CI/CD
+
+## Programming Languages
+
+### JavaScript
+
+* JavaScript (NodeJS) is my preferred language for writing serverless functions
+
+### Golang
+
+* Follow idiomatic Go practices and community standards when writing Go code, including:
+  * [Effective Go](https://go.dev/doc/effective_go)
+  * [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments)
+  * [Google's Go Style Guide](https://google.github.io/styleguide/go/)
+* Use Go modules (`go.mod` / `go.sum`)
+* Run `go mod tidy` to clean up unused dependencies
+* Always format with `go fmt` (or `gofmt`)
+* Always use the `testing` package for tests
+  * Place tests in `_test.go` files next to the code
+  * Mark helpers with `t.Helper()` and use `t.Cleanup()` for teardown
+  * Use subtests with `t.Run` for clarity
+* Treat the Go X-Repositories as part of the standard library (https://go.dev/wiki/X-Repositories)
+
+### Swift
+
+* Treat Swift Foundation as part of the standard library (https://github.com/swiftlang/swift-foundation)
+* When writing CLI tools, always use Swift Argument Parser (https://github.com/apple/swift-argument-parser)
+
+<!-- See https://agents.md for more information -->
