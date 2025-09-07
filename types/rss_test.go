@@ -3,7 +3,6 @@ package hyperfeed
 import (
 	"io"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 )
@@ -30,24 +29,24 @@ func TestRSSDetect(t *testing.T) {
 }
 
 func TestRSSParse(t *testing.T) {
-	base, _ := url.Parse("http://example.com/feed")
-	res, err := RSSParse([]byte(sampleRSS), RSSOptions{BaseURL: base})
+	rss, err := ParseRSS([]byte(sampleRSS))
 	if err != nil {
-		t.Fatalf("RSSParse returned error: %v", err)
+		t.Fatalf("ParseRSS returned error: %v", err)
 	}
-	if res.Feed.Title != "Example" {
-		t.Fatalf("Feed title = %q; want %q", res.Feed.Title, "Example")
+	if rss.Channel.Title != "Example" {
+		t.Fatalf("Channel title = %q; want %q", rss.Channel.Title, "Example")
 	}
-	if len(res.Items) != 1 {
-		t.Fatalf("Expected 1 item; got %d", len(res.Items))
+	if len(rss.Channel.Items) != 1 {
+		t.Fatalf("Expected 1 item; got %d", len(rss.Channel.Items))
 	}
-	if res.Items[0].Title != "First" {
-		t.Fatalf("Item title = %q; want %q", res.Items[0].Title, "First")
+	if rss.Channel.Items[0].Title != "First" {
+		t.Fatalf("Item title = %q; want %q", rss.Channel.Items[0].Title, "First")
 	}
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
 	client := http.Client{Timeout: 10 * time.Second}
+	t.Logf("GET         https://daringfireball.net/thetalkshow/rss")
 	resp, err := client.Get("https://daringfireball.net/thetalkshow/rss")
 	if err != nil {
 		t.Skipf("skipping; fetch error: %v", err)
@@ -56,18 +55,30 @@ func TestRSSParseTheTalkShow(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Skipf("skipping; unexpected status: %s", resp.Status)
 	}
+	t.Logf("200 OK      https://daringfireball.net/thetalkshow/rss")
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("reading body: %v", err)
 	}
-	res, err := RSSParse(body, RSSOptions{BaseURL: resp.Request.URL})
+	rss, err := ParseRSS(body)
 	if err != nil {
-		t.Fatalf("RSSParse returned error: %v", err)
+		t.Fatalf("ParseRSS returned error: %v", err)
 	}
-	if res.Feed.Title != "The Talk Show With John Gruber" {
-		t.Fatalf("Feed title = %q; want %q", res.Feed.Title, "The Talk Show With John Gruber")
+	if rss.Channel.Title != "The Talk Show With John Gruber" {
+		t.Fatalf("Channel title = %q; want %q", rss.Channel.Title, "The Talk Show With John Gruber")
 	}
-	if len(res.Items) == 0 {
+	t.Logf("Parse       https://daringfireball.net/thetalkshow/rss (%d items)", len(rss.Channel.Items))
+	var extensionsMetadataCount int
+	for _, item := range rss.Channel.Items {
+		if len(item.Extensions) > 0 {
+			extensionsMetadataCount++
+			for _, ext := range item.Extensions {
+				t.Logf("%s:%s", ext.XMLName.Space, ext.XMLName.Local)
+			}
+		}
+	}
+	t.Logf("Extensions  https://daringfireball.net/thetalkshow/rss (%d properties)", extensionsMetadataCount)
+	if len(rss.Channel.Items) == 0 {
 		t.Fatalf("Expected items; got 0")
 	}
 }
