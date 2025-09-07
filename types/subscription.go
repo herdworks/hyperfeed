@@ -35,6 +35,9 @@ func (sl *SubscriptionList) Load() (err error) {
 		return err
 	}
 	sl.Title = sl.OPML.Head.Title
+	sl.Owner.ID = sl.OPML.Head.OwnerId
+	sl.Owner.Name = sl.OPML.Head.OwnerName
+	sl.Owner.Email = sl.OPML.Head.OwnerEmail
 	if sl.CreatedAt, err = sl.OPML.DateCreated(); err != nil {
 		return err
 	}
