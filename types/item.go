@@ -54,8 +54,8 @@ func (i *Item) CanonicalID() string {
 }
 
 type Author struct {
-	Name  string   `json:"name,omitempty"`
-	URI   *url.URL `json:"uri,omitempty"`
+	Name string   `json:"name,omitempty"`
+	URI  *url.URL `json:"uri,omitempty"`
 }
 
 // Image represents an image associated with a feed or item.
