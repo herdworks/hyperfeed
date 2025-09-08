@@ -34,7 +34,6 @@ The `herdworks/hyperfeed-go` packages should operate on a core set of types (def
 * `hyperfeed.Item` (an individual item in a feed)
 * `hyperfeed.Metadata` (extension metadata for SubscriptionList, Feed, and Item structs)
 * `hyperfeed.RSS` (types/rss.go)
-* `hyperfeed.Atom` (types/atom.go)
 * `hyperfeed.JSONFeed` Feed (types/jsonfeed.go)
 
 Shared logic about common type operations will live in the corresponding type source file (e.g. `types/feed.go`), whereas package-specific operations will live in the package methods with typed receivers (e.g. `Scheduler.Enqueue(feed hyperfeed.Feed)`).
@@ -49,8 +48,8 @@ Shared logic about common type operations will live in the corresponding type so
 
 - Client: constructs the system from an OPML path and options. Defaults the root filesystem
   to `filepath.Dir(opmlPath)` and ensures write access for `storage`, `state`, and `cache`.
-- Subscriber: single owner per OPML file. Parses OPML, normalizes subscriptions, persists
-  initial subscription state (via `state`), and adds/removes per-feed Schedulers as the list changes.
+- Subscriber: single owner per OPML file. Parses OPML, normalizes subscriptions (feeds), persists
+  initial feed state (via `state`), and adds/removes per-feed Schedulers as the list changes.
 - Scheduler: one per active feed. Runs on an interval with a configured start time; evaluates
   its state each tick to decide whether to fetch (respects rate limits/backoff). Uses `transporter`
   to fetch, `storage` to persist items, and `cache` to store assets. Shares state/stats upward by

@@ -11,9 +11,9 @@ type Discovery struct{}
 // A container for search results returned by a Discovery.
 // Discovery results may include SubscriptionLists (collections of Feeds), Feeds, and Items.
 type DiscoveryResult struct {
-	Subscriptions hyperfeed.SubscriptionLists
-	Feeds         hyperfeed.Feeds
-	Items         hyperfeed.Items
+	Subscriptions []*hyperfeed.SubscriptionList
+	Feeds         []*hyperfeed.Feed
+	Items         []*hyperfeed.Item
 }
 
 func (result *DiscoveryResult) TotalCount() int {

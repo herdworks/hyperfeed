@@ -25,16 +25,14 @@ type Item struct {
 	Summary string `json:"summary,omitempty"`
 	Content string `json:"content,omitempty"`
 
-	Enclosures []Enclosure `json:"enclosures,omitempty"`
-	Categories []string    `json:"categories,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	Categories  []string     `json:"categories,omitempty"`
 
 	Image *Image `json:"image,omitempty"`
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
 }
-
-type Items []*Item
 
 // CanonicalID returns a stable identifier for the item, preferring ID, then GUID, then URL.
 func (i *Item) CanonicalID() string {
@@ -54,8 +52,11 @@ func (i *Item) CanonicalID() string {
 }
 
 type Author struct {
-	Name string   `json:"name,omitempty"`
-	URI  *url.URL `json:"uri,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	URI    *url.URL `json:"uri,omitempty"`
+	URL    *url.URL `json:"url,omitempty"`
+	Email  string   `json:"email,omitempty"`
+	Avatar *url.URL `json:"avatar,omitempty"`
 }
 
 // Image represents an image associated with a feed or item.
@@ -66,9 +67,4 @@ type Image struct {
 	Height int      `json:"height,omitempty"`
 }
 
-// Enclosure represents a media attachment (audio, video, etc.).
-type Enclosure struct {
-	URL    *url.URL `json:"url,omitempty"`
-	Length int64    `json:"length,omitempty"`
-	Type   string   `json:"type,omitempty"`
-}
+// Note: Attachment type is defined in types/attachment.go

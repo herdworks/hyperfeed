@@ -27,8 +27,6 @@ type SubscriptionList struct {
 	Feeds []*Feed `json:"feeds,omitempty"`
 }
 
-type SubscriptionLists []*SubscriptionList
-
 func (sl *SubscriptionList) Load() (err error) {
 	sl.OPML = &opml.OPML{URI: sl.URI}
 	if err = sl.OPML.Load(); err != nil {
