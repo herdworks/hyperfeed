@@ -120,6 +120,11 @@ func (r *RSS) Kind() FeedKind {
 	return FeedKindRSS_2_0
 }
 
+// RawFeed.ItemCount() compliance
+func (r *RSS) ItemCount() int {
+	return len(r.Channel.Items)
+}
+
 // RSSDetected returns true if the document appears to be RSS.
 func RSSDetected(doc []byte) bool {
 	b := bytes.TrimSpace(doc)

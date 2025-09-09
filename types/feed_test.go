@@ -38,13 +38,20 @@ func TestDetectKind(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to parse outline XMLURL %q: %v", outline.XMLURL, err)
 		}
-		feed := Feed{Title: outline.Title, URL: xmlurl}
+		feed := &Feed{Title: outline.Title, URL: xmlurl}
 		feedBytes, err := transporter.Get(feed.URL.String())
 		if err != nil {
 			t.Logf("Fetch error for %q: %v", feed.URL.String(), err)
 			continue
 		}
 		feedKind := feed.DetectKind(feedBytes)
-		t.Logf("Kind %q for %q", feedKind, feed.URL.String())
+		if err = feed.Parse(feedKind, feedBytes); err != nil {
+			t.Logf("Parse error for %q: %v", feed.URL.String(), err)
+			continue
+		}
+		if feed.RawFeed == nil {
+			t.Logf("No RawFeed for %q feed: %q", feedKind, feed.URL.String())
+		}
+		t.Logf("Kind %q for %q (%d items)", feedKind, feed.URL.String(), feed.RawFeed.ItemCount())
 	}
 }

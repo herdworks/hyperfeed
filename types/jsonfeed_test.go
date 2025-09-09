@@ -48,14 +48,14 @@ func TestJSONFeedDetect_Valid(t *testing.T) {
 }
 
 func TestJSONFeedParse_Minimal(t *testing.T) {
-    transporter := transporter.NewTransporter()
+	transporter := transporter.NewTransporter()
 	t.Logf("Fetching  https://daringfireball.net/feeds/json")
-    body, err := transporter.Get("https://daringfireball.net/feeds/json")
+	body, err := transporter.Get("https://daringfireball.net/feeds/json")
 	if err != nil {
 		t.Skipf("fetch error: %v", err)
 	}
 	t.Logf("200 OK    https://daringfireball.net/feeds/json")
-	jf, err := JSONFeedParse([]byte(body))
+	jf, err := ParseJSONFeed([]byte(body))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,12 +74,12 @@ func TestJSONFeedParse_Minimal(t *testing.T) {
 	}
 	t.Logf("Daring Fireball has %d items", len(jf.Items))
 	t.Logf("The latest item is %q", jf.Items[0].Title)
-    var externalURLs int
-    for _, item := range jf.Items {
-        if item.ExternalURL != "" {
-            externalURLs++
-        }
-    }
+	var externalURLs int
+	for _, item := range jf.Items {
+		if item.ExternalURL != "" {
+			externalURLs++
+		}
+	}
 	t.Logf("Items with external URLs: %d", externalURLs)
 }
 
@@ -114,7 +114,7 @@ func TestJSONFeedIntegration_DaringFireball(t *testing.T) {
 	if !JSONFeedDetected(body) {
 		t.Fatalf("expected JSONFeedDetect true for DF feed")
 	}
-	jf, err := JSONFeedParse(body)
+	jf, err := ParseJSONFeed(body)
 	if err != nil {
 		t.Fatalf("parse feed: %v", err)
 	}

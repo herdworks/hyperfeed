@@ -105,4 +105,36 @@ const (
 type RawFeed interface {
 	// Kind returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1).
 	Kind() FeedKind
+	ItemCount() int
+}
+
+func (feed *Feed) AutoParse(doc []byte) (err error) {
+	return feed.Parse(feed.DetectKind(doc), doc)
+}
+
+func (feed *Feed) Parse(kind FeedKind, doc []byte) (err error) {
+	switch kind {
+	case FeedKindRSS, FeedKindRSS_0_9_1, FeedKindRSS_0_9_2, FeedKindRSS_2_0:
+		rawfeed, err := ParseRSS(doc)
+		if err != nil {
+			return err
+		}
+		feed.RawFeed = rawfeed
+		return nil
+	case FeedKindAtom, FeedKindAtom_0_3, FeedKindAtom_1_0:
+		rawfeed, err := ParseAtom(doc)
+		if err != nil {
+			return err
+		}
+		feed.RawFeed = rawfeed
+		return nil
+	case FeedKindJSONFeed, FeedKindJSONFeed_1_0, FeedKindJSONFeed_1_1:
+		rawfeed, err := ParseJSONFeed(doc)
+		if err != nil {
+			return err
+		}
+		feed.RawFeed = rawfeed
+		return nil
+	}
+	return nil
 }

@@ -77,6 +77,11 @@ func (jf JSONFeed) Kind() FeedKind {
 	}
 }
 
+// RawFeed.ItemCount() compliance
+func (jf *JSONFeed) ItemCount() int {
+	return len(jf.Items)
+}
+
 // JSONFeedDetected returns true if the document appears to be JSON Feed.
 func JSONFeedDetected(doc []byte) bool {
 	var tmp struct {
@@ -85,8 +90,8 @@ func JSONFeedDetected(doc []byte) bool {
 	return json.Unmarshal(doc, &tmp) == nil && tmp.Version != ""
 }
 
-// JSONFeedParse converts a JSON Feed document into a Feed and Items.
-func JSONFeedParse(doc []byte) (*JSONFeed, error) {
+// ParseJSONFeed converts a JSON Feed document into a Feed and Items.
+func ParseJSONFeed(doc []byte) (*JSONFeed, error) {
 	var jf JSONFeed
 	if err := json.Unmarshal(doc, &jf); err != nil {
 		return nil, err

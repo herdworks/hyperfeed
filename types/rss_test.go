@@ -44,12 +44,12 @@ func TestRSSParse(t *testing.T) {
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
-    transporter := transporter.NewTransporter()
+	transporter := transporter.NewTransporter()
 	t.Logf("Fetching  https://daringfireball.net/thetalkshow/rss")
-    body, err := transporter.Get("https://daringfireball.net/thetalkshow/rss")
-    if err != nil {
-        t.Fatalf("Fetch error: %v", err)
-    }
+	body, err := transporter.Get("https://daringfireball.net/thetalkshow/rss")
+	if err != nil {
+		t.Fatalf("Fetch error: %v", err)
+	}
 	t.Logf("200 OK    https://daringfireball.net/thetalkshow/rss")
 	rss, err := ParseRSS(body)
 	if err != nil {
