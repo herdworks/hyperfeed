@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/herdworks/hyperfeed-go/transporter"
 )
 
 // Sample minimal JSON Feed payload for unit tests.
@@ -46,27 +48,18 @@ func TestJSONFeedDetect_Valid(t *testing.T) {
 }
 
 func TestJSONFeedParse_Minimal(t *testing.T) {
-	client := http.Client{Timeout: 10 * time.Second}
-	t.Logf("GET         https://daringfireball.net/feeds/json")
-	resp, err := client.Get("https://daringfireball.net/feeds/json")
+    transporter := transporter.NewTransporter()
+	t.Logf("Fetching  https://daringfireball.net/feeds/json")
+    body, err := transporter.Get("https://daringfireball.net/feeds/json")
 	if err != nil {
-		t.Skipf("skipping; fetch error: %v", err)
+		t.Skipf("fetch error: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Skipf("skipping; unexpected status: %s", resp.Status)
-	}
-	t.Logf("GET OK      https://daringfireball.net/feeds/json")
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("reading body: %v", err)
-	}
-	t.Logf("Parse       https://daringfireball.net/feeds/json")
+	t.Logf("200 OK    https://daringfireball.net/feeds/json")
 	jf, err := JSONFeedParse([]byte(body))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	t.Logf("Parse OK    https://daringfireball.net/feeds/json")
+	t.Logf("Parsed    https://daringfireball.net/feeds/json")
 	if jf == nil {
 		t.Fatalf("expected feed, got nil")
 	}
