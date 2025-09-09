@@ -4,8 +4,9 @@ go 1.23.5
 
 // direct dependencies
 require (
-	github.com/herdworks/hypertemplates-go v0.17.3
-	golang.org/x/net v0.43.0
+        github.com/herdworks/hypertemplates-go v0.17.3
+        golang.org/x/net v0.43.0
+        github.com/mattn/go-sqlite3 v1.14.22
 )
 
 // local development dependencies (replacements)
