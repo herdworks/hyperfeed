@@ -1,10 +1,9 @@
 package hyperfeed
 
 import (
-	"io"
-	"net/http"
 	"testing"
-	"time"
+
+	"github.com/herdworks/hyperfeed-go/transporter"
 )
 
 const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -22,8 +21,8 @@ const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
 </channel>
 </rss>`
 
-func TestRSSDetect(t *testing.T) {
-	if !RSSDetect([]byte(sampleRSS)) {
+func TestRSSDetected(t *testing.T) {
+	if !RSSDetected([]byte(sampleRSS)) {
 		t.Fatalf("RSSDetect returned false")
 	}
 }
@@ -45,21 +44,13 @@ func TestRSSParse(t *testing.T) {
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
-	client := http.Client{Timeout: 10 * time.Second}
-	t.Logf("GET         https://daringfireball.net/thetalkshow/rss")
-	resp, err := client.Get("https://daringfireball.net/thetalkshow/rss")
+	transporter := transporter.NewTransporter()
+	t.Logf("Fetching  https://daringfireball.net/thetalkshow/rss")
+	body, err := transporter.Get("https://daringfireball.net/thetalkshow/rss")
 	if err != nil {
-		t.Skipf("skipping; fetch error: %v", err)
+		t.Fatalf("Fetch error: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Skipf("skipping; unexpected status: %s", resp.Status)
-	}
-	t.Logf("200 OK      https://daringfireball.net/thetalkshow/rss")
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("reading body: %v", err)
-	}
+	t.Logf("200 OK    https://daringfireball.net/thetalkshow/rss")
 	rss, err := ParseRSS(body)
 	if err != nil {
 		t.Fatalf("ParseRSS returned error: %v", err)
@@ -67,14 +58,14 @@ func TestRSSParseTheTalkShow(t *testing.T) {
 	if rss.Channel.Title != "The Talk Show With John Gruber" {
 		t.Fatalf("Channel title = %q; want %q", rss.Channel.Title, "The Talk Show With John Gruber")
 	}
-	t.Logf("Parse       https://daringfireball.net/thetalkshow/rss (%d items)", len(rss.Channel.Items))
+	t.Logf("Parsed    https://daringfireball.net/thetalkshow/rss (%d items)", len(rss.Channel.Items))
 	var extensionsMetadataCount int
 	for _, item := range rss.Channel.Items {
 		if len(item.Extensions) > 0 {
 			extensionsMetadataCount++
-			for _, ext := range item.Extensions {
-				t.Logf("%s:%s", ext.XMLName.Space, ext.XMLName.Local)
-			}
+			// for _, ext := range item.Extensions {
+			// 	t.Logf("%s:%s", ext.XMLName.Space, ext.XMLName.Local)
+			// }
 		}
 	}
 	t.Logf("Extensions  https://daringfireball.net/thetalkshow/rss (%d properties)", extensionsMetadataCount)
