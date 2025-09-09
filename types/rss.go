@@ -115,8 +115,13 @@ type RSSDays struct {
 	Days []string `xml:"day"`
 }
 
-// RSSDetect returns true if the document appears to be RSS.
-func RSSDetect(doc []byte) bool {
+// RawFeed.Kind() compliance
+func (r *RSS) Kind() FeedKind {
+	return FeedKindRSS_2_0
+}
+
+// RSSDetected returns true if the document appears to be RSS.
+func RSSDetected(doc []byte) bool {
 	b := bytes.TrimSpace(doc)
 	return bytes.Contains(b, []byte("<rss"))
 }
