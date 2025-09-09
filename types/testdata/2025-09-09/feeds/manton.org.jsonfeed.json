@@ -1,0 +1,210 @@
+{
+	"version": "https://jsonfeed.org/version/1",
+	"title": "Manton Reece",
+	"icon": "https://avatars.micro.blog/avatars/2025/22/3.jpg",
+	"home_page_url": "https://www.manton.org/",
+	"feed_url": "https://www.manton.org/feed.json",
+	"items": [
+			{
+				"id": "http://manton.micro.blog/2025/09/09/its-ambitious-for-apple-to.html",
+				
+				"content_html": "<p>It&rsquo;s ambitious for Apple to ship all of their version 26 operating systems on the same day next week. I thought macOS could wait a couple weeks. I&rsquo;ll probably submit the Micro.blog iOS update soon-ish, when I can get the UI quirks fixed.</p>\n",
+				
+				"date_published": "2025-09-09T15:28:01-05:00",
+				"url": "https://www.manton.org/2025/09/09/its-ambitious-for-apple-to.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/spent-a-little-time-going.html",
+				
+				"content_html": "<p>Spent a little time going through old pull requests on JSON Feed, merging in links for the website. There is still a lot to catch up on. Time flies! And I didn&rsquo;t realize that the lack of communication on my part was holding folks up from fully embracing it.</p>\n",
+				
+				"date_published": "2025-09-09T15:08:47-05:00",
+				"url": "https://www.manton.org/2025/09/09/spent-a-little-time-going.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/i-want-to-say-that.html",
+				
+				"content_html": "<p>I want to say that the orange iPhone is the official Micro.blog-themed phone, but the orange color isn&rsquo;t really a close enough match. Gonna have to see these phones in person. Especially curious about the weight and balance of the Air.</p>\n",
+				
+				"date_published": "2025-09-09T13:13:50-05:00",
+				"url": "https://www.manton.org/2025/09/09/i-want-to-say-that.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/the-iphone-pro-actually-looks.html",
+				
+				"content_html": "<p>The iPhone 17 Pro actually looks like a pretty big change. Aluminum, huge camera bump, crazy thermal system, faster AI, presumably more RAM.</p>\n",
+				
+				"date_published": "2025-09-09T13:05:27-05:00",
+				"url": "https://www.manton.org/2025/09/09/the-iphone-pro-actually-looks.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/hypertension-notification-is-fantastic-in.html",
+				
+				"content_html": "<p>Hypertension notification is fantastic in theory, but I&rsquo;m skeptical that this can be done without a new sensor. Seems impossible with heart rate data alone. But I guess if it only sometimes works, it still has the potential to save lives.</p>\n",
+				
+				"date_published": "2025-09-09T12:27:32-05:00",
+				"url": "https://www.manton.org/2025/09/09/hypertension-notification-is-fantastic-in.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/dave-winer-posted-notes-from.html",
+				
+				"content_html": "<p><a href=\"http://scripting.com/2025/09/09/114446.html?title=bulletPointsFromYesterdaysPodcast\">Dave Winer posted notes</a> from his recent recording about why blogging lost to social networks. I&rsquo;m smiling at the Radio WordLand name. My blog started on Radio Userland! (Then Movable Type → WordPress → Micro.blog.)</p>\n",
+				
+				"date_published": "2025-09-09T09:00:00-05:00",
+				"url": "https://www.manton.org/2025/09/09/dave-winer-posted-notes-from.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/09/iphone-announcement-day-i-do.html",
+				
+				"content_html": "<p>iPhone announcement day. I do not need a new phone, but I am curious about the iPhone Air. Years ago, I switched to the iPhone 5C just for a change, and actually liked the color and plastic. But I can&rsquo;t see giving up the best cameras now. 📱</p>\n",
+				
+				"date_published": "2025-09-09T08:48:55-05:00",
+				"url": "https://www.manton.org/2025/09/09/iphone-announcement-day-i-do.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/ive-never-been-a-snapchat.html",
+				
+				"content_html": "<p>I’ve never been a Snapchat user and can’t relate to most of what’s in <a href=\"https://newsroom.snap.com/14-year-letter\">Evan Spiegel’s note to employees</a>, but the part about AI use actually sounds true. It’s not wildly inflated like some quotes we’ve seen from other CEOs:</p>\n<blockquote>\n<p>Engineering is already seeing momentum, with AI now generating about a quarter of all code and new agentic infrastructure underway to further boost developer productivity.</p>\n</blockquote>\n",
+				
+				"date_published": "2025-09-08T21:46:00-05:00",
+				"url": "https://www.manton.org/2025/09/08/ive-never-been-a-snapchat.html",
+				"tags": ["Artificial Intelligence"]
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/im-on-beta-of-ios.html",
+				
+				"content_html": "<p>I’m on beta 9 of iOS 26 and there’s still a voicemail tab caching bug. Maybe I notice more than folks at Apple because I have almost no notification badges enabled, so it really stands out? Have to force quit the Phone app about once a day. I don’t usually complain… Surprised this hasn’t been fixed.</p>\n",
+				
+				"date_published": "2025-09-08T19:21:34-05:00",
+				"url": "https://www.manton.org/2025/09/08/im-on-beta-of-ios.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/its-so-hard-to-get.html",
+				
+				"content_html": "<p>It&rsquo;s so hard to get people to take a second look at a product. Rabbit has continued to work on improvements for over a year, and now they&rsquo;ve wrapped it up in a rabbitOS 2 update. Overview video <a href=\"https://x.com/rabbit_hmi/status/1965043739359097047\">on Twitter / X</a>.</p>\n",
+				
+				"date_published": "2025-09-08T18:48:52-05:00",
+				"url": "https://www.manton.org/2025/09/08/its-so-hard-to-get.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/yikes-noticed-especially-high-load.html",
+				
+				"content_html": "<p>Yikes, noticed especially high load on one of our servers. Think we might&rsquo;ve had a few runaway Hugo processes chewing CPU. I&rsquo;m monitoring it, shouldn&rsquo;t be much visible lag.</p>\n<blockquote>\n<p>load average: 42.60, 33.20, 22.64</p>\n</blockquote>\n",
+				
+				"date_published": "2025-09-08T12:06:20-05:00",
+				"url": "https://www.manton.org/2025/09/08/yikes-noticed-especially-high-load.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/spotifys-daily-mix-is-pulling.html",
+				
+				"content_html": "<p>Spotify&rsquo;s daily mix is pulling in all sorts of songs I haven&rsquo;t heard in years. Currently listening to Guns N’ Roses. 🎶</p>\n<blockquote>\n<p>So never mind the darkness<br>\nWe still can find a way<br>\n&lsquo;Cause nothin&rsquo; lasts forever<br>\nEven cold November rain</p>\n</blockquote>\n",
+				
+				"date_published": "2025-09-08T10:51:43-05:00",
+				"url": "https://www.manton.org/2025/09/08/spotifys-daily-mix-is-pulling.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/really-respect-anil-dash-trying.html",
+				
+				"content_html": "<p>Really respect Anil Dash trying to have a nuanced conversation about AI on Bluesky, surrounded by many AI skeptics. <a href=\"https://bsky.app/profile/anildash.com/post/3lybkc5wysk2c\">This thread</a> is one place to start, but there are many other posts:</p>\n<blockquote>\n<p>At what point are folks going to try literally any other tactic than condescending rants?</p>\n</blockquote>\n<p>Sadly, AI is so divisive, debate is counter-productive right now. Meanwhile, all the AI researchers are still on Twitter / X, and they&rsquo;re not going to move to more open platforms where they would just be criticized. So we&rsquo;re back to information bubbles.</p>\n",
+				
+				"date_published": "2025-09-08T10:07:17-05:00",
+				"url": "https://www.manton.org/2025/09/08/really-respect-anil-dash-trying.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/got-a-lot-done-over.html",
+				
+				"content_html": "<p>Got a lot done over the weekend and today, heading into the distractions of iPhone event day tomorrow. Lots of little improvements in Micro.blog, plus a new Mac app update which I recorded <a href=\"https://www.youtube.com/watch?v=x-61FqQTwG4\">a quick walk-through for</a>.</p>\n",
+				
+				"date_published": "2025-09-08T09:22:15-05:00",
+				"url": "https://www.manton.org/2025/09/08/got-a-lot-done-over.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/08/love-this-post-irrational-dedication.html",
+				
+				"content_html": "<p>Love this post <a href=\"https://fs.blog/irrational-dedication/\">Irrational Dedication</a>, via <a href=\"https://duncan.dev/link/irrational-dedication\">Duncan Davidson</a>:</p>\n<blockquote>\n<p>Every single thing we see, someone had to will it into existence against the entropy of the universe and the indifference of everyone else. That’s what the entire built world is.</p>\n</blockquote>\n",
+				
+				"date_published": "2025-09-08T08:58:24-05:00",
+				"url": "https://www.manton.org/2025/09/08/love-this-post-irrational-dedication.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/steve-troughtonsmith-on-mastodon-i.html",
+				
+				"content_html": "<p>Steve Troughton-Smith <a href=\"https://mastodon.social/@stroughtonsmith/115165746546309623\">on Mastodon</a>:</p>\n<blockquote>\n<p>I know Apple has got used to making its share of Microsoft-scale screwups lately, but taking the two best UI frameworks ever made, UIKit and AppKit, and throwing them under the bus for something designed to build watch apps really does take the cake.</p>\n</blockquote>\n<p>These frameworks were so good. Still are! I’ll never fully understand why there couldn’t have been a universal layer for iOS and macOS plus some existing AppKit and UIKit pieces for platform-specific features. Oh well, that ship sailed years ago now.</p>\n",
+				
+				"date_published": "2025-09-07T21:26:41-05:00",
+				"url": "https://www.manton.org/2025/09/07/steve-troughtonsmith-on-mastodon-i.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/stumbled-on-freaky-tales-while.html",
+				
+				"content_html": "<p>Stumbled on <a href=\"https://letterboxd.com/film/freaky-tales/\">Freaky Tales</a> while browsing HBO and it’s wild. 1980s Oakland, basketball, punk rock, animation… It is surprisingly violent but also amazing. 🍿</p>\n",
+				
+				"date_published": "2025-09-07T14:49:35-05:00",
+				"url": "https://www.manton.org/2025/09/07/stumbled-on-freaky-tales-while.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/marco-arment-on-mastodon-as.html",
+				
+				"content_html": "<p>Marco Arment <a href=\"https://mastodon.social/@marcoarment/115163510586836020\">on Mastodon</a>:</p>\n<blockquote>\n<p>As we head into iPhone-event week, let&rsquo;s celebrate the hard work by all of the people who made these products happen.</p>\n<p>And let&rsquo;s not forget the shameless Trump-suckass CEO at the top, who constantly gives the middle finger to everyone in his own company&hellip;</p>\n</blockquote>\n<p>🇺🇸</p>\n",
+				
+				"date_published": "2025-09-07T13:13:30-05:00",
+				"url": "https://www.manton.org/2025/09/07/marco-arment-on-mastodon-as.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/ryan-barrett-blogging-about-how.html",
+				
+				"content_html": "<p><a href=\"https://snarfed.org/2025-09-07_55736\">Ryan Barrett blogging about</a> how our symptom-based healthcare isn&rsquo;t good enough:</p>\n<blockquote>\n<p>&hellip;for lots of diseases, even critical ones like cancer, where catching them early can make all the difference, most of the time we’re still waiting until someone shows up in clinic, coughing up blood and complaining that their side hurts&hellip;</p>\n</blockquote>\n<p>We&rsquo;re taking an even worse step back right now in the United States, but it&rsquo;s temporary, fixable in 2026 and 2028. I still feel good that our grandchildren will have much better care and healthier lives.</p>\n",
+				
+				"date_published": "2025-09-07T11:26:20-05:00",
+				"url": "https://www.manton.org/2025/09/07/ryan-barrett-blogging-about-how.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/microblog-for-mac-is-out.html",
+				
+				"content_html": "<p>Micro.blog 3.7 for Mac is out, and I recorded a quick <a href=\"https://youtu.be/x-61FqQTwG4\">2-minute YouTube video</a> to show a few things in the interface around books and notes.</p>\n",
+				
+				"date_published": "2025-09-07T10:30:00-05:00",
+				"url": "https://www.manton.org/2025/09/07/microblog-for-mac-is-out.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/with-the-acquisition-by-atlassian.html",
+				
+				"content_html": "<p>With the acquisition by Atlassian, there&rsquo;s a lot of talk about whether this is bad for Dia and Arc. But one thing I&rsquo;m sure about: this is good for Atlassian. The Browser Company has a great attention to detail and thoughtful design that could benefit Atlassian&rsquo;s culture.</p>\n",
+				
+				"date_published": "2025-09-07T09:53:24-05:00",
+				"url": "https://www.manton.org/2025/09/07/with-the-acquisition-by-atlassian.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/07/of-course-i-only-notice.html",
+				
+				"content_html": "<p>Of course I only notice the UI glitches while I’m recording a screencast demo. Will have to tweak a couple things for the next bug fix update.</p>\n",
+				
+				"date_published": "2025-09-07T09:28:40-05:00",
+				"url": "https://www.manton.org/2025/09/07/of-course-i-only-notice.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/06/working-on-mac-code-continues.html",
+				
+				"content_html": "<p>Working on Mac code continues to be a kind of escape from closed mobile platforms. Still fun after all these years. I wrapped up a Micro.blog update today, will release it tomorrow.</p>\n",
+				
+				"date_published": "2025-09-06T18:48:01-05:00",
+				"url": "https://www.manton.org/2025/09/06/working-on-mac-code-continues.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/06/in-appkit-for-some-reason.html",
+				
+				"content_html": "<p>In AppKit, for some reason I always forget about content hugging priority. I usually fiddle with the constraint&rsquo;s priority first, scratching my head why it&rsquo;s not working. (Nope, never heard of SwiftUI&hellip;) 🤪</p>\n",
+				
+				"date_published": "2025-09-06T11:00:39-05:00",
+				"url": "https://www.manton.org/2025/09/06/in-appkit-for-some-reason.html"
+			},
+			{
+				"id": "http://manton.micro.blog/2025/09/06/from-the-statement-on-better.html",
+				
+				"content_html": "<p>From <a href=\"https://github.com/swicg/general/blob/master/statements/2025-09-05-activitypub-and-atproto-discourse.md\">the statement on better discourse</a> between the ActivityPub and AT Protocol communities:</p>\n<blockquote>\n<p>We do not build a better open social web for everyone by fighting and arguing about protocol superiority. That is <em>not</em> how we achieve a better open social web. Instead, we must work together, cross-pollinate and share ideas, and participate within each other&rsquo;s communities with respect and mutual understanding.</p>\n</blockquote>\n<p>Co-signing. This came out of the Social Web Community Group meeting yesterday, which I wish I was participating in more often.</p>\n",
+				
+				"date_published": "2025-09-06T10:40:04-05:00",
+				"url": "https://www.manton.org/2025/09/06/from-the-statement-on-better.html"
+			}
+	]
+}

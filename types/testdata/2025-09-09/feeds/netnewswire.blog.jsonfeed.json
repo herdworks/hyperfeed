@@ -1,0 +1,209 @@
+{
+	"version": "https://jsonfeed.org/version/1",
+	"title": "NetNewsWire",
+	"icon": "https://avatars.micro.blog/avatars/2025/01/12705.jpg",
+	"home_page_url": "https://netnewswire.blog/",
+	"feed_url": "https://netnewswire.blog/feed.json",
+	"items": [
+			{
+				"id": "http://NetNewsWire.micro.blog/2025/08/11/new-testflight-build-uploaded-waiting.html",
+				"title": "New TestFlight Build Uploaded, Waiting for Review",
+				"content_html": "<p>We know some folks are waiting on a new TestFlight build for iOS, and we have good news — we’ve just uploaded 6.1.10 (6198), and it’s waiting on Apple review. Once reviewed it will be available on TestFlight.</p>\n\n<p><i>Update a few hours later…</i> The build is now available via TestFlight.</p>\n",
+				
+				"date_published": "2025-08-11T10:22:56-08:00",
+				"url": "https://netnewswire.blog/2025/08/11/new-testflight-build-uploaded-waiting.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2025/08/08/testflight-build-expired-again.html",
+				"title": "TestFlight Build Expired (Again)",
+				"content_html": "<p>For people using NetNewsWire via TestFlight: the current TestFlight build has expired, and it will be a few days before a new build has been uploaded and reviewed by Apple.</p>\n\n<p>However, you can <a href=\"https://apps.apple.com/us/app/netnewswire-rss-reader/id1480640210\">install the current build from the App Store</a>. It’s exact same build as the current TestFlight build that expired. It installs over your TestFlight build without affecting your data — it’s safe to do.</p>\n",
+				
+				"date_published": "2025-08-08T16:37:14-08:00",
+				"url": "https://netnewswire.blog/2025/08/08/testflight-build-expired-again.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2025/04/22/testflight-build-expired-new-one.html",
+				"title": "TestFlight Build Expired, New One Coming",
+				"content_html": "<p>Note for people using the TestFlight builds — the latest build expired today (sorry about that!), but a new one (6.1.9) is waiting for App Store review. As soon as it gets through the process, you’ll have a new TestFlight build.</p>\n\n<p>If you don’t want to wait, you can of course switch to the <a href=\"https://apps.apple.com/us/app/netnewswire-rss-reader/id1480640210\">App Store build</a> instead without losing any data.</p>\n",
+				
+				"date_published": "2025-04-22T07:54:04-08:00",
+				"url": "https://netnewswire.blog/2025/04/22/testflight-build-expired-new-one.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/12/16/netnewswire-for-mac.html",
+				"title": "NetNewsWire 6.1.7 for Mac",
+				"content_html": "<p>NetNewsWire 6.1.7 for Mac is available through the standard ways — check for updates or <a href=\"https://github.com/Ranchero-Software/NetNewsWire/releases/download/mac-6.1.7-release/NetNewsWire6.1.7.zip\">download it directly</a>.</p>\n\n<p>Changes:</p>\n\n<ul>\n<li>Fix bug clearing refresh progress</li>\n<li>Fix bandwidth bugs with downloading web pages to find feed icons and favicons</li>\n<li>Update default theme with enhancements by John Gruber</li>\n<li>Space out requests made to openrss.org</li>\n<li>Send user-agent with platform, version, and build to openrss.org (and only to that site)</li>\n</ul>\n\n<p>Note — we are working on an iOS release with the same changes that have been going into the Mac releases. If you’re willing to help test, you can <a href=\"https://testflight.apple.com/join/wpedPMRR\">sign up for the TestFlight program</a>.</p>\n",
+				
+				"date_published": "2024-12-16T08:35:23-08:00",
+				"url": "https://netnewswire.blog/2024/12/16/netnewswire-for-mac.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/12/07/netnewswire-for-ios.html",
+				"title": "NetNewsWire 6.1.5 for iOS TestFlight",
+				"content_html": "<p>NetNewsWire 6.1.5 for iOS — which has the same bandwidth-use fixes as the <a href=\"https://netnewswire.blog/2024/12/05/netnewswire-for-mac.html\">recent Mac release</a> — is available for testing now via TestFlight.</p>\n\n<p>If you’re willing to help, please <a href=\"https://testflight.apple.com/join/wpedPMRR\">sign up for the NetNewsWire TestFlight program</a>. The team appreciates your help! 🍕🎸🕶️</p>\n",
+				
+				"date_published": "2024-12-07T12:59:46-08:00",
+				"url": "https://netnewswire.blog/2024/12/07/netnewswire-for-ios.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/12/05/netnewswire-for-mac.html",
+				"title": "NetNewsWire 6.1.6 for Mac",
+				"content_html": "<p>NetNewsWire 6.1.6 for Mac is out — do a check for updates or <a href=\"https://github.com/Ranchero-Software/NetNewsWire/releases/download/mac-6.1.6/NetNewsWire6.1.6.zip\">download it directly</a>.</p>\n\n<p>The theme of this release is using less bandwidth (and, as a consequence, less battery). It fixes a <a href=\"https://inessential.com/2024/08/03/netnewswire_and_conditional_get_issues.html\">conditional GET issue</a> and it now pays attention to Cache-Control response headers and 429 response codes.</p>\n\n<p>There are also a few other small bug fixes:</p>\n\n<ul>\n<li>Restore toolbar button to show and hide the sidebar</li>\n<li>Add keyboard shortcuts for Copy Article URL and Copy External URL menu items</li>\n<li>Fix a few AppleScript support bugs</li>\n</ul>\n\n<p>Note: this version requires macOS 13 and up.</p>\n\n<p>Also note: the equivalent update for iOS is in testing — if you’d like to help, you can <a href=\"https://testflight.apple.com/join/wpedPMRR\">join the TestFlight program</a>.</p>\n",
+				
+				"date_published": "2024-12-05T12:51:45-08:00",
+				"url": "https://netnewswire.blog/2024/12/05/netnewswire-for-mac.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/08/03/conditional-get-issues.html",
+				"title": "Conditional GET Issues",
+				"content_html": "<p>On his blog, Brent writes about <a href=\"https://inessential.com/2024/08/03/netnewswire_and_conditional_get_issues.html\">NetNewsWire and Conditional GET issues</a>.</p>\n",
+				
+				"date_published": "2024-08-03T13:56:24-08:00",
+				"url": "https://netnewswire.blog/2024/08/03/conditional-get-issues.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/02/11/netnewswire-turns.html",
+				"title": "NetNewsWire Turns 21",
+				"content_html": "<p>Thanks so so much to everybody who’s supported the app over the years!🎩🎉 Let’s do 21 more!</p>\n",
+				
+				"date_published": "2024-02-11T10:48:14-08:00",
+				"url": "https://netnewswire.blog/2024/02/11/netnewswire-turns.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2024/02/04/on-netnewswire-not.html",
+				"title": "On NetNewsWire Not Being on Vision Pro",
+				"content_html": "<p>On his blog, Brent writes about <a href=\"https://inessential.com/2024/02/04/why_netnewswire_isnt_available_for_vision_pro\">why NetNewsWire isn‘t available</a> — at least not yet — on Vision Pro, and what would have to happen to get it there.</p>\n",
+				
+				"date_published": "2024-02-04T22:44:20-08:00",
+				"url": "https://netnewswire.blog/2024/02/04/on-netnewswire-not.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/12/17/mastodon-and-netnewswire.html",
+				"title": "Mastodon and NetNewsWire",
+				"content_html": "<p>On his blog, Brent writes up his thoughts about <a href=\"https://inessential.com/2023/12/17/on_mastodon_support_in_netnewswire\">Mastodon support in NetNewsWire</a>.</p>\n",
+				
+				"date_published": "2023-12-17T19:13:50-08:00",
+				"url": "https://netnewswire.blog/2023/12/17/mastodon-and-netnewswire.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/06/11/netnewswire-to-end.html",
+				"title": "NetNewsWire to End Reddit API Use by End of June",
+				"content_html": "\n\n<p>NetNewsWire includes special integration with Reddit. A user can add their account and allow NetNewsWire to use the Reddit API, which provides more and better data than Reddit’s RSS feeds.</p>\n\n<p>Unfortunately, we will have to stop using the Reddit API on June 30, 2023 because <a href=\"https://old.reddit.com/r/reddit/comments/145bram/addressing_the_community_about_changes_to_our_api/\">use of the Reddit API will cost money starting July 1</a>.</p>\n\n<p>While the free tier won’t go away, it will be limited to “100 queries per minute per OAuth client id” (per app).</p>\n\n<p>That means we’d be limited to 100 queries per minute across all NetNewsWire users. While we don’t have metrics on Reddit use in NetNewsWire, it’s a safe bet that we would exceed that limit frequently.</p>\n\n<p>Without metrics we can’t speculate on what this would cost us, but any amount is too much: <a href=\"https://inessential.com/2023/02/20/on_not_taking_money_for_netnewswire\">NetNewsWire has no bank account</a>.</p>\n\n<p>While it might be technically possible for us to support users providing their own Reddit API key, this would not be in good faith on our part. It’s clear that Reddit CEO Steve Huffman wants apps like NetNewsWire to either stop using their API or pay for the privilege. Which is his right, of course, even though it hurts Reddit users.</p>\n\n<h4 id=\"existing-feeds-will-remain\">Existing feeds will remain</h4>\n\n<p>We’re not going to remove your existing Reddit feeds. Your starred articles will remain. Articles you’ve already downloaded will remain as long as they would have anyway (old, non-starred articles get deleted eventually).</p>\n\n<p>Note that Reddit does provide RSS feeds, and we’ve read nothing suggesting that they plan to stop. You will still be able to follow Reddit activity in NetNewsWire by using their RSS feeds.</p>\n",
+				
+				"date_published": "2023-06-11T10:11:53-08:00",
+				"url": "https://netnewswire.blog/2023/06/11/netnewswire-to-end.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/04/08/netnewswire-for-mac.html",
+				"title": "NetNewsWire 6.1.2 for Mac and iOS",
+				"content_html": "<p><strong>NetNewsWire 6.1.2 for Mac is out</strong> — you can do a check for updates or <a href=\"https://github.com/Ranchero-Software/NetNewsWire/releases/download/mac-6.1.2/NetNewsWire6.1.2.zip\">download it directly</a>.</p>\n\n<p><strong>NetNewsWire 6.1.2 for iOS</strong> is <a href=\"https://apps.apple.com/us/app/netnewswire-rss-reader/id1480640210\">available via the App Store</a>, though it may take a few hours to propagate. If you don’t see it yet, you’ll see it soon.</p>\n\n<p>Both of these releases remove Twitter integration, since <a href=\"https://nnw.ranchero.com/2023/04/07/twitter-has-stopped.html\">Twitter has suspended NetNewsWire</a>.</p>\n\n<p>Also, the iOS app icon now gets the same cool golden wings that the Mac app has. And there are a few other small bug fixes in both apps.</p>\n\n<p>We’re now working on 6.2 for Mac and iOS. More goodness to come! 🎸</p>\n",
+				
+				"date_published": "2023-04-08T11:23:04-08:00",
+				"url": "https://netnewswire.blog/2023/04/08/netnewswire-for-mac.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/04/07/twitter-has-stopped.html",
+				"title": "Twitter Has Stopped Working in NetNewsWire",
+				"content_html": "<p>Twitter suspended NetNewsWire today because, according to Twitter, “This App has violated Twitter Rules and policies. As a result, it can no longer be accessed.”</p>\n\n<p>We knew that Twitter access would stop working in NetNewsWire later this month anyway, as Twitter is removing the free tier access to the Twitter API.</p>\n\n<p><strong>The upshot:</strong> this just means that Twitter has stopped working a little sooner than expected. We’ll have updates to NetNewsWire soon that stop trying to connect to Twitter.</p>\n\n<p><strong>Reminder:</strong> we won’t delete your Twitter feeds. Whatever you’ve downloaded you’ll still be able to read. And any starred posts will remain (unless you delete those feeds). The feeds just won’t update.</p>\n",
+				
+				"date_published": "2023-04-07T12:58:52-08:00",
+				"url": "https://netnewswire.blog/2023/04/07/twitter-has-stopped.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/03/09/there-is-no.html",
+				"title": "There Is No NetNewsWire for Android",
+				"content_html": "<p>If you see a page offering a download of NetNewsWire for Android, please remember that it’s a scam and you should definitely not install it.</p>\n\n<p>We’ve seen one such page, and heard there may be more. We haven’t searched.</p>\n\n<p>To be absolutely, 100% clear: there is no NetNewsWire for Android. There is no NetNewsWire for Windows. There is no NetNewsWire for Linux.</p>\n",
+				
+				"date_published": "2023-03-09T08:26:11-08:00",
+				"url": "https://netnewswire.blog/2023/03/09/there-is-no.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/02/20/on-not-taking.html",
+				"title": "On Not Taking Money",
+				"content_html": "<p>On his blog, Brent explains <a href=\"https://inessential.com/2023/02/20/on_not_taking_money_for_netnewswire\">why we don’t take any money</a>, not even tips, for NetNewsWire.</p>\n",
+				
+				"date_published": "2023-02-20T15:51:34-08:00",
+				"url": "https://netnewswire.blog/2023/02/20/on-not-taking.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/02/13/twitter-api-change.html",
+				"title": "Twitter API Change Delayed Again",
+				"content_html": "<p><a href=\"https://twitter.com/TwitterDev/status/1625234161010343941\">Twitter has just announced</a> that it’s delaying launch of the updated Twitter API for a few more days.</p>\n\n<p>Reading Twitter feeds in NetNewsWire will keep working until then.</p>\n",
+				
+				"date_published": "2023-02-13T12:51:59-08:00",
+				"url": "https://netnewswire.blog/2023/02/13/twitter-api-change.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/02/08/twitter-feed-ending.html",
+				"title": "Twitter Feed Ending To Be Feb. 13",
+				"content_html": "<p>Twitter has added a few extra days — instead of on the 9th, Twitter feeds will stop working in NetNewsWire on Monday, Feb. 13.</p>\n\n<p>We also intend to have updates to NetNewsWire on that day. But, regardless of whether or not you upgrade, Twitter feeds will stop working in NetNewsWire.</p>\n\n<p>Reminder: we won’t delete your Twitter feeds. Whatever you’ve downloaded you’ll still be able to read. And any starred posts will remain (unless you delete those feeds).</p>\n",
+				
+				"date_published": "2023-02-08T17:36:35-08:00",
+				"url": "https://netnewswire.blog/2023/02/08/twitter-feed-ending.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/02/03/feedly-maintenance.html",
+				"title": "Feedly Maintenance Sat. Feb. 4",
+				"content_html": "<p>If you’re using NetNewsWire with Feedly syncing, this will affect you: <a href=\"https://twitter.com/feedly/status/1621545632363315200\">Feedly will be conducting maintenance tomorrow</a> (Sat, Feb. 4) starting at 6 am Pacific, for up to six hours.</p>\n\n<p>For more information, and to monitor status, see <a href=\"https://status.feedly.com/\">status.feedly.com</a>.</p>\n",
+				
+				"date_published": "2023-02-03T20:23:26-08:00",
+				"url": "https://netnewswire.blog/2023/02/03/feedly-maintenance.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/02/02/twitter-integration-to.html",
+				"title": "Twitter Integration To Be Removed",
+				"content_html": "<p>Because of Twitter’s announcement that <a href=\"https://daringfireball.net/linked/2023/02/02/twitter-apis\">free access to the Twitter API will end</a> February 9, we will be removing Twitter integration from NetNewsWire in the next release (6.1.1) for Mac and iOS.</p>\n\n<p>You might think we’re reading RSS feeds from Twitter, but Twitter removed RSS feeds from the service something like ten years ago. We rely completely on the Twitter API.</p>\n\n<p>We’re planning, with this new release, to have some kind of message on first run that explains what’s happening. The plan is that it would appear only for people currently using Twitter integration.</p>\n\n<p>Here’s the current draft of the message that will appear in the app:</p>\n\n<blockquote>\n<p>Title: Twitter Integration Removed<br>\nBody: On February 1, 2023, Twitter announced the end of free access to the Twitter API, effective February 9.</p>\n\n<p>Since Twitter does not provide RSS feeds, we’ve had to use the Twitter API. Without free access to that API, we can’t read feeds from Twitter.</p>\n\n<p>We’ve left your Twitter feeds intact. If you have any starred items from those feeds, they will remain as long as you don’t delete those feeds.</p>\n\n<p>You can still read whatever you have already downloaded. However, those feeds will no longer update.</p>\n</blockquote>\n",
+				
+				"date_published": "2023-02-02T21:16:30-08:00",
+				"url": "https://netnewswire.blog/2023/02/02/twitter-integration-to.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/01/22/we-have-a.html",
+				
+				"content_html": "<p>We have a new TestFlight build for iOS that, we believe, fixes some crash bugs — and we could use your help testing, if you’re willing. <a href=\"https://netnewswire.com/test-ios\">Here’s where to sign up</a>.</p>\n",
+				
+				"date_published": "2023-01-22T21:43:09-08:00",
+				"url": "https://netnewswire.blog/2023/01/22/we-have-a.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/01/17/netnewswire-users-are.html",
+				
+				"content_html": "<p>NetNewsWire users are pretty quick to adopt the latest iOS releases. Not a surprise.</p>\n\n<p><img src=\"https://cdn.uploads.micro.blog/6360/2023/3116df1499.png\" width=\"546\" height=\"386\" alt=\"\"></p>\n",
+				
+				"date_published": "2023-01-17T16:37:26-08:00",
+				"url": "https://netnewswire.blog/2023/01/17/netnewswire-users-are.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/01/17/active-users-in.html",
+				
+				"content_html": "<p>Active users in the past 30 days for NetNewsWire include 9K iPhone users and 4.6K iPad users. We’d bet that most iOS apps don’t see such a high rate of iPad use.</p>\n\n<p><img src=\"https://cdn.uploads.micro.blog/6360/2023/099cc3f872.png\" width=\"530\" height=\"334\" alt=\"\"></p>\n",
+				
+				"date_published": "2023-01-17T14:56:36-08:00",
+				"url": "https://netnewswire.blog/2023/01/17/active-users-in.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/01/14/how-to-subscribe.html",
+				"title": "How to Subscribe to a Twitter List in NetNewsWire",
+				"content_html": "<p>Though the UI doesn’t expose it (we should fix that, yes), you can subscribe to a Twitter list in NetNewsWire.</p>\n\n<p>(Note: this works with iCloud and “On My…” accounts.)</p>\n\n<p>First make sure you’ve added your Twitter account to NetNewsWire in Settings &gt; Extensions.</p>\n\n<p>Then go, in your browser, to the Twitter list you want to add as a feed. Copy the URL. Then, in NetNewsWire, add it as a web feed (not as a Twitter feed). That’s it.</p>\n\n<p>(Note: you can <a href=\"https://netnewswire.com/help/mac/6.0/en/twitter-feeds\">subscribe to other types of Twitter feeds</a> too.)</p>\n",
+				
+				"date_published": "2023-01-14T09:39:29-08:00",
+				"url": "https://netnewswire.blog/2023/01/14/how-to-subscribe.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2023/01/08/so-great-to.html",
+				
+				"content_html": "<p>So great to be included — with great company — in Cult of Mac’s <a href=\"https://www.cultofmac.com/801900/looking-back-on-our-top-apps-of-2022/\">top apps of 2022</a>!</p>\n",
+				
+				"date_published": "2023-01-08T20:55:30-08:00",
+				"url": "https://netnewswire.blog/2023/01/08/so-great-to.html"
+			},
+			{
+				"id": "http://NetNewsWire.micro.blog/2022/11/17/feedle-blog-search.html",
+				"title": "Feedle: Blog Search with RSS Feeds",
+				"content_html": "<p>Back in the days of yore, there were search engine services that 1) searched the blogosphere, and 2) let you subscribe to your searches via RSS. Each search query had its own feed.</p>\n\n<p>These services were great because you could get articles from outside the feeds you’ve subscribed to. Let’s say you like cats — you could have a search feed on <code>cats</code> and hear about cats from all quarters of the web.</p>\n\n<p>It was a great idea! And super-useful. But these services all went away.</p>\n\n<p>Until now — we’ve just learned about a new one called <a href=\"https://feedle.world/\">feedle</a>.</p>\n\n<p>To get a feed: go there, run a search, then click the orange RSS icon near the upper-right side of the page, then copy the RSS feed URL that appears on the left side of the screen to get something like <a href=\"https://feedle.world/rss/?query=cats\">https://feedle.world/rss/?query=cats</a>, then add it to your RSS reader (NetNewsWire or otherwise).</p>\n\n<p>Nice, right?</p>\n\n<p>(The service appears to be new and ramping up. We’d bet that their index of sites to search is still growing.)</p>\n",
+				
+				"date_published": "2022-11-17T12:10:59-08:00",
+				"url": "https://netnewswire.blog/2022/11/17/feedle-blog-search.html"
+			}
+	]
+}

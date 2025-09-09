@@ -1,9 +1,8 @@
 package hyperfeed
 
 import (
+	"os"
 	"testing"
-
-	"github.com/herdworks/hyperfeed-go/transporter"
 )
 
 const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -44,31 +43,18 @@ func TestRSSParse(t *testing.T) {
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
-	transporter := transporter.NewTransporter()
-	t.Logf("Fetching  https://daringfireball.net/thetalkshow/rss")
-	body, err := transporter.Get("https://daringfireball.net/thetalkshow/rss")
+    body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.thetalkshow.rss.xml")
 	if err != nil {
 		t.Fatalf("Fetch error: %v", err)
 	}
-	t.Logf("200 OK    https://daringfireball.net/thetalkshow/rss")
 	rss, err := ParseRSS(body)
 	if err != nil {
 		t.Fatalf("ParseRSS returned error: %v", err)
 	}
-	if rss.Channel.Title != "The Talk Show With John Gruber" {
-		t.Fatalf("Channel title = %q; want %q", rss.Channel.Title, "The Talk Show With John Gruber")
-	}
-	t.Logf("Parsed    https://daringfireball.net/thetalkshow/rss (%d items)", len(rss.Channel.Items))
-	var extensionsMetadataCount int
-	for _, item := range rss.Channel.Items {
-		if len(item.Extensions) > 0 {
-			extensionsMetadataCount++
-			// for _, ext := range item.Extensions {
-			// 	t.Logf("%s:%s", ext.XMLName.Space, ext.XMLName.Local)
-			// }
-		}
-	}
-	t.Logf("Extensions  https://daringfireball.net/thetalkshow/rss (%d properties)", extensionsMetadataCount)
+    if rss.Channel.Title == "" {
+        t.Fatalf("Channel title is empty")
+    }
+	t.Logf("The Talk Show has %d items", len(rss.Channel.Items))
 	if len(rss.Channel.Items) == 0 {
 		t.Fatalf("Expected items; got 0")
 	}

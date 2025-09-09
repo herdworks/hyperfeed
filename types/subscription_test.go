@@ -2,27 +2,14 @@ package hyperfeed
 
 import (
 	"net/url"
-	"os"
 	"testing"
-
-	"github.com/herdworks/hyperfeed-go/internal/testkit"
 )
 
 func TestSubscriptionListLoad(t *testing.T) {
-	var subscriptionList SubscriptionList
-	var sampleDataFile *os.File
 	var sampleDataFileURL *url.URL
+	var subscriptionList SubscriptionList
 	var err error
-	if sampleDataFile, err = os.CreateTemp("/tmp/", "default.opml"); err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(sampleDataFile.Name())
-	if _, err := sampleDataFile.Write([]byte(testkit.NNWDefaultOPML)); err != nil {
-		t.Fatalf("Failed to write to temp file: %v", err)
-	}
-	if sampleDataFileURL, err = url.Parse(sampleDataFile.Name()); err != nil {
-		t.Fatalf("Failed to parse sampleDataFile URL: %v", err)
-	}
+	sampleDataFileURL = &url.URL{ Path: "testdata/2025-09-09/nnw_default_subscriptions.opml" }
 	subscriptionList = SubscriptionList{URI: sampleDataFileURL}
 	if err = subscriptionList.Load(); err != nil {
 		t.Fatalf("Failed to load subscription list: %v", err)

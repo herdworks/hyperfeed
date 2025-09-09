@@ -1,8 +1,3 @@
-package testkit
-
-// use the netnewswire default feeds file for test data
-// source: https://github.com/Ranchero-Software/NetNewsWire/blob/main/Shared/Importers/DefaultFeeds.opml
-var NNWDefaultOPML string = `
 <?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
 <head>
@@ -25,4 +20,3 @@ var NNWDefaultOPML string = `
 	<outline text="Six Colors" title="Six Colors" type="rss" version="RSS" htmlUrl="https://sixcolors.com/" xmlUrl="https://feedpress.me/sixcolors?type=xml"/>
 </body>
 </opml>
-`
