@@ -1,10 +1,5 @@
 package storage
 
-import (
-	"context"
-	"database/sql"
-)
-
 const schema = `
 CREATE TABLE IF NOT EXISTS subscription_lists (
     id TEXT PRIMARY KEY,
@@ -72,8 +67,3 @@ CREATE TABLE IF NOT EXISTS subscription_metadata (
     FOREIGN KEY(metadata_id) REFERENCES metadata(id)
 );
 `
-
-func applySchema(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, schema)
-	return err
-}

@@ -44,7 +44,7 @@ func TestJSONFeedDetected_Valid(t *testing.T) {
 // TestJSONFeedIntegration_DaringFireball fetches and parses a live JSON Feed.
 // Marked as integration via env gate to avoid network during default test runs.
 func TestJSONFeedIntegration_DaringFireball(t *testing.T) {
-    body,err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.jsonfeed.json")
+	body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.jsonfeed.json")
 	if err != nil {
 		t.Fatalf("failed to read testdata: %v", err)
 	}

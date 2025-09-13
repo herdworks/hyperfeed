@@ -43,7 +43,7 @@ func TestRSSParse(t *testing.T) {
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
-    body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.thetalkshow.rss.xml")
+	body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.thetalkshow.rss.xml")
 	if err != nil {
 		t.Fatalf("Fetch error: %v", err)
 	}
@@ -51,9 +51,9 @@ func TestRSSParseTheTalkShow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRSS returned error: %v", err)
 	}
-    if rss.Channel.Title == "" {
-        t.Fatalf("Channel title is empty")
-    }
+	if rss.Channel.Title == "" {
+		t.Fatalf("Channel title is empty")
+	}
 	t.Logf("The Talk Show has %d items", len(rss.Channel.Items))
 	if len(rss.Channel.Items) == 0 {
 		t.Fatalf("Expected items; got 0")

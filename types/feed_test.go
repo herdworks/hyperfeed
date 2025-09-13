@@ -10,7 +10,7 @@ func TestDetectKind(t *testing.T) {
 	var sampleDataFileURL *url.URL
 	var subscriptionList SubscriptionList
 	var err error
-	sampleDataFileURL = &url.URL{ Path: "testdata/2025-09-09/nnw_default_subscriptions.opml" }
+	sampleDataFileURL = &url.URL{Path: "testdata/2025-09-09/nnw_default_subscriptions.opml"}
 	subscriptionList = SubscriptionList{URI: sampleDataFileURL}
 	if err = subscriptionList.Load(); err != nil {
 		t.Fatalf("Failed to load subscription list: %v", err)
@@ -26,7 +26,9 @@ func TestDetectKind(t *testing.T) {
 		t.Fatalf("Failed to read test data directory: %v", err)
 	}
 	for _, f := range files {
-		if f.IsDir() { continue }
+		if f.IsDir() {
+			continue
+		}
 		feedBytes, err := os.ReadFile(testdatadir + f.Name())
 		if err != nil {
 			t.Fatalf("Failed to read feed file %q: %v", f.Name(), err)
