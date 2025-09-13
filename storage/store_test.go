@@ -1,10 +1,8 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -37,67 +35,6 @@ func TestOpenAndSchema(t *testing.T) {
 	defer rows.Close()
 	if !rows.Next() {
 		t.Fatal("expected row")
-	}
-}
-
-func TestBackupAndExportImport(t *testing.T) {
-	var err error
-	ctx := context.Background()
-	originStore := &Store{Path: filepath.Join("testdata", "test.db")}
-	if err = originStore.Destroy(); err != nil {
-		t.Fatalf("destroy test.db: %v", err)
-	}
-	if err = originStore.Open(ctx); err != nil {
-		t.Fatalf("open test.db: %v", err)
-	}
-	t.Cleanup(func() { originStore.Destroy() })
-	if err := originStore.Exec(ctx, "INSERT INTO subscription_lists(id, uri) VALUES(?, ?)", "test1", "https://example.com"); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	// backup to a file
-	backupStorePath := filepath.Join("testdata", "backup.db")
-	if err := originStore.Backup(ctx, backupStorePath); err != nil {
-		t.Fatalf("backup: %v", err)
-	}
-	t.Cleanup(func() {
-		os.Remove(backupStorePath)
-	})
-	if _, err := os.Stat(backupStorePath); err != nil {
-		t.Fatalf("stat backup: %v", err)
-	}
-	buf := new(bytes.Buffer)
-	if err := originStore.Export(ctx, buf); err != nil {
-		t.Fatalf("export: %v", err)
-	}
-
-	// restore from the backup into a new database
-	restoredStore := &Store{Path: filepath.Join("testdata", "restored.db")}
-	if err := Import(ctx, restoredStore.Path, bytes.NewReader(buf.Bytes())); err != nil {
-		t.Fatalf("import: %v", err)
-	}
-	t.Cleanup(func() { restoredStore.Destroy() })
-
-	// verify the restored database has the expected data
-	err = restoredStore.Open(ctx)
-	if err != nil {
-		t.Fatalf("open import: %v", err)
-	}
-	t.Cleanup(func() { restoredStore.Close() })
-	rows, err := restoredStore.Query(ctx, "SELECT COUNT(*) FROM subscription_lists")
-	if err != nil {
-		t.Fatalf("query import: %v", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		t.Fatal("no rows")
-	}
-	var count int
-	if err := rows.Scan(&count); err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("expected 1 row, got %d", count)
 	}
 }
 

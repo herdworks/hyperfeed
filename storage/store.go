@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -123,81 +122,8 @@ func (store *Store) Query(ctx context.Context, query string, args ...any) (*sql.
 	return store.DB.QueryContext(ctx, query, args...)
 }
 
-// Backup copies the database file to dest.
-// TODO: refactor to use new Store helper methods
-func (store *Store) Backup(ctx context.Context, dest string) error {
-	if dest == "" {
-		return errors.New("destination is required")
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	src, err := os.Open(store.Path)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	tmp := dest + ".tmp"
-	out, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, src); err != nil {
-		out.Close()
-		os.Remove(tmp)
-		return err
-	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, dest)
-}
-
 // Vacuum compacts the database.
 func (store *Store) Vacuum(ctx context.Context) error {
 	return store.Exec(ctx, "VACUUM")
 }
 
-// Export writes the database file to an io.Writer
-// TODO:
-// * add a Dump method that performs a SQLite DUMP
-// * refactor this Export method to be an alias for the Dump method
-func (store *Store) Export(ctx context.Context, w io.Writer) error {
-	src, err := os.Open(store.Path)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	_, err = io.Copy(w, src)
-	return err
-}
-
-// Import replaces the database file with contents from r.
-// TODO:
-// * refactor as a method on Store
-// * accept a file path to a SQLite dump file rather than an io.Reader
-// * perform the import as a SQLite load of the dump file
-func Import(ctx context.Context, path string, r io.Reader) error {
-	if path == "" {
-		return errors.New("path is required")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	out, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, r); err != nil {
-		out.Close()
-		os.Remove(tmp)
-		return err
-	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
-}
