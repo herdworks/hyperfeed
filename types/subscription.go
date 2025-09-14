@@ -3,8 +3,6 @@ package hyperfeed
 import (
 	"net/url"
 	"time"
-
-	opml "github.com/herdworks/hypertemplates-go/opml"
 )
 
 type SubscriptionList struct {
@@ -12,7 +10,7 @@ type SubscriptionList struct {
 	URI *url.URL `json:"uri,omitempty"`
 
 	// OPML holds the parsed OPML document.
-	OPML *opml.OPML `json:"-"`
+	OPML *OPML `json:"-"`
 
 	// Standard metadata properties
 	Title     string    `json:"title,omitempty"`
@@ -28,7 +26,7 @@ type SubscriptionList struct {
 }
 
 func (sl *SubscriptionList) Load() (err error) {
-	sl.OPML = &opml.OPML{URI: sl.URI}
+	sl.OPML = &OPML{URI: sl.URI}
 	if err = sl.OPML.Load(); err != nil {
 		return err
 	}

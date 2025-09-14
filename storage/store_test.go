@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/herdworks/hyperfeed-go/internal/normalization"
-	opml "github.com/herdworks/hypertemplates-go/opml"
+	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
 func TestOpenAndSchema(t *testing.T) {
@@ -64,7 +64,7 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 	t.Cleanup(func() { store.Close() })
 
 	// Parse OPML test data
-	subscriptions := &opml.OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
+	subscriptions := &hyperfeed.OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
 	if err := subscriptions.Load(); err != nil {
 		t.Fatalf("load opml: %v", err)
 	}
