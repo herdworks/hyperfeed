@@ -83,7 +83,6 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 		// Use URL as ID to guarantee uniqueness in this test
 		id := u.String()
 		domain := normalization.Domain(u).Host
-		t.Logf("INSERT INTO feeds(id, url, domain, title) VALUES(%q, %q, %q, %q)", id, u.String(), domain, o.Title)
 		if err := store.Exec(ctx, `INSERT INTO feeds(id, url, domain, title) VALUES(?, ?, ?, ?)`, id, u.String(), domain, o.Title); err != nil {
 			t.Fatalf("insert feed %q: %v", o.Title, err)
 		}
