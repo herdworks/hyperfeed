@@ -1,10 +1,10 @@
-name: Test
+name: Tests
 
 on:
   push:
 
 jobs:
-  build:
+  test:
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -36,5 +36,5 @@ jobs:
 
       - name: Run go tests
         run: |
-          go test ./...
+          go test ./... -v
 
