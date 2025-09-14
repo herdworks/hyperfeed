@@ -37,10 +37,10 @@ func (sl *SubscriptionList) Load() (err error) {
 	sl.Owner.Name = sl.OPML.Head.OwnerName
 	sl.Owner.Email = sl.OPML.Head.OwnerEmail
 	if sl.CreatedAt, err = sl.OPML.DateCreated(); err != nil {
-		return err
+		sl.CreatedAt = time.Now()
 	}
 	if sl.UpdatedAt, err = sl.OPML.DateModified(); err != nil {
-		return err
+		sl.UpdatedAt = sl.CreatedAt
 	}
 	return nil
 }
