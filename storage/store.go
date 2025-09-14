@@ -126,4 +126,3 @@ func (store *Store) Query(ctx context.Context, query string, args ...any) (*sql.
 func (store *Store) Vacuum(ctx context.Context) error {
 	return store.Exec(ctx, "VACUUM")
 }
-
