@@ -5,6 +5,41 @@ import (
 	"testing"
 )
 
+func TestEqual(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"http://example.com", "http://example.com", true},
+		{"http://example.com", "http://EXAMPLE.com", true},
+		{"http://example.com:80", "http://example.com", true},
+		{"https://example.com:443", "https://example.com", true},
+		{"http://example.com:81", "http://example.com", false},
+		{"https://example.com:80", "https://example.com", false},
+		{"http://example.com/path?a=1&b=2", "http://example.com/path?b=2&a=1", true},
+		{"http://example.com/path?a=1&b=2", "http://example.com/path?a=1&b=3", false},
+		{"http://example.com/path", "http://example.com/other", false},
+		{"http://example.com", "https://example.com", false},
+		{"http://example.com", "http://example.org", false},
+		{"http://example.com", "", false},
+		{"", "", true},
+	}
+	for _, tc := range tests {
+		a, err := url.Parse(tc.a)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.a, err)
+		}
+		b, err := url.Parse(tc.b)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.b, err)
+		}
+		got := Equal(a, b)
+		if got != tc.want {
+			t.Errorf("Equal(%q, %q) = %v; want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
 func TestDomain(t *testing.T) {
 	tests := []struct {
 		href string
@@ -23,26 +58,23 @@ func TestDomain(t *testing.T) {
 			t.Fatalf("parse %q: %v", tc.href, err)
 		}
 		got := Domain(u)
-		if got == nil {
+		if got == "" {
 			t.Fatalf("Domain(%q) = nil; want host %q", tc.href, tc.want)
 		}
-		if got.Host != tc.want {
-			t.Fatalf("Domain(%q).Host = %q; want %q", tc.href, got.Host, tc.want)
-		}
-		if got.Scheme != "" || got.Path != "" || got.RawQuery != "" {
-			t.Fatalf("Domain(%q) should clear scheme/path/query; got %v", tc.href, got)
+		if got != tc.want {
+			t.Fatalf("Domain(%q) = %q; want %q", tc.href, got, tc.want)
 		}
 	}
 
-	// No host → nil
+	// No host → empty string
 	u := &url.URL{Path: "/relative"}
-	if got := Domain(u); got != nil {
-		t.Fatalf("Domain(%v) = %v; want nil", u, got)
+	if got := Domain(u); got != "" {
+		t.Fatalf("Domain(%v) = %v; want empty string", u, got)
 	}
 
-	// Nil URL → nil
-	if got := Domain(nil); got != nil {
-		t.Fatalf("Domain(nil) = %v; want nil", got)
+	// Nil URL → empty string
+	if got := Domain(nil); got != "" {
+		t.Fatalf("Domain(nil) = %v; want empty string", got)
 	}
 }
 
@@ -89,15 +121,6 @@ func TestSanitizeParams(t *testing.T) {
 	got2 := SanitizeParams(u2)
 	if got2.RawQuery != "a=1&b=2" {
 		t.Fatalf("unexpected query after sanitize: %q", got2.RawQuery)
-	}
-}
-
-func TestStringGUIDPassthrough(t *testing.T) {
-	if String("  x  ") != "  x  " {
-		t.Fatal("String should be passthrough")
-	}
-	if GUID("ID-123") != "ID-123" {
-		t.Fatal("GUID should be passthrough")
 	}
 }
 

@@ -40,9 +40,9 @@ type Namespace struct {
 }
 
 type File struct {
-	Cache     *Cache
-	Item      *hyperfeed.Item
-	Name      string
+	Cache *Cache
+	Item  *hyperfeed.Item
+	Name  string
 }
 
 type Shard struct {
@@ -114,6 +114,6 @@ func (file *File) URI() (uri *url.URL, err error) {
 		return nil, err
 	}
 	path := filepath.Join(shard, file.Item.ID, file.Name)
-	uri = file.Cache.URI.ResolveReference(&url.URL{ Path: path })
+	uri = file.Cache.URI.ResolveReference(&url.URL{Path: path})
 	return uri, nil
 }

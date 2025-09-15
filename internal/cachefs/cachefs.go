@@ -43,7 +43,7 @@ func (c *CacheFileSystem) SecurityScoped(key *url.URL) bool {
 	return false
 }
 
-func (c *CacheFileSystem) Put(ctx context.Context, uri *url.URL, r io.Reader) (error) {
+func (c *CacheFileSystem) Put(ctx context.Context, uri *url.URL, r io.Reader) error {
 	if !c.SecurityScoped(uri) {
 		return ErrorSecurityScope
 	}

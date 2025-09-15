@@ -3,18 +3,20 @@ package hyperfeed
 import (
 	"net/url"
 	"time"
+
+	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 )
 
 // Item represents an entry within a feed.
 type Item struct {
-	// ID is the stable HyperFeed Item identifier (e.g., a UUID or hash).
-	ID string `json:"id,omitempty"`
+	// URL is the canonical link for the item (permalink).
+	URL *url.URL `json:"url,omitempty"`
 
 	// GUID is a stable identifier provided by the source feed when available.
 	GUID string `json:"guid,omitempty"`
 
-	// URL is the canonical link for the item (permalink).
-	URL *url.URL `json:"url,omitempty"`
+	// ID is the stable HyperFeed Item identifier (e.g., a UUID or hash).
+	ID string `json:"id,omitempty"`
 
 	Title   string   `json:"title,omitempty"`
 	Authors []Author `json:"authors,omitempty"`
@@ -54,25 +56,16 @@ func (i *Item) Valid() bool {
 	if i == nil {
 		return false
 	}
-	if len(i.CanonicalID()) == 0 {
+	if i.URL == nil {
 		return false
 	}
 	return true
 }
 
-// CanonicalID returns a stable identifier for the item, preferring ID, then GUID, then URL.
-func (i *Item) CanonicalID() string {
-	if i == nil {
-		return ""
+func (item *Item) Identifier() string {
+	if item.ID == "" {
+		u := normalized.URL(item.URL)
+		item.ID = normalized.Identifier([]byte(u.String()))
 	}
-	if i.ID != "" {
-		return i.ID
-	}
-	if i.GUID != "" {
-		return i.GUID
-	}
-	if i.URL != nil {
-		return i.URL.String()
-	}
-	return ""
+	return item.ID
 }

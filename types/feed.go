@@ -2,19 +2,18 @@ package hyperfeed
 
 import (
 	"bytes"
-	"net/url"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/internal/normalization"
+	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	"github.com/herdworks/hypertemplates-go/atom"
 )
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
 	// URL is the canonical feed URL (RSS/Atom endpoint).
-	URL    *url.URL `json:"url,omitempty"`
-	Domain string   `json:"domain,omitempty"`
-	ID     string   `json:"id,omitempty"`
+	URL    *HRef  `json:"url,omitempty"`
+	Domain string `json:"domain,omitempty"`
+	ID     string `json:"id,omitempty"` // stable feed identifier (e.g. hash of feed URL path)
 
 	// Standard feed properties
 	Title       string    `json:"title,omitempty"`
@@ -33,16 +32,16 @@ type Feed struct {
 	RawFeed RawFeed `json:"-"`
 }
 
-// Identify resolves the feed's domain and ID.
-func (f *Feed) Identify() {
-	f.Domain = normalization.Domain(f.URL).String()
-	f.ID = normalization.HexID(f.URL)
+// Identifier returns the stable identifier for the feed, computing it if needed.
+func (feed *Feed) Identifier() string {
+	if feed.ID == "" {
+		feed.identify()
+	}
+	return feed.ID
 }
-
-// CanonicalID returns a stable identifier for the feed, preferring ID then URL.
-func (f *Feed) CanonicalID() *url.URL {
-	f.Identify()
-	return &url.URL{Host: f.Domain, Path: f.ID} // e.g. "example.com/abcdef1234567890"
+func (feed *Feed) identify() {
+	feed.Domain = normalized.Domain(feed.URL.URL)
+	feed.ID = normalized.Identifier([]byte(normalized.Path(feed.URL.URL)))
 }
 
 // DetectKind inspects the provided document (JSON or XML) and returns the

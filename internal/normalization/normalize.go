@@ -22,6 +22,9 @@ func URL(u *url.URL) *url.URL {
 	if v.Scheme != "" {
 		v.Scheme = strings.ToLower(v.Scheme)
 	}
+	if v.Path != "" {
+		v.Path = strings.ToLower(v.Path)
+	}
 	host := strings.ToLower(u.Hostname())
 	port := u.Port()
 	if (v.Scheme == "http" && port == "80") || (v.Scheme == "https" && port == "443") {
@@ -36,20 +39,32 @@ func URL(u *url.URL) *url.URL {
 	return &v
 }
 
-// Domain returns a URL containing a sanitized domain
+// Equal reports whether two URLs are equivalent after normalization.
+func Equal(a, b *url.URL) bool {
+	A := URL(a)
+	B := URL(b)
+	if A == nil && B == nil {
+		return true
+	}
+	if A == nil || B == nil {
+		return false
+	}
+	return A.String() == B.String()
+}
+
+// Domain returns a sanitized domain string
 //
 // Used for feed identification.
-func Domain(u *url.URL) *url.URL {
+func Domain(u *url.URL) string {
 	if u == nil || u.Hostname() == "" {
-		return nil
+		return ""
 	}
 	u = URL(u)
 	labels := strings.Split(u.Hostname(), ".")
 	if len(labels) > 1 && isCommonSubdomain(labels[0]) {
 		labels = labels[1:]
 	}
-	domain := strings.Join(labels, ".")
-	return &url.URL{Host: domain}
+	return strings.Join(labels, ".")
 }
 
 // isCommonSubdomain returns true if s matches a common subdomain pattern like "www"
@@ -67,13 +82,14 @@ func isCommonSubdomain(s string) bool {
 }
 
 // Path returns a URL containing a sanitized path + query (no scheme/host).
-func Path(u *url.URL) *url.URL {
+func Path(u *url.URL) string {
 	if u == nil {
-		return nil
+		return ""
 	}
 	u = URL(u)
 	u = SanitizeParams(u)
-	return &url.URL{Path: u.Path, RawQuery: u.RawQuery}
+	p := url.URL{Path: u.Path, RawQuery: u.RawQuery}
+	return p.String()
 }
 
 // SanitizeParams removes tracking and secret query parameters from a URL.
@@ -97,17 +113,11 @@ func SanitizeParams(u *url.URL) *url.URL {
 	return &v
 }
 
-// HexID
-func HexID(u *url.URL) string {
-	u = Path(u)
-	sum := sha256.Sum256([]byte(u.String()))
-	hexFull := hex.EncodeToString(sum[:])
-	id := hexFull[:40]
-	return id
+// Identifier returns a HyperFeed identifier (first 40 chars of SHA256 hex)
+//
+// Inspired by Git's SHA-256-based object naming.
+// https://git-scm.com/docs/hash-function-transition
+func Identifier(incoming []byte) string {
+	sum := sha256.Sum256(incoming)
+	return hex.EncodeToString(sum[:])[:40]
 }
-
-// String returns a normalized string suitable for comparisons. Currently passthrough.
-func String(s string) string { return s }
-
-// GUID returns a canonicalized GUID/ID string. Currently passthrough.
-func GUID(id string) string { return id }
