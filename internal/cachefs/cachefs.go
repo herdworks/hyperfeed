@@ -2,45 +2,75 @@ package cachefs
 
 import (
 	"context"
-	sterrors "errors"
+	"fmt"
 	"io"
-
-	"github.com/herdworks/hyperfeed-go/cache"
+	"net/url"
+	"os"
+	"strings"
+	"time"
 )
 
-// Options configure the filesystem cache.
-type Options struct {
-	// BaseDir is the root directory for cached objects and indexes.
-	BaseDir string
+type CacheFileSystem struct {
+	URI *url.URL // absolute URI for the cache root directory
 }
 
-// New creates a new filesystem-backed cache.
-func New(opts Options) (cache.Cache, error) {
-	return &fsCache{baseDir: opts.BaseDir}, nil
+var ErrorSecurityScope error = fmt.Errorf("cachefs: security scope violation")
+
+func (c *CacheFileSystem) Ready() bool {
+	if c == nil {
+		return false
+	}
+	if c.URI == nil {
+		return false
+	}
+	return true
 }
 
-type fsCache struct {
-	baseDir string
+// check if a key is outside the scope of the cache root directory
+// if key is an absolute URL and the path starts with the cache root path, return true
+// if key is a relative URL with no scheme, return true
+// otherwise, return false
+func (c *CacheFileSystem) SecurityScoped(key *url.URL) bool {
+	if c == nil || c.URI == nil || key == nil {
+		return false
+	}
+	if key.IsAbs() && key.Scheme == c.URI.Scheme && key.Host == c.URI.Host && strings.HasPrefix(key.Path, c.URI.Path) {
+		return true
+	}
+	if !key.IsAbs() && !strings.HasPrefix(key.Path, "/") {
+		return true
+	}
+	return false
 }
 
-var errNotImplemented = sterrors.New("cachefs: not implemented")
-
-func (c *fsCache) Put(ctx context.Context, key cache.Key, r io.Reader, meta cache.Meta) (cache.Location, error) {
-	return cache.Location{}, errNotImplemented
+func (c *CacheFileSystem) Put(ctx context.Context, uri *url.URL, r io.Reader) (error) {
+	if !c.SecurityScoped(uri) {
+		return ErrorSecurityScope
+	}
+	return nil
 }
 
-func (c *fsCache) Get(ctx context.Context, key cache.Key) (io.ReadCloser, cache.Meta, error) {
-	return nil, cache.Meta{}, errNotImplemented
+func (c *CacheFileSystem) Get(ctx context.Context, uri *url.URL) (io.ReadCloser, error) {
+	if !c.SecurityScoped(uri) {
+		return nil, ErrorSecurityScope
+	}
+	return nil, nil
 }
 
-func (c *fsCache) Stat(ctx context.Context, key cache.Key) (cache.Meta, error) {
-	return cache.Meta{}, errNotImplemented
+func (c *CacheFileSystem) Stat(ctx context.Context, uri *url.URL) (os.FileInfo, error) {
+	if !c.SecurityScoped(uri) {
+		return nil, ErrorSecurityScope
+	}
+	return nil, nil
 }
 
-func (c *fsCache) Remove(ctx context.Context, key cache.Key) error {
-	return errNotImplemented
+func (c *CacheFileSystem) Remove(ctx context.Context, uri *url.URL) error {
+	if !c.SecurityScoped(uri) {
+		return ErrorSecurityScope
+	}
+	return nil
 }
 
-func (c *fsCache) Evict(ctx context.Context, policy cache.Policy) error {
-	return errNotImplemented
+func (c *CacheFileSystem) Evict(ctx context.Context, expiry *time.Time) (byteCount int64, err error) {
+	return 0, nil
 }

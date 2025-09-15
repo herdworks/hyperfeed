@@ -1,24 +1,24 @@
 # HyperFeed State
 
 The `github.com/herdworks/hyperfeed-go/state` package manages operational runtime state
-for components like the scheduler and subscriber. It is distinct from `storage` (which
-persists normalized domain data) and from `cache` (which stores large binary assets).
+for components like the scheduler and subscriber. 
+It is distinct from `storage` (feed metadata & item content) and from `cache` (item assets).
 
-Responsibilities
+## Goals
 
-- Persist and retrieve lightweight, rapidly changing state (e.g., ETag, Last-Modified,
-  backoff windows, retry hints, request/error counters, and subscriber bookkeeping)
-- Provide simple locking around files to coordinate with external tools (e.g., OPML editors)
-- Keep the public API stable while allowing internal representation changes (JSON layout, file
-  structure, or backend store)
+* Deterministic URI scheme
+* Portable locking system based on `.lock` files
+* Separation of concerns between the State API and file system (`internal/statefs`)
 
-Conventions
+## Layout
 
-- Namespaces: `subscriber/…`, `scheduler/…`
-- Coordinator files: `subscriptions.opml`, `subscriptions.json` with `.lock` companions
-- Scheduler files: `scheduler.json` (top-level) and `feeds/<feedID>.json` per feed
+* State file root directories live alongside OPML files (i.e. `filepath.Dir(opmlPath)`)
+* State files are grouped by namespace (e.g. `example.com/feed`)
+* State files names may optionally include a subpath (e.g. `scheduler/feed.json`)
 
-Root directory
-
-- By default, the client sets the root state directory to `filepath.Dir(opmlPath)`.
-- Implementations should ensure write access or return informative errors.
+```shell
+state/                  # state root directory
+    :namespace/         # state namespace
+        :key.json       # state key
+        :key.json.lock  # state lock
+```

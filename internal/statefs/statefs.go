@@ -2,45 +2,40 @@ package statefs
 
 import (
 	"context"
-	sterrors "errors"
-
-	"github.com/herdworks/hyperfeed-go/state"
+	"net/url"
 )
 
-// Options configure the filesystem store.
-type Options struct {
-	// BaseDir is the root directory for state files.
-	BaseDir string
+// StateFileSystem is a stub implementation of state.Store backed by the filesystem.
+type StateFileSystem struct {
+	URI *url.URL
 }
 
-// New creates a new filesystem-backed state store.
-func New(opts Options) (state.Store, error) {
-	return &storeFS{baseDir: opts.BaseDir}, nil
+func (s *StateFileSystem) Ready() bool {
+	if s == nil {
+		return false
+	}
+	if s.URI == nil {
+		return false
+	}
+	return true
 }
 
-// storeFS is a stub implementation of state.Store backed by the filesystem.
-type storeFS struct {
-	baseDir string
+func (s *StateFileSystem) Get(ctx context.Context, uri *url.URL) ([]byte, error) {
+	return nil, nil
 }
 
-var errNotImplemented = sterrors.New("statefs: not implemented")
-
-func (s *storeFS) Get(ctx context.Context, ns state.Namespace, key string) ([]byte, error) {
-	return nil, errNotImplemented
+func (s *StateFileSystem) Put(ctx context.Context, uri *url.URL, data []byte) error {
+	return nil
 }
 
-func (s *storeFS) Put(ctx context.Context, ns state.Namespace, key string, data []byte) error {
-	return errNotImplemented
+func (s *StateFileSystem) Delete(ctx context.Context, uri *url.URL) error {
+	return nil
 }
 
-func (s *storeFS) Delete(ctx context.Context, ns state.Namespace, key string) error {
-	return errNotImplemented
+func (s *StateFileSystem) Lock(ctx context.Context, uri *url.URL) (string, error) {
+	return "", nil
 }
 
-func (s *storeFS) Lock(ctx context.Context, ns state.Namespace, key string) (string, error) {
-	return "", errNotImplemented
-}
-
-func (s *storeFS) Unlock(ctx context.Context, ns state.Namespace, key string, token string) error {
-	return errNotImplemented
+func (s *StateFileSystem) Unlock(ctx context.Context, uri *url.URL, token string) error {
+	return nil
 }

@@ -1,6 +1,8 @@
 package hyperfeed
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+)
 
 // Metadata represents a normalized bag of properties for non-standard fields.
 type Metadata map[string]Property
