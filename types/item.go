@@ -65,7 +65,7 @@ func (i *Item) Valid() bool {
 func (item *Item) Identifier() string {
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier([]byte(u.String()))
+		item.ID = normalized.Identifier(u.String())
 	}
 	return item.ID
 }

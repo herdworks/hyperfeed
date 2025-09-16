@@ -41,7 +41,7 @@ func (feed *Feed) Identifier() string {
 }
 func (feed *Feed) identify() {
 	feed.Domain = normalized.Domain(feed.URL.URL)
-	feed.ID = normalized.Identifier([]byte(normalized.Path(feed.URL.URL)))
+	feed.ID = normalized.Identifier(normalized.Path(feed.URL.URL))
 }
 
 // DetectKind inspects the provided document (JSON or XML) and returns the

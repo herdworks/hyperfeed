@@ -3,10 +3,16 @@ package normalization
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"net/url"
+	"path"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode/utf8"
+
+	"path/filepath"
 )
 
 // URL returns a canonicalized copy of u:
@@ -117,7 +123,60 @@ func SanitizeParams(u *url.URL) *url.URL {
 //
 // Inspired by Git's SHA-256-based object naming.
 // https://git-scm.com/docs/hash-function-transition
-func Identifier(incoming []byte) string {
-	sum := sha256.Sum256(incoming)
+func Identifier(incoming string) string {
+	sum := sha256.Sum256([]byte(incoming))
 	return hex.EncodeToString(sum[:])[:40]
+}
+
+// CleanPath validates and normalizes relative asset paths.
+//
+// The returned path is safe to join against a cache namespace because:
+//   - Empty paths are rejected
+//   - Absolute paths are rejected
+//   - Path is cleaned, but resulting segments must stay within the item-scoped root
+//   - Cleaned paths must not collide with reserved filenames (e.g. `cache.lock`)
+//   - Each segment must match [A-Za-z0-9._-]+
+//
+// New path separators use the current OS via filepath.Join.
+func CleanPath(p string, reserved ...string) (string, error) {
+	var clean string
+	var segments []string
+	var errmsg error = fmt.Errorf("unable to clean path: %q", p)
+	p = strings.TrimSpace(p)             // trim leading/trailing whitespace
+	p = strings.ReplaceAll(p, "\\", "/") // Treat Windows separators like POSIX for normalization.
+	if p == "" {
+		return "", errmsg
+	}
+	if !utf8.ValidString(p) {
+		return "", errmsg
+	}
+	if clean = path.Clean(p); clean == "." {
+		return "", errmsg
+	}
+	if strings.HasPrefix(clean, "../") || clean == ".." {
+		return "", errmsg
+	}
+	if strings.HasPrefix(clean, "/") {
+		return "", errmsg
+	}
+	if len(reserved) == 0 {
+		reserved = append(reserved, CleanPathReservedFileNames...) // copy default reserved names
+	}
+	if slices.Contains(reserved, clean) {
+		return "", errmsg
+	}
+	for _, segment := range strings.Split(clean, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", errmsg
+		}
+		if !CleanPathSegmentPattern.MatchString(segment) {
+			return "", errmsg
+		}
+		segments = append(segments, segment)
+	}
+	return filepath.Join(segments...), nil
+}
+var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var CleanPathReservedFileNames = []string{
+	"cache.lock",
 }

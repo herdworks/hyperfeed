@@ -2,6 +2,7 @@ package normalization
 
 import (
 	"net/url"
+	"path/filepath"
 	"testing"
 )
 
@@ -148,5 +149,45 @@ func TestURLNormalization(t *testing.T) {
 		if got.String() != tc.want {
 			t.Fatalf("URL(%q) = %q; want %q", tc.href, got.String(), tc.want)
 		}
+	}
+}
+
+func TestCleanPath(t *testing.T) {
+	tests := []struct {
+		name          string
+		in            string
+		want          string
+		errorExpected bool
+	}{
+		{"simple file", "cover.png", filepath.Join("cover.png"), false},
+		{"nested directories", "img/cover.png", filepath.Join("img", "cover.png"), false},
+		{"trim spaces", "  assets/banner.JPG  ", filepath.Join("assets", "banner.JPG"), false},
+		{"windows separators", "img\\cover.png", filepath.Join("img", "cover.png"), false},
+		{"leading dot segment", "./img/cover.png", filepath.Join("img", "cover.png"), false},
+		{"uppercase", "IMG/HERO.PNG", filepath.Join("IMG", "HERO.PNG"), false},
+		{"empty", "", "", true},
+		{"only dot", ".", "", true},
+		{"parent traversal", "../secret.txt", "", true},
+		{"embedded traversal", "img/../secret.txt", filepath.Join("secret.txt"), false},
+		{"absolute", "/etc/passwd", "", true},
+		{"invalid chars", "img/photo?.png", "", true},
+		{"double slash", "img//cover.png", filepath.Join("img", "cover.png"), false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := CleanPath(tc.in)
+			if tc.errorExpected {
+				if err == nil {
+					t.Fatalf("CleanPath(%q) expected error", tc.in)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CleanPath(%q) unexpected error: %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Fatalf("CleanPath(%q) = %q; want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }

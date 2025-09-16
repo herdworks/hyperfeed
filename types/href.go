@@ -75,7 +75,7 @@ func (href *HRef) Identifier() string {
 		href.URL = &url.URL{}
 	}
 	u := normalized.URL(href.URL)
-	return normalized.Identifier([]byte(u.String()))
+	return normalized.Identifier(u.String())
 }
 
 // Domain returns the HyperFeed-normalized domain for the URL.
