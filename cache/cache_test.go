@@ -318,7 +318,7 @@ func TestCacheFilePutOperation(t *testing.T) {
 			} else if tc.errorExpected && err == nil {
 				t.Fatalf("expected error but got nil")
 			}
-			if _,err = file.ResolvedURI(); err != nil {
+			if _, err = file.ResolvedURI(); err != nil {
 				t.Fatalf("cache.File ResolvedURI error: %v", err)
 			}
 			if err != nil {

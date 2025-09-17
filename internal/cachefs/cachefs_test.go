@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -193,4 +194,62 @@ func TestSecurityScope(t *testing.T) {
 	if err := fs.Put(context.Background(), other, []byte("data")); !errors.Is(err, ErrSecurityScope) {
 		t.Fatalf("expected ErrSecurityScope, got %v", err)
 	}
+}
+
+func TestPruneRemovesEmptyDirectories(t *testing.T) {
+	var fs *FileSystem = &FileSystem{}
+	var directories []string
+	var files []string
+	var remaining []string
+	var want []string
+	var err error
+	if err = fs.Configure(&url.URL{Path: "testdata"}); err != nil {
+		t.Fatalf("Configure error: %v", err)
+	}
+	if err := fs.Destroy(context.Background()); err != nil {
+		t.Fatalf("Purge error: %v", err)
+	}
+	if err := fs.Init(); err != nil {
+		t.Fatalf("Init error: %v", err)
+	}
+	directories = []string{
+		filepath.Join(fs.URI.Path, "example.com", "blog", "hello-world"),
+		filepath.Join(fs.URI.Path, "example.com", "blog", "hello-again"),
+		filepath.Join(fs.URI.Path, "example.com", "thoughts-on-prune"),
+	}
+	files = []string{
+		filepath.Join(directories[0], ".DS_Store"),
+		filepath.Join(directories[1], "index.html"),
+		filepath.Join(directories[2], ".DS_Store"),
+		filepath.Join(directories[2], "index.html"),
+		filepath.Join(directories[2], "cover.png"),
+	}
+	want = []string{
+		filepath.Join(fs.URI.Path, "example.com"),
+		filepath.Join(fs.URI.Path, "example.com", "blog"),
+		filepath.Join(fs.URI.Path, "example.com", "blog", "hello-again"),
+		filepath.Join(fs.URI.Path, "example.com", "thoughts-on-prune"),
+	}
+	for _, dir := range directories {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll error: %v", err)
+		}
+	}
+	for _, file := range files {
+		if err := os.WriteFile(file, []byte("data"), 0o644); err != nil {
+			t.Fatalf("WriteFile error: %v", err)
+		}
+	}
+	if err := fs.Prune(context.Background(), fs.URI.Path); err != nil {
+		t.Fatalf("Prune error: %v", err)
+	}
+	if remaining, err = fs.inventory(fs.URI.Path, os.ModeDir); err != nil {
+		t.Fatalf("inventory error: %v", err)
+	}
+	for _, d := range remaining {
+		if !slices.Contains(want, d) {
+			t.Errorf("unexpected remaining directory: %q", d)
+		}
+	}
+
 }

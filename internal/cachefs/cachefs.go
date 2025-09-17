@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -20,7 +21,7 @@ var (
 
 // FileSystem provides a filesystem-backed implementation of cache.CacheFS.
 type FileSystem struct {
-	URI  *url.URL
+	URI *url.URL
 }
 
 // Ready reports whether the filesystem has a configured root.
@@ -69,7 +70,7 @@ func (fs *FileSystem) SecurityScopedURI(uri *url.URL) (u *url.URL, err error) {
 	if !(uri.Scheme == "file" || uri.Scheme == "") {
 		return nil, fmt.Errorf("cachefs: unsupported uri scheme %q", uri.Scheme)
 	}
-	if u.Path,err = filepath.Abs(uri.Path); err != nil {
+	if u.Path, err = filepath.Abs(uri.Path); err != nil {
 		return nil, fmt.Errorf("cachefs: failed to resolve absolute path: %v", err)
 	}
 	if !strings.HasPrefix(u.Path, strings.TrimSuffix(fs.URI.Path, "/")) {
@@ -278,28 +279,80 @@ func (fs *FileSystem) Evict(ctx context.Context, expiry *time.Time) (int64, erro
 	return removed, nil
 }
 
-func (fs *FileSystem) Prune(ctx context.Context, dir string) error {
-	// walk dir tree bottom-up, removing empty dirs
-	return filepath.WalkDir(dir, func(path string, d iofs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+// Recuse over the cache tree and remove "prunable" directories
+func (fs *FileSystem) Prune(ctx context.Context, dir string, allowlist ...string) (err error) {
+	var directories []string
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(allowlist) == 0 {
+		allowlist = []string{".DS_Store"}
+	}
+	// recurse over the cache tree to discover all directories
+	if directories, err = fs.inventory(dir, os.ModeDir); err != nil {
+		return err
+	}
+	// iterate discovered directories in reverse order (deepest first)
+	slices.Reverse(directories)
+	for _, directory := range directories {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fmt.Printf("pruning %q\n", d.Name())
-		if d.IsDir() {
-			entries, err := os.ReadDir(path)
-			if err != nil {
-				return err
+		if !fs.prunable(directory, allowlist) {
+			continue
+		}
+		if err = os.RemoveAll(directory); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+// inventory recurses over a directory tree contents and returns a slice of entries
+func (fs *FileSystem) inventory(directory string, filters ...os.FileMode) ([]string, error) {
+	var entries []string
+	walkErr := filepath.WalkDir(directory, func(path string, entry iofs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
 			}
-			if len(entries) == 0 && path != fs.URI.Path {
-				if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-					return err
-				}
-			}
+			return err
+		}
+		if path == directory {
+			return nil
+		}
+		if len(filters) > 0 && slices.Contains(filters, entry.Type()) {
+			entries = append(entries, path)
 		}
 		return nil
 	})
+	if walkErr != nil {
+		if errors.Is(walkErr, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, walkErr
+	}
+	return entries, nil
 }
 
+// prunable checks directory contents to determine if a directory is safe to prune
+func (fs *FileSystem) prunable(directory string, allowlist []string) bool {
+	var entries []os.DirEntry
+	var err error
+	if len(allowlist) == 0 {
+		allowlist = []string{".DS_Store"}
+	}
+	if entries, err = os.ReadDir(directory); err != nil {
+		return errors.Is(err, os.ErrNotExist)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return false
+		}
+		if slices.Contains(allowlist, filepath.Base(entry.Name())) {
+			continue
+		}
+		return false
+	}
+	return true
+}

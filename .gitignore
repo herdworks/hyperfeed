@@ -1,3 +1,4 @@
+.gocache
 cache/testdata/testcache
 hyperfeed-go
 repl

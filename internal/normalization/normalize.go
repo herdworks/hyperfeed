@@ -48,7 +48,7 @@ func URL(incoming *url.URL) *url.URL {
 
 // Href returns a normalized Href
 func Href(incoming string) (href string, err error) {
-	var u *url.URL 
+	var u *url.URL
 	if u, err = url.Parse(incoming); err != nil {
 		return "", err
 	}
@@ -187,6 +187,7 @@ func CleanPath(p string, reserved ...string) (string, error) {
 	}
 	return filepath.Join(segments...), nil
 }
+
 var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 var CleanPathReservedFileNames = []string{
 	"cache.lock",

@@ -37,7 +37,7 @@ type CacheFS interface {
 
 	// Evict implements retention-policy removal of expired cache blobs.
 	Evict(ctx context.Context, expiry *time.Time) (int64, error)
-	Prune(ctx context.Context, dir string) error
+	Prune(ctx context.Context, dir string, allowlist ...string) error
 }
 
 type Cache struct {
@@ -61,11 +61,11 @@ type File struct {
 
 func (cache *Cache) Ready() bool {
 	return cache != nil &&
-	       cache.Base != nil &&
-	       cache.URI != nil &&
-	       cache.Namespace.Domain != "" &&
-	       cache.Namespace.Feed != "" &&
-	       cache.FS.Ready()
+		cache.Base != nil &&
+		cache.URI != nil &&
+		cache.Namespace.Domain != "" &&
+		cache.Namespace.Feed != "" &&
+		cache.FS.Ready()
 }
 
 // Exists() checks if the cache root directory exists
@@ -205,7 +205,7 @@ func (file *File) ResolvedURI() (u *url.URL, err error) {
 	if relativePath, err = file.RelativePath(); err != nil {
 		return nil, err
 	}
-	file.URI = &url.URL{ Path: path.Join(file.Cache.URI.Path, filepath.ToSlash(relativePath)) }
+	file.URI = &url.URL{Path: path.Join(file.Cache.URI.Path, filepath.ToSlash(relativePath))}
 	return file.URI, nil
 }
 

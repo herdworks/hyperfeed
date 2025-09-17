@@ -12,8 +12,8 @@ import (
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
 	// URL is the canonical feed URL (RSS/Atom endpoint).
-	URL    *url.URL  `json:"url,omitempty"`
-	ID     string `json:"id,omitempty"` // stable HyperFeed feed identifier (e.g. hash of feed URL path)
+	URL *url.URL `json:"url,omitempty"`
+	ID  string   `json:"id,omitempty"` // stable HyperFeed feed identifier (e.g. hash of feed URL path)
 
 	// Standard feed properties
 	Title       string    `json:"title,omitempty"`

@@ -1,15 +1,10 @@
-# cachefs (internal)
+# HyperFeed CacheFS
 
-Filesystem-backed implementation of the `cache.Cache` interface.
+The `github.com/herdworks/hyperfeed-go/internal/cachefs` package implements the `cache.CacheFS` interface.
 
-Intent
+## Goals
 
-- Content-addressed or deterministic keys for dedupe
-- Pluggable retention policies
-- Readers and writers safe for concurrent access
-
-Suggested layout
-
-- `objects/xx/…` — content-addressed blobs by hash prefix
-- `index/` — small metadata, reference counts, pin sets
+* Separation of concerns between Cache API and file system (`internal/cachefs`)
+* Provide basic security guard rails (prevent operations outside of the scope of a given CacheFS root directory)
+* Operates on file URIs with no concept of layout
 
