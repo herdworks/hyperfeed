@@ -52,7 +52,7 @@ type Image struct {
 	Height int      `json:"height,omitempty"`
 }
 
-func (i *Item) Valid() bool {
+func (i *Item) Ready() bool {
 	if i == nil {
 		return false
 	}

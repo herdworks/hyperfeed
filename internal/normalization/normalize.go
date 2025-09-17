@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"net/url"
 	"path"
 	"regexp"
@@ -20,29 +19,41 @@ import (
 // - Removes default ports (http:80, https:443)
 // - Sorts query parameters (by key and value)
 // - Returns nil if u is nil.
-func URL(u *url.URL) *url.URL {
-	if u == nil {
+// - Removes trailing slash from path (except for root "/")
+func URL(incoming *url.URL) *url.URL {
+	if incoming == nil {
 		return nil
 	}
-	v := *u // shallow copy
-	if v.Scheme != "" {
-		v.Scheme = strings.ToLower(v.Scheme)
+	normalized := *incoming // shallow copy
+	if normalized.Scheme != "" {
+		normalized.Scheme = strings.ToLower(normalized.Scheme)
 	}
-	if v.Path != "" {
-		v.Path = strings.ToLower(v.Path)
+	if (normalized.Scheme == "http" && normalized.Port() == "80") || (normalized.Scheme == "https" && normalized.Port() == "443") {
+		normalized.Host = normalized.Hostname() // remove default HTTP/HTTPS ports
 	}
-	host := strings.ToLower(u.Hostname())
-	port := u.Port()
-	if (v.Scheme == "http" && port == "80") || (v.Scheme == "https" && port == "443") {
-		port = ""
+	if normalized.Host != "" {
+		normalized.Host = strings.ToLower(normalized.Host) // lowercase host
 	}
-	if port != "" {
-		v.Host = net.JoinHostPort(host, port)
+	if normalized.Path == "" {
+		normalized.Path = "/" // ensure non-empty path
 	} else {
-		v.Host = host
+		normalized.Path = strings.ToLower(normalized.Path)
 	}
-	v.RawQuery = v.Query().Encode() // Encode sorts keys
-	return &v
+	if normalized.Path != "/" && strings.HasSuffix(normalized.Path, "/") {
+		normalized.Path = strings.TrimSuffix(normalized.Path, "/") // remove trailing slash except for root
+	}
+	normalized.RawQuery = normalized.Query().Encode() // Encode sorts keys
+	return &normalized
+}
+
+// Href returns a normalized Href
+func Href(incoming string) (href string, err error) {
+	var u *url.URL 
+	if u, err = url.Parse(incoming); err != nil {
+		return "", err
+	}
+	u = URL(u)
+	return u.String(), nil
 }
 
 // Equal reports whether two URLs are equivalent after normalization.

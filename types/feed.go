@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"bytes"
+	"net/url"
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
@@ -11,9 +12,8 @@ import (
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
 	// URL is the canonical feed URL (RSS/Atom endpoint).
-	URL    *HRef  `json:"url,omitempty"`
-	Domain string `json:"domain,omitempty"`
-	ID     string `json:"id,omitempty"` // stable feed identifier (e.g. hash of feed URL path)
+	URL    *url.URL  `json:"url,omitempty"`
+	ID     string `json:"id,omitempty"` // stable HyperFeed feed identifier (e.g. hash of feed URL path)
 
 	// Standard feed properties
 	Title       string    `json:"title,omitempty"`
@@ -32,16 +32,17 @@ type Feed struct {
 	RawFeed RawFeed `json:"-"`
 }
 
+// Domain returns the feed's domain (host) portion of its URL.
+func (feed *Feed) Domain() string {
+	return normalized.Domain(feed.URL)
+}
+
 // Identifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) Identifier() string {
 	if feed.ID == "" {
-		feed.identify()
+		feed.ID = normalized.Identifier(normalized.Path(feed.URL))
 	}
 	return feed.ID
-}
-func (feed *Feed) identify() {
-	feed.Domain = normalized.Domain(feed.URL.URL)
-	feed.ID = normalized.Identifier(normalized.Path(feed.URL.URL))
 }
 
 // DetectKind inspects the provided document (JSON or XML) and returns the

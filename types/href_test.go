@@ -222,7 +222,7 @@ func TestHRef_Identifier(t *testing.T) {
 		{
 			name:          "nil URL",
 			href:          &HRef{URL: nil},
-			want:          "e3b0c44298fc1c149afbf4c8996fb92427ae41e4", // sha256 of empty string truncated to 40 chars
+			want:          "8a5edab282632443219e051e4ade2d1d5bbc671c", // sha256 of the default "/" path truncated to 40 chars
 			errorExpected: false,
 		},
 		{

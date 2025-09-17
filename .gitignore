@@ -1,3 +1,4 @@
+cache/testdata/testcache
 hyperfeed-go
 repl
 *.db
