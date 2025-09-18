@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,17 +13,16 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
-var cacheRootPath = filepath.Join("testdata", "testcache") + "/"
-var cacheRoot = &url.URL{Path: cacheRootPath}
 var cacheTime = time.Now()
 
 func TestCacheConfigure(t *testing.T) {
+	cacheRoot := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	tests := []struct {
-		name          string
-		feed          *hyperfeed.Feed
-		href          string
-		want          *Cache
-		errorExpected bool
+		name string
+		feed *hyperfeed.Feed
+		href string
+		want *Cache
+		err  error
 	}{
 		{
 			name: "from feed",
@@ -38,7 +38,7 @@ func TestCacheConfigure(t *testing.T) {
 					Feed:   normalized.Identifier("/news"),
 				},
 			},
-			errorExpected: false,
+			err: nil,
 		},
 		{
 			name: "from href with path",
@@ -52,7 +52,7 @@ func TestCacheConfigure(t *testing.T) {
 					Feed:   normalized.Identifier("/feed"),
 				},
 			},
-			errorExpected: false,
+			err: nil,
 		},
 		{
 			name: "from href with root path",
@@ -66,7 +66,7 @@ func TestCacheConfigure(t *testing.T) {
 					Feed:   normalized.Identifier("/"),
 				},
 			},
-			errorExpected: false,
+			err: nil,
 		},
 		{
 			name: "from href with trailing slash",
@@ -80,21 +80,22 @@ func TestCacheConfigure(t *testing.T) {
 					Feed:   normalized.Identifier("/blog"),
 				},
 			},
-			errorExpected: false,
+			err: nil,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var cache *Cache = &Cache{}
 			var err error
-			if tc.errorExpected {
-				if err = cache.Configure(cacheRoot, tc.feed, tc.href); err == nil {
-					t.Errorf("Configure() expected error, got nil")
-				}
-				return
+			if err = cache.Configure(cacheRoot, tc.feed, tc.href); tc.err != nil && err == nil {
+				t.Errorf("expected %v, got nil", tc.err)
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Errorf("different error than expected:\ngot:    %v\nwanted: %v", err, tc.err)
+			} else {
+				return // skip remaining tests on expected error
 			}
-			if err = cache.Configure(cacheRoot, tc.feed, tc.href); err != nil {
-				t.Errorf("Configure() unexpected error: %v", err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 			if cache.Base.Path != tc.want.Base.Path {
 				t.Errorf("cache.Base = %q, want %q", cache.Base.Path, tc.want.Base.Path)
@@ -125,31 +126,28 @@ func TestCacheConfigure(t *testing.T) {
 }
 
 func TestCacheReadiness(t *testing.T) {
+	var cacheRoot *url.URL = &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	var cache *Cache = &Cache{}
 	var err error
 	tests := []struct {
-		name          string
-		href          string
-		want          string
-		errorExpected bool
+		name string
+		href string
+		want string
 	}{
 		{
-			name:          "from href with path",
-			href:          "https://example.com/blog",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/blog")),
-			errorExpected: false,
+			name: "from href with path",
+			href: "https://example.com/blog",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/blog")),
 		},
 		{
-			name:          "from href with root path",
-			href:          "https://example.com/",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/")),
-			errorExpected: false,
+			name: "from href with root path",
+			href: "https://example.com/",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/")),
 		},
 		{
-			name:          "from href with trailing slash",
-			href:          "https://example.com/news/",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/news")),
-			errorExpected: false,
+			name: "from href with trailing slash",
+			href: "https://example.com/news/",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/news")),
 		},
 	}
 	for _, tc := range tests {
@@ -171,31 +169,28 @@ func TestCacheReadiness(t *testing.T) {
 }
 
 func TestCacheCreateDestroy(t *testing.T) {
+	var cacheRoot *url.URL = &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	var cache *Cache = &Cache{}
 	var err error
 	tests := []struct {
-		name          string
-		href          string
-		want          string
-		errorExpected bool
+		name string
+		href string
+		want string
 	}{
 		{
-			name:          "from href with root path",
-			href:          "https://example.com/",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/")),
-			errorExpected: false,
+			name: "from href with root path",
+			href: "https://example.com/",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/")),
 		},
 		{
-			name:          "from href with path",
-			href:          "https://example.com/feed",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/feed")),
-			errorExpected: false,
+			name: "from href with path",
+			href: "https://example.com/feed",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/feed")),
 		},
 		{
-			name:          "from href with trailing slash",
-			href:          "https://example.com/news/",
-			want:          filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/news")),
-			errorExpected: false,
+			name: "from href with trailing slash",
+			href: "https://example.com/news/",
+			want: filepath.Join(cacheRoot.Path, "example.com", normalized.Identifier("/news")),
 		},
 	}
 	for _, tc := range tests {
@@ -234,11 +229,12 @@ func TestCacheCreateDestroy(t *testing.T) {
 }
 
 func TestCacheFilePutOperation(t *testing.T) {
+	cacheRoot := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	feeds := []*hyperfeed.Feed{
-		&hyperfeed.Feed{
+		{
 			URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
 		},
-		&hyperfeed.Feed{
+		{
 			URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/"},
 		},
 	}
@@ -253,18 +249,18 @@ func TestCacheFilePutOperation(t *testing.T) {
 		},
 	}
 	tests := []struct {
-		name          string
-		feed          hyperfeed.Feed
-		item          hyperfeed.Item
-		fileName      string
-		errorExpected bool
+		name     string
+		feed     hyperfeed.Feed
+		item     hyperfeed.Item
+		fileName string
+		err      error
 	}{
 		{
-			name:          "with invalid file path",
-			feed:          *feeds[0],
-			item:          *items[1],
-			fileName:      "../cover.png",
-			errorExpected: true,
+			name:     "with invalid file path",
+			feed:     *feeds[0],
+			item:     *items[1],
+			fileName: "../cover.png",
+			err:      ErrInvalidFile,
 		},
 		{
 			name:     "with valid png file path",
@@ -283,6 +279,7 @@ func TestCacheFilePutOperation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var cache *Cache = &Cache{}
 			var file *File
+			var fileBytes []byte
 			var err error
 			var ctx context.Context = context.Background()
 
@@ -312,31 +309,23 @@ func TestCacheFilePutOperation(t *testing.T) {
 				Item:  &tc.item,
 				Name:  tc.fileName,
 			}
-			file.Name, err = normalized.CleanPath(file.Name)
-			if tc.errorExpected && err != nil {
-				return
-			} else if tc.errorExpected && err == nil {
-				t.Fatalf("expected error but got nil")
-			}
-			if _, err = file.ResolvedURI(); err != nil {
-				t.Fatalf("cache.File ResolvedURI error: %v", err)
-			}
-			if err != nil {
-				t.Fatalf("invalid file name %q: %v", file.Name, err)
-			}
-			if ready, err := file.Ready(); !ready {
-				t.Fatalf("file not ready: %v", err)
+			if _, err = file.Ready(); tc.err == nil && err != nil {
+				t.Fatalf("cache.File.Ready error: %v", err)
+			} else if tc.err != nil && errors.Is(err, tc.err) {
+				return // skip remaining tests on expected error
 			}
 			if file.URI.Path != want.Path {
 				t.Fatalf("cache.File URI does not match expected path;\ngot:    %q\nwanted: %q", file.URI.Path, want.Path)
 			}
-
-			fileBytes, err := os.ReadFile(filepath.Join("testdata", filepath.Base(file.URI.Path)))
-			if err != nil {
+			if fileBytes, err = os.ReadFile(filepath.Join("testdata", filepath.Base(file.URI.Path))); tc.err == nil && err != nil {
 				t.Fatalf("reading testdata/cover.png: %v", err)
+			} else if tc.err != nil && errors.Is(err, tc.err) {
+				return // skip remaining tests on expected error
 			}
-			if err := file.Put(ctx, fileBytes); err != nil {
+			if err := file.Put(ctx, fileBytes); tc.err == nil && err != nil {
 				t.Fatalf("Put error: %v", err)
+			} else if tc.err != nil && errors.Is(err, tc.err) {
+				return // skip remaining tests on expected error
 			}
 			if exists, err := file.Exists(ctx); !exists || err != nil {
 				t.Fatalf("file.Exists failed (%v, %v)", exists, err)

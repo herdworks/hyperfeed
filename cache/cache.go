@@ -16,6 +16,12 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
+var (
+	ErrConfiguration = errors.New("cache: invalid configuration")
+	ErrReadiness     = errors.New("cache: cache not ready")
+	ErrInvalidFile   = errors.New("cache: invalid file")
+)
+
 type CacheFS interface {
 	// Ready returns true if the CacheFS is properly configured with a root URI.
 	Ready() bool
@@ -59,6 +65,40 @@ type File struct {
 	URI   *url.URL // cached file URI, if previously computed
 }
 
+// ============================= Cache Methods ================================
+
+// Configure() configures the cache
+func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...string) (err error) {
+	if cache == nil || base == nil {
+		return errors.Join(ErrConfiguration, errors.New("one or more configuration parameters are nil"))
+	}
+	if !strings.HasSuffix(base.Path, "/") {
+		return errors.Join(ErrConfiguration, errors.New("base path must have trailing slash"))
+	}
+	if feed == nil && len(hrefs) != 1 {
+		return errors.Join(ErrConfiguration, fmt.Errorf("feed or href is required (%d hrefs provided)", len(hrefs)))
+	}
+	if feed == nil {
+		feed = &hyperfeed.Feed{}
+		feed.URL, err = url.Parse(hrefs[0])
+		if err != nil {
+			return errors.Join(ErrConfiguration, fmt.Errorf("failed to parse feed href; %w", err))
+		}
+	}
+	if feed.URL == nil {
+		return errors.Join(ErrConfiguration, errors.New("feed.URL is required for cache configuration"))
+	}
+	if feed.Domain() == "" {
+		return errors.Join(ErrConfiguration, fmt.Errorf("invalid domain for feed.URL %q", feed.URL.String()))
+	}
+	cache.Base = base
+	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
+	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
+	cache.FS = &filesystem.FileSystem{}
+	return cache.FS.Configure(cache.URI)
+}
+
+// Ready() returns true if the cache is properly configured
 func (cache *Cache) Ready() bool {
 	return cache != nil &&
 		cache.Base != nil &&
@@ -71,46 +111,15 @@ func (cache *Cache) Ready() bool {
 // Exists() checks if the cache root directory exists
 func (cache *Cache) Exists(ctx context.Context) (bool, error) {
 	if !cache.Ready() {
-		return false, errors.New("cache not ready")
+		return false, ErrReadiness
 	}
 	return cache.FS.Exists(ctx, cache.URI)
-}
-
-// Configure() configures the cache
-func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...string) (err error) {
-	if cache == nil || base == nil {
-		return errors.New("cache.Configure: one or more configuration parameters are nil")
-	}
-	if !strings.HasSuffix(base.Path, "/") {
-		return errors.New("cache.Configure: base path must have trailing slash")
-	}
-	if feed == nil && len(hrefs) != 1 {
-		return fmt.Errorf("cache.Configure: feed or href is required (%d hrefs provided)", len(hrefs))
-	}
-	if feed == nil {
-		feed = &hyperfeed.Feed{}
-		feed.URL, err = url.Parse(hrefs[0])
-		if err != nil {
-			return fmt.Errorf("cache.Configure: parse feed href: %w", err)
-		}
-	}
-	if feed.URL == nil {
-		return errors.New("cache.Configure: feed.URL is required for cache configuration")
-	}
-	if feed.Domain() == "" {
-		return fmt.Errorf("cache.Configure: feed.URL %q could not produce domain", feed.URL.String())
-	}
-	cache.Base = base
-	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
-	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
-	cache.FS = &filesystem.FileSystem{}
-	return cache.FS.Configure(cache.URI)
 }
 
 // Create() ensures the cache root directory exists
 func (cache *Cache) Create() error {
 	if !cache.Ready() {
-		return errors.New("cache: cache not ready")
+		return ErrReadiness
 	}
 	if err := cache.FS.Init(); err != nil {
 		return fmt.Errorf("cache: creating root path: %w", err)
@@ -140,60 +149,38 @@ func (cache *Cache) Purge(ctx context.Context) error {
 	return nil
 }
 
+// Evict removes expired cache blobs using the underlying FS implementation.
+func (cache *Cache) Evict(ctx context.Context, expiry *time.Time) (int64, error) {
+	if !cache.Ready() {
+		return 0, ErrReadiness
+	}
+	return cache.FS.Evict(ctx, expiry)
+}
+
+// ============================= Namespace Methods ============================
+
+// String() returns a string representation of the namespace
 func (namespace *Namespace) String() string {
 	return fmt.Sprintf("%s/%s", namespace.Domain, namespace.Feed)
 }
 
+// ============================= File Methods =================================
+
+// Ready() returns true if the cache file is properly configured
 func (file *File) Ready() (ready bool, err error) {
-	if !file.Cache.Ready() {
-		return false, errors.New("cache.File: invalid cache")
-	}
 	if !file.Item.Ready() {
-		return false, errors.New("cache.File: invalid item")
+		return false, errors.Join(ErrInvalidFile, errors.New("invalid item"))
 	}
-	if file.URI == nil {
-		return false, errors.New("cache.File: unresolved file URI")
+	if !file.Cache.Ready() {
+		return false, errors.Join(ErrInvalidFile, errors.New("invalid cache"))
+	}
+	if _, err = file.ResolvedURI(); err != nil {
+		return false, errors.Join(ErrInvalidFile, fmt.Errorf("unresolved file URI; %w", err))
 	}
 	if file.Name, err = normalized.CleanPath(file.Name); err != nil {
-		return false, fmt.Errorf("cache.File: invalid filename: %w", err)
+		return false, errors.Join(ErrInvalidFile, fmt.Errorf("invalid filename: %w", err))
 	}
 	return true, nil
-}
-
-// Exists() checks if the file exists
-func (file *File) Exists(ctx context.Context) (bool, error) {
-	if exists, err := file.Ready(); !exists || err != nil {
-		return false, errors.New("cache not ready")
-	}
-	return file.Cache.FS.Exists(ctx, file.URI)
-}
-
-// Shard returns the YYYY/MM/DD shard for the file using the item's timestamp.
-func (file *File) Shard() (string, error) {
-	if file.Item == nil {
-		return "", errors.New("file.Shard: item is nil")
-	}
-	ts := file.Item.Updated
-	if ts.IsZero() {
-		ts = file.Item.Published
-	}
-	yyyy := fmt.Sprintf("%04d", ts.UTC().Year())
-	mm := fmt.Sprintf("%02d", ts.UTC().Month())
-	dd := fmt.Sprintf("%02d", ts.UTC().Day())
-	return filepath.Join(yyyy, mm, dd), nil
-}
-
-// RelativePath returns the filesystem path rooted at the cache namespace.
-func (file *File) RelativePath() (p string, err error) {
-	var shard string
-	var name string
-	if shard, err = file.Shard(); err != nil {
-		return "", err
-	}
-	if name, err = normalized.CleanPath(file.Name); err != nil {
-		return "", fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err)
-	}
-	return filepath.Join(shard, file.Item.Identifier(), name), nil
 }
 
 // URI returns the fully-qualified cache URI for the file.
@@ -207,6 +194,42 @@ func (file *File) ResolvedURI() (u *url.URL, err error) {
 	}
 	file.URI = &url.URL{Path: path.Join(file.Cache.URI.Path, filepath.ToSlash(relativePath))}
 	return file.URI, nil
+}
+
+// RelativePath returns the filesystem path rooted at the cache namespace.
+func (file *File) RelativePath() (p string, err error) {
+	var shard string
+	var name string
+	if shard, err = file.Shard(); err != nil {
+		return "", err
+	}
+	if name, err = normalized.CleanPath(file.Name); err != nil {
+		return "", errors.Join(ErrInvalidFile, fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err))
+	}
+	return filepath.Join(shard, file.Item.Identifier(), name), nil
+}
+
+// Exists() checks if the file exists
+func (file *File) Exists(ctx context.Context) (bool, error) {
+	if exists, err := file.Ready(); !exists || err != nil {
+		return false, errors.New("cache not ready")
+	}
+	return file.Cache.FS.Exists(ctx, file.URI)
+}
+
+// Shard() returns the YYYY/MM/DD shard for the file using the item's timestamp.
+func (file *File) Shard() (string, error) {
+	if file.Item == nil {
+		return "", errors.New("file.Shard: item is nil")
+	}
+	ts := file.Item.Updated
+	if ts.IsZero() {
+		ts = file.Item.Published
+	}
+	yyyy := fmt.Sprintf("%04d", ts.UTC().Year())
+	mm := fmt.Sprintf("%02d", ts.UTC().Month())
+	dd := fmt.Sprintf("%02d", ts.UTC().Day())
+	return filepath.Join(yyyy, mm, dd), nil
 }
 
 // Put stores data at the cache file URI, acquiring a lock if provided by the FS implementation.
@@ -255,12 +278,4 @@ func (file *File) Unlock(ctx context.Context, token string) error {
 		return err
 	}
 	return file.Cache.FS.Unlock(ctx, file.URI, token)
-}
-
-// Evict removes expired cache blobs using the underlying FS implementation.
-func (cache *Cache) Evict(ctx context.Context, expiry *time.Time) (int64, error) {
-	if !cache.Ready() {
-		return 0, errors.New("cache: cache not ready")
-	}
-	return cache.FS.Evict(ctx, expiry)
 }

@@ -1,6 +1,7 @@
 package normalization
 
 import (
+	"errors"
 	"net/url"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,7 @@ import (
 func TestEqual(t *testing.T) {
 	tests := []struct {
 		a, b string
-		want bool
+		equality bool
 	}{
 		{"http://example.com", "http://example.com", true},
 		{"http://example.com", "http://EXAMPLE.com", true},
@@ -34,9 +35,8 @@ func TestEqual(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %q: %v", tc.b, err)
 		}
-		got := Equal(a, b)
-		if got != tc.want {
-			t.Errorf("Equal(%q, %q) = %v; want %v", tc.a, tc.b, got, tc.want)
+		if equality := Equal(a, b); equality != tc.equality {
+			t.Errorf("Equal(%q, %q) = %v; want %v", tc.a, tc.b, equality, tc.equality)
 		}
 	}
 }
@@ -154,36 +154,35 @@ func TestURLNormalization(t *testing.T) {
 
 func TestCleanPath(t *testing.T) {
 	tests := []struct {
-		name          string
-		in            string
-		want          string
-		errorExpected bool
+		name string
+		in   string
+		want string
+		err  error
 	}{
-		{"simple file", "cover.png", filepath.Join("cover.png"), false},
-		{"nested directories", "img/cover.png", filepath.Join("img", "cover.png"), false},
-		{"trim spaces", "  assets/banner.JPG  ", filepath.Join("assets", "banner.JPG"), false},
-		{"windows separators", "img\\cover.png", filepath.Join("img", "cover.png"), false},
-		{"leading dot segment", "./img/cover.png", filepath.Join("img", "cover.png"), false},
-		{"uppercase", "IMG/HERO.PNG", filepath.Join("IMG", "HERO.PNG"), false},
-		{"empty", "", "", true},
-		{"only dot", ".", "", true},
-		{"parent traversal", "../secret.txt", "", true},
-		{"embedded traversal", "img/../secret.txt", filepath.Join("secret.txt"), false},
-		{"absolute", "/etc/passwd", "", true},
-		{"invalid chars", "img/photo?.png", "", true},
-		{"double slash", "img//cover.png", filepath.Join("img", "cover.png"), false},
+		{"simple file", "cover.png", filepath.Join("cover.png"), nil},
+		{"nested directories", "img/cover.png", filepath.Join("img", "cover.png"), nil},
+		{"trim spaces", "  assets/banner.JPG  ", filepath.Join("assets", "banner.JPG"), nil},
+		{"windows separators", "img\\cover.png", filepath.Join("img", "cover.png"), nil},
+		{"leading dot segment", "./img/cover.png", filepath.Join("img", "cover.png"), nil},
+		{"uppercase", "IMG/HERO.PNG", filepath.Join("IMG", "HERO.PNG"), nil},
+		{"empty", "", "", ErrInvalidPath},
+		{"only dot", ".", "", ErrInvalidPath},
+		{"parent traversal", "../secret.txt", "", ErrInvalidPath},
+		{"embedded traversal", "img/../secret.txt", filepath.Join("secret.txt"), nil},
+		{"absolute", "/etc/passwd", "", ErrInvalidPath},
+		{"invalid chars", "img/photo?.png", "", ErrInvalidPath},
+		{"double slash", "img//cover.png", filepath.Join("img", "cover.png"), nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := CleanPath(tc.in)
-			if tc.errorExpected {
-				if err == nil {
-					t.Fatalf("CleanPath(%q) expected error", tc.in)
-				}
-				return
-			}
-			if err != nil {
+			var got string
+			var err error
+			if got, err = CleanPath(tc.in); tc.err == nil && err != nil {
 				t.Fatalf("CleanPath(%q) unexpected error: %v", tc.in, err)
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Fatalf("CleanPath(%q) different error than expected:\ngot: %v\nwanted: %v", tc.in, err, tc.err)
+			} else if tc.err != nil {
+				return // skip remaining tests on expected error
 			}
 			if got != tc.want {
 				t.Fatalf("CleanPath(%q) = %q; want %q", tc.in, got, tc.want)

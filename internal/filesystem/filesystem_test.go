@@ -12,24 +12,10 @@ import (
 	"time"
 )
 
-func newFileURI(t *testing.T, dir string) *url.URL {
-	t.Helper()
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		t.Fatalf("abs path: %v", err)
-	}
-	u, err := url.Parse("file://" + filepath.ToSlash(abs))
-	if err != nil {
-		t.Fatalf("parse root: %v", err)
-	}
-	return u
-}
-
 func TestNewAndReady(t *testing.T) {
-	dir := t.TempDir()
-	root := newFileURI(t, dir)
+	testRootURI := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	fs := &FileSystem{}
-	if err := fs.Configure(root); err != nil {
+	if err := fs.Configure(testRootURI); err != nil {
 		t.Fatalf("Configure error: %v", err)
 	}
 	if !fs.Ready() {
@@ -41,18 +27,17 @@ func TestNewAndReady(t *testing.T) {
 }
 
 func TestPutGetStatRemove(t *testing.T) {
-	dir := t.TempDir()
-	root := newFileURI(t, dir)
+	testRootURI := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	fs := &FileSystem{}
-	if err := fs.Configure(root); err != nil {
+	if err := fs.Configure(testRootURI); err != nil {
 		t.Fatalf("Configure error: %v", err)
 	}
 	if err := fs.Init(); err != nil {
 		t.Fatalf("Init error: %v", err)
 	}
 
-	target := *root
-	target.Path = path.Join(root.Path, "example.com", "item", "asset.bin")
+	target := *testRootURI
+	target.Path = path.Join(testRootURI.Path, "example.com", "item", "asset.bin")
 	lockURI := target
 	lockURI.Path += ".lock"
 
@@ -93,17 +78,16 @@ func TestPutGetStatRemove(t *testing.T) {
 }
 
 func TestLockUnlock(t *testing.T) {
-	dir := t.TempDir()
-	root := newFileURI(t, dir)
+	testRootURI := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	fs := &FileSystem{}
-	if err := fs.Configure(root); err != nil {
+	if err := fs.Configure(testRootURI); err != nil {
 		t.Fatalf("Configure error: %v", err)
 	}
 	if err := fs.Init(); err != nil {
 		t.Fatalf("Init error: %v", err)
 	}
-	target := *root
-	target.Path = path.Join(root.Path, "example.com", "item", "asset.bin")
+	target := *testRootURI
+	target.Path = path.Join(testRootURI.Path, "example.com", "item", "asset.bin")
 	ctx := context.Background()
 	lockURI := target
 	lockURI.Path += ".lock"
@@ -116,12 +100,12 @@ func TestLockUnlock(t *testing.T) {
 		t.Fatalf("expected token")
 	}
 
-	if _, err := fs.Lock(ctx, &lockURI); !errors.Is(err, ErrLocked) {
-		t.Fatalf("expected ErrLocked, got %v", err)
+	if _, err := fs.Lock(ctx, &lockURI); !errors.Is(err, ErrAdvisoryLock) {
+		t.Fatalf("expected ErrAdvisoryLock, got %v", err)
 	}
 
-	if err := fs.Unlock(ctx, &lockURI, "wrong"); !errors.Is(err, ErrLockToken) {
-		t.Fatalf("expected ErrLockToken, got %v", err)
+	if err := fs.Unlock(ctx, &lockURI, "wrong"); !errors.Is(err, ErrInvalidLockToken) {
+		t.Fatalf("expected ErrInvalidLockToken, got %v", err)
 	}
 
 	if err := fs.Unlock(ctx, &lockURI, token); err != nil {
@@ -130,10 +114,9 @@ func TestLockUnlock(t *testing.T) {
 }
 
 func TestEvict(t *testing.T) {
-	dir := t.TempDir()
-	root := newFileURI(t, dir)
+	testRootURI := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	fs := &FileSystem{}
-	if err := fs.Configure(root); err != nil {
+	if err := fs.Configure(testRootURI); err != nil {
 		t.Fatalf("Configure error: %v", err)
 	}
 	if err := fs.Init(); err != nil {
@@ -141,12 +124,12 @@ func TestEvict(t *testing.T) {
 	}
 
 	create := func(rel string, mod time.Time) {
-		target := *root
-		target.Path = path.Join(root.Path, rel)
+		target := *testRootURI
+		target.Path = path.Join(testRootURI.Path, rel)
 		if err := fs.Put(context.Background(), &target, []byte("data")); err != nil {
 			t.Fatalf("Put error: %v", err)
 		}
-		local := filepath.Join(dir, filepath.FromSlash(rel))
+		local := filepath.Join(testRootURI.Path, filepath.FromSlash(rel))
 		if err := os.Chtimes(local, mod, mod); err != nil {
 			t.Fatalf("Chtimes error: %v", err)
 		}
@@ -166,8 +149,8 @@ func TestEvict(t *testing.T) {
 		t.Fatalf("expected some bytes removed")
 	}
 
-	oldTarget := *root
-	oldTarget.Path = path.Join(root.Path, "example.com", "itemA", "asset.bin")
+	oldTarget := *testRootURI
+	oldTarget.Path = path.Join(testRootURI.Path, "example.com", "itemA", "asset.bin")
 	exists, err := fs.Exists(context.Background(), &oldTarget)
 	if err != nil {
 		t.Fatalf("Exists error: %v", err)
@@ -176,8 +159,8 @@ func TestEvict(t *testing.T) {
 		t.Fatalf("expected old file to be evicted")
 	}
 
-	newTarget := *root
-	newTarget.Path = path.Join(root.Path, "example.com", "itemB", "fresh.bin")
+	newTarget := *testRootURI
+	newTarget.Path = path.Join(testRootURI.Path, "example.com", "itemB", "fresh.bin")
 	exists, err = fs.Exists(context.Background(), &newTarget)
 	if err != nil {
 		t.Fatalf("Exists error: %v", err)
@@ -188,26 +171,57 @@ func TestEvict(t *testing.T) {
 }
 
 func TestSecurityScope(t *testing.T) {
-	dir := t.TempDir()
-	root := newFileURI(t, dir)
-	fs := &FileSystem{}
-	if err := fs.Configure(root); err != nil {
-		t.Fatalf("Configure error: %v", err)
+	var testRootURI *url.URL = &url.URL{Path: filepath.Join("testdata", t.Name()) + string(os.PathSeparator)}
+	var fs *FileSystem = &FileSystem{}
+	var err error
+	tests := []struct {
+		name string
+		uri  *url.URL
+		err  error
+	}{
+		{
+			name: "in scope",
+			uri:  &url.URL{Path: filepath.Join(testRootURI.Path, "file.bin")},
+			err:  nil,
+		},
+		{
+			name: "out of scope",
+			uri:  &url.URL{Path: "/tmp/file.bin"},
+			err:  ErrSecurityScope,
+		},
 	}
-	other, _ := url.Parse("file:///tmp/other/file.bin")
-	if err := fs.Put(context.Background(), other, []byte("data")); !errors.Is(err, ErrSecurityScope) {
-		t.Fatalf("expected ErrSecurityScope, got %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err = fs.Configure(testRootURI); err != nil {
+				t.Fatalf("Configure error: %v", err)
+			}
+
+			// check expected errors
+			if err := fs.Put(context.Background(), tc.uri, []byte("data")); tc.err != nil && err == nil {
+				t.Fatalf("expected error, did not get one")
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Fatalf("different error than expected:\ngot:    %v\nwanted: %v", err, tc.err)
+			} else {
+				return // skip remaining tests on expected error
+			}
+
+			// handle unexpected errors
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 
 func TestPruneRemovesEmptyDirectories(t *testing.T) {
+	var testRootURI *url.URL = &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	var fs *FileSystem = &FileSystem{}
 	var directories []string
 	var files []string
 	var remaining []string
 	var want []string
 	var err error
-	if err = fs.Configure(&url.URL{Path: "testdata"}); err != nil {
+	if err = fs.Configure(testRootURI); err != nil {
 		t.Fatalf("Configure error: %v", err)
 	}
 	if err := fs.Destroy(context.Background()); err != nil {

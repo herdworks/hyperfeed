@@ -1,5 +1,10 @@
-.gocache
-testdata
+## binaries
 hyperfeed-go
+
+## test data
+**/testdata/Test*
 repl
 *.db
+
+## state files
+.gocache

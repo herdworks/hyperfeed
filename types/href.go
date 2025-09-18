@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -23,14 +24,14 @@ func (href *HRef) UnmarshalJSON(b []byte) (err error) {
 		return nil
 	}
 	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("href must be a JSON string: %w", err)
+		return errors.Join(ErrDeserialization, fmt.Errorf("href must be a JSON string: %w", err))
 	}
 	if s == "" {
 		href.URL = nil
 		return nil
 	}
 	if u, err = url.Parse(s); err != nil {
-		return fmt.Errorf("invalid href: %w", err)
+		return errors.Join(ErrDeserialization, fmt.Errorf("invalid href: %w", err))
 	}
 	href.URL = normalized.URL(u)
 	return nil
@@ -60,7 +61,7 @@ func (href *HRef) UnmarshalText(text []byte) (err error) {
 		return nil
 	}
 	if u, err = url.Parse(string(text)); err != nil {
-		return err
+		return errors.Join(ErrDeserialization, fmt.Errorf("invalid href: %w", err))
 	}
 	href.URL = normalized.URL(u)
 	return nil

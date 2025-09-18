@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	ErrSecurityScope = errors.New("filesystem: security scope violation")
-	ErrLocked        = errors.New("filesystem: lock already acquired")
-	ErrLockToken     = errors.New("filesystem: invalid lock token")
+	ErrConfiguration    = errors.New("filesystem: invalid configuration")
+	ErrSecurityScope    = errors.New("filesystem: security scope violation")
+	ErrAdvisoryLock     = errors.New("filesystem: advisory lock error")
+	ErrInvalidLockToken = errors.New("filesystem: invalid lock token")
 )
 
 // FileSystem provides a filesystem-backed implementation that operates beneath
@@ -75,7 +76,7 @@ func (fs *FileSystem) Configure(root *url.URL) (err error) {
 	}
 	abs := *root // shallow copy
 	if abs.Path, err = filepath.Abs(abs.Path); err != nil {
-		return fmt.Errorf("filesystem: failed to resolve absolute path: %v", err)
+		return fmt.Errorf("filesystem: failed to resolve absolute path: %w", err)
 	}
 	if !strings.HasSuffix(abs.Path, "/") {
 		abs.Path += "/"
@@ -112,19 +113,19 @@ func (fs *FileSystem) Ready() bool {
 func (fs *FileSystem) SecurityScopedURI(uri *url.URL) (u *url.URL, err error) {
 	u = &url.URL{}
 	if !fs.Ready() {
-		return nil, fmt.Errorf("filesystem.SecurityScopedURI error: filesystem not ready")
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: filesystem not ready"))
 	}
 	if uri == nil {
-		return nil, fmt.Errorf("filesystem.SecurityScopedURI error: URI is required")
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: URI is required"))
 	}
 	if !(uri.Scheme == "file" || uri.Scheme == "") {
-		return nil, fmt.Errorf("filesystem.SecurityScopedURI error: unsupported URI scheme %q", uri.Scheme)
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: unsupported URI scheme %q", uri.Scheme))
 	}
 	if u.Path, err = filepath.Abs(uri.Path); err != nil {
-		return nil, fmt.Errorf("filesystem.SecurityScopedURI error: failed to resolve URI absolute path: %v", err)
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: failed to resolve URI absolute path: %w", err))
 	}
 	if !strings.HasPrefix(u.Path, strings.TrimSuffix(fs.URI.Path, "/")) {
-		return nil, fmt.Errorf("filesystem.SecurityScopedURI error: requested URI breaches the security scope;\nrequested       %q:\nsecurity scope: %q", u.Path, fs.URI.String())
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: requested URI breaches the security scope;\nrequested       %q:\nsecurity scope: %q", u.Path, fs.URI.String()))
 	}
 	return u, nil
 }
@@ -134,19 +135,19 @@ func (fs *FileSystem) AdvisoryLockURI(uri *url.URL, ops ...OperationKind) (u *ur
 	var abspath string
 	var subpath string
 	if !fs.Ready() {
-		return nil, fmt.Errorf("filesystem.AdvisoryLockURI: not ready")
+		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockURI: not ready"))
 	}
 	if len(ops) == 0 {
 		ops = SudoOperation // default to sudo mode (all operations)
 	}
 	if abspath, err = filepath.Abs(uri.Path); err != nil {
-		return nil, fmt.Errorf("filesystem.AdvisoryLockedURI: failed to resolve absolute path: %v", err)
+		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockedURI: failed to resolve absolute path: %w", err))
 	} else {
 		subpath = strings.TrimPrefix(abspath, strings.TrimSuffix(fs.URI.Path, string(os.PathSeparator)))
 		subpath = strings.TrimPrefix(subpath, string(os.PathSeparator))
 	}
 	if subpath == "" {
-		return nil, fmt.Errorf("filesystem.AdvisoryLockedURI: cannot lock the root path")
+		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockedURI: cannot lock the root path"))
 	}
 	for _, policy := range fs.LockingPolicies {
 		if policy.LockRequired(&url.URL{Path: subpath}, ops...) {
@@ -200,7 +201,7 @@ func (fs *FileSystem) Lock(ctx context.Context, uri *url.URL) (t string, err err
 	}
 	if lockfile, err = os.OpenFile(secURI.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return "", ErrLocked
+			return "", ErrAdvisoryLock
 		}
 		return "", err
 	}
@@ -239,7 +240,7 @@ func (fs *FileSystem) Unlock(ctx context.Context, uri *url.URL, token string) (e
 		return err
 	}
 	if strings.TrimSpace(string(data)) != token {
-		return ErrLockToken
+		return ErrInvalidLockToken
 	}
 	return os.Remove(secURI.Path)
 }

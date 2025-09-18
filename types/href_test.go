@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"errors"
 	"net/url"
 	"testing"
 
@@ -9,10 +10,10 @@ import (
 
 func TestHRef_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         []byte
-		want          *url.URL
-		errorExpected bool
+		name  string
+		input []byte
+		want  *url.URL
+		err   error
 	}{
 		{
 			name:  "valid URL",
@@ -30,14 +31,14 @@ func TestHRef_UnmarshalJSON(t *testing.T) {
 			want:  nil,
 		},
 		{
-			name:          "invalid JSON",
-			input:         []byte(`{"not": "a string"}`),
-			errorExpected: true,
+			name:  "invalid JSON",
+			input: []byte(`{"not": "a string"}`),
+			err:   ErrDeserialization,
 		},
 		{
-			name:          "invalid URL",
-			input:         []byte(`"://invalid-url"`),
-			errorExpected: true,
+			name:  "invalid URL",
+			input: []byte(`"://invalid-url"`),
+			err:   ErrDeserialization,
 		},
 		{
 			name:  "relative URL",
@@ -49,20 +50,14 @@ func TestHRef_UnmarshalJSON(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var h HRef
-			err := h.UnmarshalJSON(tc.input)
-
-			if tc.errorExpected {
-				if err == nil {
-					t.Errorf("UnmarshalJSON() expected error, got nil")
-				}
-				return
-			}
-
-			if err != nil {
+			if err := h.UnmarshalJSON(tc.input); tc.err == nil && err != nil {
 				t.Errorf("UnmarshalJSON() unexpected error: %v", err)
-				return
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Errorf("UnmarshalJSON(%q) different error than expected\ngot: %v, wanted: %v", tc.input, err, tc.err)
+			} else if tc.err != nil {
+				t.Logf("UnmarshalJSON(%q) got expected error: %v", tc.input, err)
+				return // skip remaining tests on expected error
 			}
-
 			if !normalization.Equal(h.URL, tc.want) {
 				t.Errorf("UnmarshalJSON() = %v, want %v", h.URL, tc.want)
 			}
@@ -72,10 +67,10 @@ func TestHRef_UnmarshalJSON(t *testing.T) {
 
 func TestHRef_UnmarshalText(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         []byte
-		want          *url.URL
-		errorExpected bool
+		name  string
+		input []byte
+		want  *url.URL
+		err   error
 	}{
 		{
 			name:  "valid URL",
@@ -88,9 +83,9 @@ func TestHRef_UnmarshalText(t *testing.T) {
 			want:  nil,
 		},
 		{
-			name:          "invalid URL",
-			input:         []byte("://invalid-url"),
-			errorExpected: true,
+			name:  "invalid URL",
+			input: []byte("://invalid-url"),
+			err:   ErrDeserialization,
 		},
 		{
 			name:  "relative URL",
@@ -102,20 +97,14 @@ func TestHRef_UnmarshalText(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var h HRef
-			err := h.UnmarshalText(tc.input)
-
-			if tc.errorExpected {
-				if err == nil {
-					t.Errorf("UnmarshalText() expected error, got nil")
-				}
-				return
+			if err := h.UnmarshalText(tc.input); tc.err == nil && err != nil {
+				t.Fatalf("UnmarshalText() unexpected error: %v", err)
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Errorf("UnmarshalText(%q) different error than expected\ngot: %v, wanted: %v", tc.input, err, tc.err)
+			} else if tc.err != nil {
+				t.Logf("UnmarshalText(%q) got expected error: %v", tc.input, err)
+				return // skip remaining tests on expected error
 			}
-
-			if err != nil {
-				t.Errorf("UnmarshalText() unexpected error: %v", err)
-				return
-			}
-
 			if !normalization.Equal(h.URL, tc.want) {
 				t.Errorf("UnmarshalText() = %v, want %v", h.URL, tc.want)
 			}
@@ -125,10 +114,9 @@ func TestHRef_UnmarshalText(t *testing.T) {
 
 func TestHRef_MarshalJSON(t *testing.T) {
 	tests := []struct {
-		name          string
-		href          *HRef
-		want          string
-		errorExpected bool
+		name string
+		href *HRef
+		want string
 	}{
 		{
 			name: "valid URL",
@@ -164,10 +152,9 @@ func TestHRef_MarshalJSON(t *testing.T) {
 
 func TestHRef_MarshalText(t *testing.T) {
 	tests := []struct {
-		name          string
-		href          HRef
-		want          string
-		errorExpected bool
+		name string
+		href HRef
+		want string
 	}{
 		{
 			name: "valid URL",
@@ -203,10 +190,10 @@ func TestHRef_MarshalText(t *testing.T) {
 
 func TestHRef_Identifier(t *testing.T) {
 	tests := []struct {
-		name          string
-		href          *HRef
-		want          string
-		errorExpected bool
+		name string
+		href *HRef
+		want string
+		err  error
 	}{
 		{
 			name: "valid URL",
@@ -214,29 +201,29 @@ func TestHRef_Identifier(t *testing.T) {
 			want: "5faa4bf4918ff56562141cc328545ec8f7b6dd27", // sha256 of "https://example.com/path" truncated to 40 chars
 		},
 		{
-			name:          "nil HRef",
-			href:          nil,
-			want:          "",
-			errorExpected: true,
+			name: "nil HRef",
+			href: nil,
+			want: "",
+			err:  ErrNotImplemented,
 		},
 		{
-			name:          "nil URL",
-			href:          &HRef{URL: nil},
-			want:          "8a5edab282632443219e051e4ade2d1d5bbc671c", // sha256 of the default "/" path truncated to 40 chars
-			errorExpected: false,
+			name: "nil URL",
+			href: &HRef{URL: nil},
+			want: "8a5edab282632443219e051e4ade2d1d5bbc671c", // sha256 of the default "/" path truncated to 40 chars
+			err:  nil,
 		},
 		{
-			name:          "different URL same identifier",
-			href:          &HRef{URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/other"}},
-			want:          "3de5b3c6e5e8e5b3c6e5e8e5b3c6e5e8e5b3c6e5", // This will be different
-			errorExpected: true,                                       // Expecting different identifier
+			name: "different URL same identifier",
+			href: &HRef{URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/other"}},
+			want: "3de5b3c6e5e8e5b3c6e5e8e5b3c6e5e8e5b3c6e5", // This will be different
+			err:  ErrNotImplemented,                          // Expecting different identifier
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var got string = tc.href.Identifier()
-			if tc.errorExpected {
+			if tc.err != nil {
 				if got == tc.want {
 					t.Errorf("Identifier() expected error, got matching identifiers: %s", got)
 				}

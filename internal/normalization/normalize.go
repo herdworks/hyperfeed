@@ -3,7 +3,7 @@ package normalization
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"net/url"
 	"path"
 	"regexp"
@@ -12,6 +12,11 @@ import (
 	"unicode/utf8"
 
 	"path/filepath"
+)
+
+var (
+	ErrNotImplemented = errors.New("not implemented")
+	ErrInvalidPath    = errors.New("invalid path")
 )
 
 // URL returns a canonicalized copy of u:
@@ -152,36 +157,35 @@ func Identifier(incoming string) string {
 func CleanPath(p string, reserved ...string) (string, error) {
 	var clean string
 	var segments []string
-	var errmsg error = fmt.Errorf("unable to clean path: %q", p)
 	p = strings.TrimSpace(p)             // trim leading/trailing whitespace
 	p = strings.ReplaceAll(p, "\\", "/") // Treat Windows separators like POSIX for normalization.
 	if p == "" {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	if !utf8.ValidString(p) {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	if clean = path.Clean(p); clean == "." {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	if strings.HasPrefix(clean, "../") || clean == ".." {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	if strings.HasPrefix(clean, "/") {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	if len(reserved) == 0 {
 		reserved = append(reserved, CleanPathReservedFileNames...) // copy default reserved names
 	}
 	if slices.Contains(reserved, clean) {
-		return "", errmsg
+		return "", ErrInvalidPath
 	}
 	for _, segment := range strings.Split(clean, "/") {
 		if segment == "" || segment == "." || segment == ".." {
-			return "", errmsg
+			return "", ErrInvalidPath
 		}
 		if !CleanPathSegmentPattern.MatchString(segment) {
-			return "", errmsg
+			return "", ErrInvalidPath
 		}
 		segments = append(segments, segment)
 	}
