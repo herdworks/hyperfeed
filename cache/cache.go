@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/internal/cachefs"
+	"github.com/herdworks/hyperfeed-go/internal/filesystem"
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
@@ -103,7 +103,7 @@ func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 	cache.Base = base
 	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
 	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
-	cache.FS = &cachefs.FileSystem{}
+	cache.FS = &filesystem.FileSystem{}
 	return cache.FS.Configure(cache.URI)
 }
 

@@ -1,5 +1,5 @@
 .gocache
-cache/testdata/testcache
+testdata
 hyperfeed-go
 repl
 *.db

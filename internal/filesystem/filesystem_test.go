@@ -1,4 +1,4 @@
-package cachefs
+package filesystem
 
 import (
 	"context"
@@ -53,6 +53,8 @@ func TestPutGetStatRemove(t *testing.T) {
 
 	target := *root
 	target.Path = path.Join(root.Path, "example.com", "item", "asset.bin")
+	lockURI := target
+	lockURI.Path += ".lock"
 
 	ctx := context.Background()
 	payload := []byte("hello cache")
@@ -103,8 +105,10 @@ func TestLockUnlock(t *testing.T) {
 	target := *root
 	target.Path = path.Join(root.Path, "example.com", "item", "asset.bin")
 	ctx := context.Background()
+	lockURI := target
+	lockURI.Path += ".lock"
 
-	token, err := fs.Lock(ctx, &target)
+	token, err := fs.Lock(ctx, &lockURI)
 	if err != nil {
 		t.Fatalf("Lock error: %v", err)
 	}
@@ -112,15 +116,15 @@ func TestLockUnlock(t *testing.T) {
 		t.Fatalf("expected token")
 	}
 
-	if _, err := fs.Lock(ctx, &target); !errors.Is(err, ErrLocked) {
+	if _, err := fs.Lock(ctx, &lockURI); !errors.Is(err, ErrLocked) {
 		t.Fatalf("expected ErrLocked, got %v", err)
 	}
 
-	if err := fs.Unlock(ctx, &target, "wrong"); !errors.Is(err, ErrLockToken) {
+	if err := fs.Unlock(ctx, &lockURI, "wrong"); !errors.Is(err, ErrLockToken) {
 		t.Fatalf("expected ErrLockToken, got %v", err)
 	}
 
-	if err := fs.Unlock(ctx, &target, token); err != nil {
+	if err := fs.Unlock(ctx, &lockURI, token); err != nil {
 		t.Fatalf("Unlock error: %v", err)
 	}
 }

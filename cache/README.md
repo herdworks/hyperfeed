@@ -8,7 +8,7 @@ It is distinct from the `storage` (feed metadata & item content) and `state` (su
 * Deterministic URI scheme
 * Age-based retention policy
 * Side-effect free reads; safe concurrent access
-* Separation of concerns between Cache API and file system (`internal/cachefs`)
+* Separation of concerns between Cache API and file system (`internal/filesystem`)
 
 ## Layout
 
