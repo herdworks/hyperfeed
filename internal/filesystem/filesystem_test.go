@@ -91,24 +91,20 @@ func TestLockUnlock(t *testing.T) {
 	ctx := context.Background()
 	lockURI := target
 	lockURI.Path += ".lock"
-
-	token, err := fs.Lock(ctx, &lockURI)
+	token, err := fs.lock(ctx, &lockURI)
 	if err != nil {
 		t.Fatalf("Lock error: %v", err)
 	}
 	if token == "" {
 		t.Fatalf("expected token")
 	}
-
-	if _, err := fs.Lock(ctx, &lockURI); !errors.Is(err, ErrAdvisoryLock) {
+	if _, err := fs.lock(ctx, &lockURI); !errors.Is(err, ErrAdvisoryLock) {
 		t.Fatalf("expected ErrAdvisoryLock, got %v", err)
 	}
-
-	if err := fs.Unlock(ctx, &lockURI, "wrong"); !errors.Is(err, ErrInvalidLockToken) {
+	if err := fs.unlock(ctx, &lockURI, "wrong"); !errors.Is(err, ErrInvalidLockToken) {
 		t.Fatalf("expected ErrInvalidLockToken, got %v", err)
 	}
-
-	if err := fs.Unlock(ctx, &lockURI, token); err != nil {
+	if err := fs.unlock(ctx, &lockURI, token); err != nil {
 		t.Fatalf("Unlock error: %v", err)
 	}
 }

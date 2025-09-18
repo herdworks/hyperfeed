@@ -109,33 +109,33 @@ func (fs *FileSystem) Ready() bool {
 	return true
 }
 
-// SecurityScopedURI checks that a URI is within the FileSyStem security scope and returns an absolute path
-func (fs *FileSystem) SecurityScopedURI(uri *url.URL) (u *url.URL, err error) {
+// securityScopedURI checks that a URI is within the FileSyStem security scope and returns an absolute path
+func (fs *FileSystem) securityScopedURI(uri *url.URL) (u *url.URL, err error) {
 	u = &url.URL{}
 	if !fs.Ready() {
-		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: filesystem not ready"))
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.securityScopedURI error: filesystem not ready"))
 	}
 	if uri == nil {
-		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: URI is required"))
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.securityScopedURI error: URI is required"))
 	}
 	if !(uri.Scheme == "file" || uri.Scheme == "") {
-		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: unsupported URI scheme %q", uri.Scheme))
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.securityScopedURI error: unsupported URI scheme %q", uri.Scheme))
 	}
 	if u.Path, err = filepath.Abs(uri.Path); err != nil {
-		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: failed to resolve URI absolute path: %w", err))
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.securityScopedURI error: failed to resolve URI absolute path: %w", err))
 	}
 	if !strings.HasPrefix(u.Path, strings.TrimSuffix(fs.URI.Path, "/")) {
-		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.SecurityScopedURI error: requested URI breaches the security scope;\nrequested       %q:\nsecurity scope: %q", u.Path, fs.URI.String()))
+		return nil, errors.Join(ErrSecurityScope, fmt.Errorf("filesystem.securityScopedURI error: requested URI breaches the security scope;\nrequested       %q:\nsecurity scope: %q", u.Path, fs.URI.String()))
 	}
 	return u, nil
 }
 
-// AdvisoryLockURI checks if a URI operation requires an exclusive lock and returns a lockfile URI if so
-func (fs *FileSystem) AdvisoryLockURI(uri *url.URL, ops ...OperationKind) (u *url.URL, err error) {
+// advisoryLockURI checks if a URI operation requires an exclusive lock and returns a lockfile URI if so
+func (fs *FileSystem) advisoryLockURI(uri *url.URL, ops ...OperationKind) (u *url.URL, err error) {
 	var abspath string
 	var subpath string
 	if !fs.Ready() {
-		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockURI: not ready"))
+		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.advisoryLockURI: not ready"))
 	}
 	if len(ops) == 0 {
 		ops = SudoOperation // default to sudo mode (all operations)
@@ -150,7 +150,7 @@ func (fs *FileSystem) AdvisoryLockURI(uri *url.URL, ops ...OperationKind) (u *ur
 		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockedURI: cannot lock the root path"))
 	}
 	for _, policy := range fs.LockingPolicies {
-		if policy.LockRequired(&url.URL{Path: subpath}, ops...) {
+		if policy.lockRequired(&url.URL{Path: subpath}, ops...) {
 			abspath = strings.TrimSuffix(abspath, string(os.PathSeparator))
 			abspath = strings.TrimSuffix(abspath, ".lock")
 			abspath += ".lock"
@@ -160,8 +160,8 @@ func (fs *FileSystem) AdvisoryLockURI(uri *url.URL, ops ...OperationKind) (u *ur
 	return nil, nil
 }
 
-// LockRequired checks if a URI operation requires an exclusive lock based a given policy
-func (policy *LockPolicy) LockRequired(uri *url.URL, ops ...OperationKind) bool {
+// lockRequired checks if a URI operation requires an exclusive lock based a given policy
+func (policy *LockPolicy) lockRequired(uri *url.URL, ops ...OperationKind) bool {
 	if policy == nil || uri == nil {
 		return false
 	}
@@ -179,18 +179,18 @@ func (policy *LockPolicy) LockRequired(uri *url.URL, ops ...OperationKind) bool 
 	return false
 }
 
-// Lock() creates a lockfile at the given URI and returns a token to be used for unlocking
-func (fs *FileSystem) Lock(ctx context.Context, uri *url.URL) (t string, err error) {
+// lock() creates a lockfile at the given URI and returns a token to be used for unlocking
+func (fs *FileSystem) lock(ctx context.Context, uri *url.URL) (t string, err error) {
 	var secURI *url.URL
-	var lockfile *os.File
-	var token = fmt.Sprintf("%d", time.Now().UnixNano())
+	var lockFile *os.File
+	var lockToken = fmt.Sprintf("%d", time.Now().UnixNano())
 	if uri == nil {
 		return "", nil
 	}
 	if !strings.HasSuffix(uri.Path, ".lock") {
 		return "", fmt.Errorf("filesystem.Lock error: expected lock uri to end with .lock")
 	}
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return "", fmt.Errorf("filesystem.Lock error: access denied: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
@@ -199,47 +199,47 @@ func (fs *FileSystem) Lock(ctx context.Context, uri *url.URL) (t string, err err
 	if err := os.MkdirAll(filepath.Dir(secURI.Path), 0o755); err != nil {
 		return "", err
 	}
-	if lockfile, err = os.OpenFile(secURI.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err != nil {
+	if lockFile, err = os.OpenFile(secURI.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return "", ErrAdvisoryLock
 		}
 		return "", err
 	}
-	if _, err := lockfile.WriteString(token); err != nil {
-		lockfile.Close()
+	if _, err := lockFile.WriteString(lockToken); err != nil {
+		lockFile.Close()
 		os.Remove(secURI.Path)
 		return "", err
 	}
-	if err := lockfile.Close(); err != nil {
+	if err := lockFile.Close(); err != nil {
 		os.Remove(secURI.Path)
 		return "", err
 	}
-	return token, nil
+	return lockToken, nil
 }
 
 // Unlock() removes a lockfile at the given URI if the provided token matches
-func (fs *FileSystem) Unlock(ctx context.Context, uri *url.URL, token string) (err error) {
+func (fs *FileSystem) unlock(ctx context.Context, uri *url.URL, token string) (err error) {
 	var secURI *url.URL
-	var data []byte
+	var lockData []byte
 	if uri == nil {
 		return nil
 	}
 	if !strings.HasSuffix(uri.Path, ".lock") {
 		return fmt.Errorf("filesystem.Unlock error: expected lock uri to end with .lock")
 	}
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.Unlock error: access denied: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if data, err = os.ReadFile(secURI.Path); err != nil {
+	if lockData, err = os.ReadFile(secURI.Path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return err
 	}
-	if strings.TrimSpace(string(data)) != token {
+	if strings.TrimSpace(string(lockData)) != token {
 		return ErrInvalidLockToken
 	}
 	return os.Remove(secURI.Path)
@@ -250,8 +250,17 @@ func (fs *FileSystem) Unlock(ctx context.Context, uri *url.URL, token string) (e
 // Stat() returns os.FileInfo about a file or directory at the given URI
 func (fs *FileSystem) Stat(ctx context.Context, uri *url.URL) (info os.FileInfo, err error) {
 	var secURI *url.URL
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	var lockURI *url.URL
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return nil, fmt.Errorf("filesystem.Stat: access denied: %w", err)
+	}
+	if lockURI, err = fs.advisoryLockURI(uri, StatOperation); err != nil {
+		return nil, fmt.Errorf("filesystem.Stat: failed to obtain advisory lock URI: %w", err)
+	}
+	if token, err := fs.lock(ctx, lockURI); err != nil {
+		return nil, err
+	} else {
+		defer fs.unlock(ctx, lockURI, token) // defer unlock if a lock is obtained
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -260,15 +269,12 @@ func (fs *FileSystem) Stat(ctx context.Context, uri *url.URL) (info os.FileInfo,
 }
 
 // Exists() checks if a file or directory exists at the given URI
+// NOTE: does not use advisory locks
 func (fs *FileSystem) Exists(ctx context.Context, uri *url.URL) (exists bool, err error) {
-	var secURI *url.URL
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
-		return false, fmt.Errorf("filesystem.Stat: access denied: %w", err)
-	}
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	if _, err := fs.Stat(ctx, secURI); err != nil {
+	if _, err := fs.Stat(ctx, uri); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
@@ -281,18 +287,17 @@ func (fs *FileSystem) Exists(ctx context.Context, uri *url.URL) (exists bool, er
 func (fs *FileSystem) Put(ctx context.Context, uri *url.URL, data []byte) (err error) {
 	var secURI *url.URL
 	var lockURI *url.URL
-	var tempfile *os.File
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	var tempFile *os.File
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.Put error: access denied: %w", err)
 	}
-	if lockURI, err = fs.AdvisoryLockURI(uri, StatOperation); err != nil {
+	if lockURI, err = fs.advisoryLockURI(uri, PutOperation); err != nil {
 		return fmt.Errorf("filesystem.Put error: advisory lock checks failed: %w", err)
 	}
-	if token, err := fs.Lock(ctx, lockURI); err != nil {
+	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
 		return err
 	} else {
-		// defer unlock if a lock is obtained
-		defer fs.Unlock(ctx, lockURI, token)
+		defer fs.unlock(ctx, lockURI, lockToken) // defer unlock if a lock is obtained
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -300,25 +305,25 @@ func (fs *FileSystem) Put(ctx context.Context, uri *url.URL, data []byte) (err e
 	if err := os.MkdirAll(filepath.Dir(secURI.Path), 0o755); err != nil {
 		return err
 	}
-	if tempfile, err = os.CreateTemp(filepath.Dir(secURI.Path), ".cache-"); err != nil {
+	if tempFile, err = os.CreateTemp(filepath.Dir(secURI.Path), ".tmp-"); err != nil {
 		return err
 	}
-	if _, err := tempfile.Write(data); err != nil {
-		tempfile.Close()
-		os.Remove(tempfile.Name())
+	if _, err := tempFile.Write(data); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
 		return err
 	}
-	if err := tempfile.Sync(); err != nil {
-		tempfile.Close()
-		os.Remove(tempfile.Name())
+	if err := tempFile.Sync(); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
 		return err
 	}
-	if err := tempfile.Close(); err != nil {
-		os.Remove(tempfile.Name())
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempFile.Name())
 		return err
 	}
-	if err := os.Rename(tempfile.Name(), secURI.Path); err != nil {
-		os.Remove(tempfile.Name())
+	if err := os.Rename(tempFile.Name(), secURI.Path); err != nil {
+		os.Remove(tempFile.Name())
 		return err
 	}
 	return nil
@@ -327,8 +332,17 @@ func (fs *FileSystem) Put(ctx context.Context, uri *url.URL, data []byte) (err e
 // Get() reads data from a file at the given URI
 func (fs *FileSystem) Get(ctx context.Context, uri *url.URL) (b []byte, err error) {
 	var secURI *url.URL
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	var lockURI *url.URL
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return nil, fmt.Errorf("filesystem.Get: access denied: %w", err)
+	}
+	if lockURI, err = fs.advisoryLockURI(uri, GetOperation); err != nil {
+		return nil, fmt.Errorf("filesystem.Get error: advisory lock checks failed: %w", err)
+	}
+	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
+		return nil, err
+	} else {
+		defer fs.unlock(ctx, lockURI, lockToken) // defer unlock if a lock is obtained
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -339,8 +353,17 @@ func (fs *FileSystem) Get(ctx context.Context, uri *url.URL) (b []byte, err erro
 // Remove() deletes a file at the given URI
 func (fs *FileSystem) Remove(ctx context.Context, uri *url.URL) (err error) {
 	var secURI *url.URL
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	var lockURI *url.URL
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.Remove: access denied: %w", err)
+	}
+	if lockURI, err = fs.advisoryLockURI(uri, RemoveOperation); err != nil {
+		return fmt.Errorf("filesystem.Remove error: advisory lock checks failed: %w", err)
+	}
+	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
+		return err
+	} else {
+		defer fs.unlock(ctx, lockURI, lockToken) // defer unlock if a lock is obtained
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -354,8 +377,17 @@ func (fs *FileSystem) Remove(ctx context.Context, uri *url.URL) (err error) {
 // RemoveAll() recursively deletes a directory tree at the given URI
 func (fs *FileSystem) RemoveAll(ctx context.Context, uri *url.URL) (err error) {
 	var secURI *url.URL
-	if secURI, err = fs.SecurityScopedURI(uri); err != nil {
+	var lockURI *url.URL
+	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.RemoveAll: access denied: %w", err)
+	}
+	if lockURI, err = fs.advisoryLockURI(uri, RemoveAllOperation); err != nil {
+		return fmt.Errorf("filesystem.RemoveAll error: advisory lock checks failed: %w", err)
+	}
+	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
+		return err
+	} else {
+		defer fs.unlock(ctx, lockURI, lockToken) // defer unlock if a lock is obtained
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -377,14 +409,49 @@ func (fs *FileSystem) Destroy(ctx context.Context) error {
 	return os.RemoveAll(fs.URI.Path)
 }
 
+// List recurses over a directory tree contents and returns a slice of entries
+// func (fs *FileSystem) List(ctx context.Context, directory *url.URL, filters ...os.FileMode) (entries []os.DirEntry, err error) {
+// 	var secURI *url.URL
+// 	if secURI, err = fs.securityScopedURI(directory); err != nil {
+// 		return nil, fmt.Errorf("filesystem.Unlock: access denied: %w", err)
+// 	}
+// 	if err := ctx.Err(); err != nil {
+// 		return nil, err
+// 	}
+// 	walkErr := filepath.WalkDir(secURI.Path, func(path string, entry iofs.DirEntry, err error) error {
+// 		if err != nil {
+// 			if errors.Is(err, os.ErrNotExist) {
+// 				return nil
+// 			}
+// 			return err
+// 		}
+// 		if path == secURI.Path {
+// 			return nil
+// 		}
+// 		if len(filters) == 0 {
+// 			entries = append(entries, entry)
+// 		} else if slices.Contains(filters, entry.Type()) {
+// 			entries = append(entries, entry)
+// 		}
+// 		return nil
+// 	})
+// 	if walkErr != nil {
+// 		if errors.Is(walkErr, os.ErrNotExist) {
+// 			return nil, nil
+// 		}
+// 		return nil, walkErr
+// 	}
+// 	return entries, nil
+// }
+
 // Evict() removes files older than the given expiry time and prunes empty directories
 func (fs *FileSystem) Evict(ctx context.Context, expiry *time.Time) (int64, error) {
+	var removed int64
 	if expiry == nil {
 		return 0, nil
 	}
-	cutoff := expiry.UTC()
-	var removed int64
 	err := filepath.WalkDir(fs.URI.Path, func(path string, d iofs.DirEntry, err error) error {
+		var info os.FileInfo
 		if err != nil {
 			return err
 		}
@@ -397,11 +464,10 @@ func (fs *FileSystem) Evict(ctx context.Context, expiry *time.Time) (int64, erro
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		info, err := d.Info()
-		if err != nil {
+		if info, err = d.Info(); err != nil {
 			return err
 		}
-		if info.ModTime().UTC().Before(cutoff) {
+		if info.ModTime().UTC().Before(expiry.UTC()) {
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -417,8 +483,13 @@ func (fs *FileSystem) Evict(ctx context.Context, expiry *time.Time) (int64, erro
 }
 
 // Recuse over the cache tree and remove "prunable" directories
+// NOTE: performs recursive advisory locks
 func (fs *FileSystem) Prune(ctx context.Context, dir string, allowlist ...string) (err error) {
+	var secURI *url.URL
 	var directories []string
+	if secURI, err = fs.securityScopedURI(&url.URL{Path: dir}); err != nil {
+		return fmt.Errorf("filesystem.Remove: access denied: %w", err)
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -426,12 +497,21 @@ func (fs *FileSystem) Prune(ctx context.Context, dir string, allowlist ...string
 		allowlist = []string{".DS_Store"}
 	}
 	// recurse over the cache tree to discover all directories
-	if directories, err = fs.inventory(dir, os.ModeDir); err != nil {
+	if directories, err = fs.inventory(secURI.Path, os.ModeDir); err != nil {
 		return err
 	}
 	// iterate discovered directories in reverse order (deepest first)
 	slices.Reverse(directories)
 	for _, directory := range directories {
+		var lockURI *url.URL
+		if lockURI, err = fs.advisoryLockURI(&url.URL{Path: directory}, RemoveAllOperation); err != nil {
+			return fmt.Errorf("filesystem.Remove error: advisory lock checks failed: %w", err)
+		}
+		if lockToken, err := fs.lock(ctx, lockURI); err != nil {
+			return err
+		} else {
+			defer fs.unlock(ctx, lockURI, lockToken) // defer unlock if a lock is obtained
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -495,38 +575,3 @@ func (fs *FileSystem) prunable(directory string, allowlist []string) bool {
 	}
 	return true
 }
-
-// List recurses over a directory tree contents and returns a slice of entries
-// func (fs *FileSystem) List(ctx context.Context, directory *url.URL, filters ...os.FileMode) (entries []os.DirEntry, err error) {
-// 	var secURI *url.URL
-// 	if secURI, err = fs.SecurityScopedURI(directory); err != nil {
-// 		return nil, fmt.Errorf("filesystem.Unlock: access denied: %w", err)
-// 	}
-// 	if err := ctx.Err(); err != nil {
-// 		return nil, err
-// 	}
-// 	walkErr := filepath.WalkDir(secURI.Path, func(path string, entry iofs.DirEntry, err error) error {
-// 		if err != nil {
-// 			if errors.Is(err, os.ErrNotExist) {
-// 				return nil
-// 			}
-// 			return err
-// 		}
-// 		if path == secURI.Path {
-// 			return nil
-// 		}
-// 		if len(filters) == 0 {
-// 			entries = append(entries, entry)
-// 		} else if slices.Contains(filters, entry.Type()) {
-// 			entries = append(entries, entry)
-// 		}
-// 		return nil
-// 	})
-// 	if walkErr != nil {
-// 		if errors.Is(walkErr, os.ErrNotExist) {
-// 			return nil, nil
-// 		}
-// 		return nil, walkErr
-// 	}
-// 	return entries, nil
-// }

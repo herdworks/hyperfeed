@@ -28,18 +28,17 @@ type CacheFS interface {
 	Configure(root *url.URL) error
 	Init() error
 
-	// Stat/Put/Get/Remove provide basic CRUD operations for cache blobs.
+	// Stat/Put/Remove provide basic CUD operations for cache blobs (cache is only responsible for writing & eviction, not reads)
 	Stat(ctx context.Context, uri *url.URL) (info os.FileInfo, err error)
 	Exists(ctx context.Context, uri *url.URL) (bool, error)
 	Put(ctx context.Context, uri *url.URL, data []byte) error
-	Get(ctx context.Context, uri *url.URL) (data []byte, err error)
 	Remove(ctx context.Context, uri *url.URL) error
 	RemoveAll(ctx context.Context, uri *url.URL) error
 	Destroy(ctx context.Context) error
 
 	// Lock/Unlock provide simple advisory locking for cache blobs.
-	Lock(ctx context.Context, uri *url.URL) (token string, err error)
-	Unlock(ctx context.Context, uri *url.URL, token string) error
+	// Lock(ctx context.Context, uri *url.URL) (token string, err error)
+	// Unlock(ctx context.Context, uri *url.URL, token string) error
 
 	// Evict implements retention-policy removal of expired cache blobs.
 	Evict(ctx context.Context, expiry *time.Time) (int64, error)
@@ -169,13 +168,13 @@ func (namespace *Namespace) String() string {
 // Ready() returns true if the cache file is properly configured
 func (file *File) Ready() (ready bool, err error) {
 	if !file.Item.Ready() {
-		return false, errors.Join(ErrInvalidFile, errors.New("invalid item"))
+		return false, errors.Join(ErrInvalidFile, errors.New("invalid file item"))
 	}
 	if !file.Cache.Ready() {
-		return false, errors.Join(ErrInvalidFile, errors.New("invalid cache"))
+		return false, errors.Join(ErrInvalidFile, errors.New("invalid file cache"))
 	}
 	if _, err = file.ResolvedURI(); err != nil {
-		return false, errors.Join(ErrInvalidFile, fmt.Errorf("unresolved file URI; %w", err))
+		return false, errors.Join(ErrInvalidFile, fmt.Errorf("failed to resolve file URI; %w", err))
 	}
 	if file.Name, err = normalized.CleanPath(file.Name); err != nil {
 		return false, errors.Join(ErrInvalidFile, fmt.Errorf("invalid filename: %w", err))
@@ -240,14 +239,6 @@ func (file *File) Put(ctx context.Context, data []byte) (err error) {
 	return file.Cache.FS.Put(ctx, file.URI, data)
 }
 
-// Get retrieves data from the cache file URI.
-func (file *File) Get(ctx context.Context) ([]byte, error) {
-	if ready, err := file.Ready(); !ready {
-		return nil, err
-	}
-	return file.Cache.FS.Get(ctx, file.URI)
-}
-
 // Remove deletes the cache blob for the file.
 func (file *File) Remove(ctx context.Context) error {
 	if ready, err := file.Ready(); !ready {
@@ -262,20 +253,4 @@ func (file *File) Stat(ctx context.Context) (os.FileInfo, error) {
 		return nil, err
 	}
 	return file.Cache.FS.Stat(ctx, file.URI)
-}
-
-// Lock acquires an advisory lock for the cache file.
-func (file *File) Lock(ctx context.Context) (string, error) {
-	if ready, err := file.Ready(); !ready {
-		return "", err
-	}
-	return file.Cache.FS.Lock(ctx, file.URI)
-}
-
-// Unlock releases an advisory lock for the cache file.
-func (file *File) Unlock(ctx context.Context, token string) error {
-	if ready, err := file.Ready(); !ready {
-		return err
-	}
-	return file.Cache.FS.Unlock(ctx, file.URI, token)
 }
