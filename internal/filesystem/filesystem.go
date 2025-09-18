@@ -29,7 +29,11 @@ type FileSystem struct {
 }
 
 // LockPolicy indicates the advisory locking policy of the filesystem.
+// NOTE:
+// * regular expressions should match against relative paths within the filesystem root
+// * use regexp.MustCompile(`.`) to match the filesystem root
 type LockPolicy struct {
+	Name       string
 	Pattern    *regexp.Regexp
 	Operations []OperationKind
 }
@@ -38,33 +42,36 @@ type LockPolicy struct {
 //
 // NOTES:
 //
-// * a "Prune" is a ListOperation + RemoveAllOperation
+// * a "Prune" is a ListOperation + DeleteAllOperation
 // * an "Exists" is a StatOperation
-// * an "Update" is a GetOperation + PutOperation
+// * an "Update" is a ReadOperation + CreateOperation
 type OperationKind int
 
+// OperationKind enumeration, ranged in order of least to most destructive
 const (
 	StatOperation      OperationKind = iota
-	PutOperation                     // Create
-	GetOperation                     // Read
-	RemoveOperation                  // Delete
-	RemoveAllOperation               // Recursive Delete
-	ListOperation                    // List
+	ReadOperation
+	ListOperation
+	CreateOperation
+	UpdateOperation
+	DeleteOperation
+	DeleteAllOperation
 )
 
 var SudoOperation = []OperationKind{
 	StatOperation,
-	PutOperation,
-	GetOperation,
-	RemoveOperation,
+	CreateOperation,
+	ReadOperation,
+	UpdateOperation,
+	DeleteOperation,
+	DeleteAllOperation,
 	ListOperation,
-	RemoveAllOperation,
 }
 
 // ============================ FileSystem Management =========================
 
 // Configure sets the filesystem root namespace without creating directories.
-func (fs *FileSystem) Configure(root *url.URL) (err error) {
+func (fs *FileSystem) Configure(root *url.URL, policies ...LockPolicy) (err error) {
 	if root == nil {
 		return fmt.Errorf("filesystem: root uri is required")
 	}
@@ -82,6 +89,7 @@ func (fs *FileSystem) Configure(root *url.URL) (err error) {
 		abs.Path += "/"
 	}
 	fs.URI = &abs
+	fs.LockingPolicies = policies
 	return nil
 }
 
@@ -217,6 +225,7 @@ func (fs *FileSystem) lock(ctx context.Context, uri *url.URL) (t string, err err
 		os.Remove(secURI.Path)
 		return "", err
 	}
+	fmt.Printf("lock %q acquired\n", secURI.Path)
 	return lockToken, nil
 }
 
@@ -245,6 +254,7 @@ func (fs *FileSystem) unlock(ctx context.Context, uri *url.URL, token string) (e
 	if strings.TrimSpace(string(lockData)) != token {
 		return ErrInvalidLockToken
 	}
+	fmt.Printf("releasing %q lock\n", secURI.Path)
 	return os.Remove(secURI.Path)
 }
 
@@ -287,6 +297,7 @@ func (fs *FileSystem) Exists(ctx context.Context, uri *url.URL) (exists bool, er
 }
 
 // Put() writes data to a file at the given URI, creating parent directories as needed
+// TODO: differentiate between a CreateOperation and an UpdateOperation?
 func (fs *FileSystem) Put(ctx context.Context, uri *url.URL, data []byte) (err error) {
 	var secURI *url.URL
 	var lockURI *url.URL
@@ -294,7 +305,7 @@ func (fs *FileSystem) Put(ctx context.Context, uri *url.URL, data []byte) (err e
 	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.Put error: access denied: %w", err)
 	}
-	if lockURI, err = fs.advisoryLockURI(uri, PutOperation); err != nil {
+	if lockURI, err = fs.advisoryLockURI(uri, CreateOperation); err != nil {
 		return fmt.Errorf("filesystem.Put error: advisory lock checks failed: %w", err)
 	}
 	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
@@ -339,7 +350,7 @@ func (fs *FileSystem) Get(ctx context.Context, uri *url.URL) (b []byte, err erro
 	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return nil, fmt.Errorf("filesystem.Get: access denied: %w", err)
 	}
-	if lockURI, err = fs.advisoryLockURI(uri, GetOperation); err != nil {
+	if lockURI, err = fs.advisoryLockURI(uri, ReadOperation); err != nil {
 		return nil, fmt.Errorf("filesystem.Get error: advisory lock checks failed: %w", err)
 	}
 	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
@@ -360,7 +371,7 @@ func (fs *FileSystem) Remove(ctx context.Context, uri *url.URL) (err error) {
 	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.Remove: access denied: %w", err)
 	}
-	if lockURI, err = fs.advisoryLockURI(uri, RemoveOperation); err != nil {
+	if lockURI, err = fs.advisoryLockURI(uri, DeleteOperation); err != nil {
 		return fmt.Errorf("filesystem.Remove error: advisory lock checks failed: %w", err)
 	}
 	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
@@ -384,7 +395,7 @@ func (fs *FileSystem) RemoveAll(ctx context.Context, uri *url.URL) (err error) {
 	if secURI, err = fs.securityScopedURI(uri); err != nil {
 		return fmt.Errorf("filesystem.RemoveAll: access denied: %w", err)
 	}
-	if lockURI, err = fs.advisoryLockURI(uri, RemoveAllOperation); err != nil {
+	if lockURI, err = fs.advisoryLockURI(uri, DeleteAllOperation); err != nil {
 		return fmt.Errorf("filesystem.RemoveAll error: advisory lock checks failed: %w", err)
 	}
 	if lockToken, err := fs.lock(ctx, lockURI); err != nil {
@@ -507,7 +518,7 @@ func (fs *FileSystem) Prune(ctx context.Context, dir string, allowlist ...string
 	slices.Reverse(directories)
 	for _, directory := range directories {
 		var lockURI *url.URL
-		if lockURI, err = fs.advisoryLockURI(&url.URL{Path: directory}, RemoveAllOperation); err != nil {
+		if lockURI, err = fs.advisoryLockURI(&url.URL{Path: directory}, DeleteAllOperation); err != nil {
 			return fmt.Errorf("filesystem.Remove error: advisory lock checks failed: %w", err)
 		}
 		if lockToken, err := fs.lock(ctx, lockURI); err != nil {

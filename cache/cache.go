@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ var (
 type CacheFS interface {
 	// Ready returns true if the CacheFS is properly configured with a root URI.
 	Ready() bool
-	Configure(root *url.URL) error
+	Configure(root *url.URL, policies ...filesystem.LockPolicy) error
 	Init() error
 
 	// Stat/Put/Remove provide basic CUD operations for cache blobs (cache is only responsible for writing & eviction, not reads)
@@ -90,7 +91,21 @@ func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
 	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
 	cache.FS = &filesystem.FileSystem{}
-	return cache.FS.Configure(cache.URI)
+	return cache.FS.Configure(cache.URI, cache.Policies()...)
+}
+
+func (cache *Cache) Policies() []filesystem.LockPolicy {
+	return []filesystem.LockPolicy{
+		{
+			// Lock the item cache (i.e. *YYYY/MM/DD/:itemID/*)
+			Name:    "Item Cache",
+			Pattern: regexp.MustCompile(`\d{4}/\d{2}/\d{2}/.*/.*`),
+			Operations: []filesystem.OperationKind{
+				filesystem.CreateOperation,
+				filesystem.DeleteOperation,
+			},
+		},
+	}
 }
 
 // Ready() returns true if the cache is properly configured
