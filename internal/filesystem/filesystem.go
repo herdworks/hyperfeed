@@ -147,7 +147,7 @@ func (fs *FileSystem) advisoryLockURI(uri *url.URL, ops ...OperationKind) (u *ur
 		subpath = strings.TrimPrefix(subpath, string(os.PathSeparator))
 	}
 	if subpath == "" {
-		return nil, errors.Join(ErrAdvisoryLock, fmt.Errorf("filesystem.AdvisoryLockedURI: cannot lock the root path"))
+		subpath = "." // root directory
 	}
 	for _, policy := range fs.LockingPolicies {
 		if policy.lockRequired(&url.URL{Path: subpath}, ops...) {
@@ -167,6 +167,9 @@ func (policy *LockPolicy) lockRequired(uri *url.URL, ops ...OperationKind) bool 
 	}
 	if policy.Pattern == nil {
 		return false
+	}
+	if policy.Pattern == regexp.MustCompile(".") && uri.Path != "." {
+		return false // special case: "." pattern only matches the root directory
 	}
 	if !policy.Pattern.MatchString(uri.Path) {
 		return false

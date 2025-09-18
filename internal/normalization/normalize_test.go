@@ -9,7 +9,7 @@ import (
 
 func TestEqual(t *testing.T) {
 	tests := []struct {
-		a, b string
+		a, b     string
 		equality bool
 	}{
 		{"http://example.com", "http://example.com", true},

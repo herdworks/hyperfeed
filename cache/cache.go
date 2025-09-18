@@ -36,10 +36,6 @@ type CacheFS interface {
 	RemoveAll(ctx context.Context, uri *url.URL) error
 	Destroy(ctx context.Context) error
 
-	// Lock/Unlock provide simple advisory locking for cache blobs.
-	// Lock(ctx context.Context, uri *url.URL) (token string, err error)
-	// Unlock(ctx context.Context, uri *url.URL, token string) error
-
 	// Evict implements retention-policy removal of expired cache blobs.
 	Evict(ctx context.Context, expiry *time.Time) (int64, error)
 	Prune(ctx context.Context, dir string, allowlist ...string) error
