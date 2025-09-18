@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/internal/filesystem"
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
@@ -37,6 +37,13 @@ type StateFS interface {
 	Prune(ctx context.Context, dir string, allowlist ...string) error
 }
 
+type StateFile interface {
+	json.Marshaler
+	json.Unmarshaler
+
+	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
+}
+
 var (
 	ErrConfiguration = errors.New("state: invalid configuration")
 	ErrReadiness     = errors.New("state: state not ready")
@@ -57,8 +64,9 @@ type Namespace struct {
 
 type File struct {
 	State *State
-	Name  string
 	URI   *url.URL // cached file URI, if previously computed
+
+	Data  StateFile
 }
 
 // ============================= State Methods ================================
@@ -181,38 +189,25 @@ func (file *File) Ready() (ready bool, err error) {
 	if !file.State.Ready() {
 		return false, errors.Join(ErrInvalidFile, errors.New("invalid file state"))
 	}
-	if !strings.HasSuffix(file.Name, ".json") {
-		file.Name += ".json"
+	if file.Data == nil {
+		return false, errors.Join(ErrInvalidFile, errors.New("invalid file data"))
+	}
+	if !strings.HasSuffix(file.Data.StateFileName(), ".json") {
+		return false, errors.Join(ErrInvalidFile, fmt.Errorf("invalid state filename %q (must end with .json)", file.Data.StateFileName()))
 	}
 	if _, err = file.ResolvedURI(); err != nil {
 		return false, errors.Join(ErrInvalidFile, fmt.Errorf("failed to resolve file URI; %w", err))
-	}
-	if file.Name, err = normalized.CleanPath(file.Name); err != nil {
-		return false, errors.Join(ErrInvalidFile, fmt.Errorf("invalid filename: %w", err))
 	}
 	return true, nil
 }
 
 // URI returns the fully-qualified cache URI for the file.
 func (file *File) ResolvedURI() (u *url.URL, err error) {
-	var relativePath string
 	if file.URI != nil {
 		return file.URI, nil
 	}
-	if relativePath, err = file.RelativePath(); err != nil {
-		return nil, err
-	}
-	file.URI = &url.URL{Path: path.Join(file.State.URI.Path, relativePath)}
+	file.URI = &url.URL{Path: path.Join(file.State.URI.Path, file.Data.StateFileName())}
 	return file.URI, nil
-}
-
-// RelativePath returns the filesystem path rooted at the cache namespace.
-func (file *File) RelativePath() (p string, err error) {
-	var name string
-	if name, err = normalized.CleanPath(file.Name); err != nil {
-		return "", errors.Join(ErrInvalidFile, fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err))
-	}
-	return filepath.Join(name), nil
 }
 
 // Exists() checks if the file exists
