@@ -103,6 +103,7 @@ func (cache *Cache) Policies() []filesystem.LockPolicy {
 			Operations: []filesystem.OperationKind{
 				filesystem.CreateOperation,
 				filesystem.DeleteOperation,
+				filesystem.DeleteAllOperation,
 			},
 		},
 	}

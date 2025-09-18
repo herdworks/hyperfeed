@@ -1,25 +1,24 @@
 # HyperFeed State
 
-The `github.com/herdworks/hyperfeed-go/state` package manages operational runtime state
-for components like the scheduler and subscriber. 
-It is distinct from `storage` (feed metadata & item content) and from `cache` (item assets).
+The `github.com/herdworks/hyperfeed-go/state` package caches subscriber and scheduler state.
+It is distinct from the `storage` (feed metadata & item content) and `cache` (item assets) packages.
 
 ## Goals
 
 * Deterministic URI scheme
-* Portable locking system based on `.lock` files
-* Separation of concerns between the State API and file system (`internal/statefs`)
+* Separation of concerns between the State API and file system (`internal/filesystem`)
+* Side-effect free reads; safe concurrent access
 
 ## Layout
 
 * State file root directories live alongside OPML files (i.e. `filepath.Dir(opmlPath)`)
 * State files are grouped by namespace (e.g. `example.com/feed`)
-* State files names may optionally include a subpath (e.g. `scheduler.json`)
+* State files names may optionally include a subpath (e.g. `example/scheduler.json`)
 
 ```shell
 state/                  # state root directory
-    :namespace/         # state namespace
-        :key.json       # state key
+    :namespace/         # state namespace (State.URI; e.g. "example.com/07c224a0441242df3a90991fa2cfe24e10d8ca8d")
+        :key.json       # state key (File.Name; e.g. "scheduler.json")
         :key.json.lock  # state lock
 ```
 
@@ -27,7 +26,7 @@ state/                  # state root directory
 
 State file URIs are constructed deterministically using a `Feed` and a key.
 
-* The state file namespace domain is generated from the Feed URL 
+* The state file namespace domain is generated from the Feed URL
 
   ```go
   normalization.Domain(feed.URL) // a DNS host name
@@ -47,11 +46,7 @@ State file URIs are constructed deterministically using a `Feed` and a key.
 
 All state files are encoded as JSON.
 
-## State File Locking
+## State File Locking Policy
 
-* Lock files have no contents (empty files)
 * Exclusive locks are required for all state file write operations
-* State file write operations should wait (max 1000ms timeout) for lock files to be released
-* Lock files are not required for read operations, but state file read operations should wait (max 1000ms timeout) until locks are released
-* State file operations that timeout should retry a maximum of three times
 
