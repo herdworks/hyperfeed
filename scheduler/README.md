@@ -17,12 +17,12 @@ The scheduler evaluates each tick by constructing events and coordinating with t
 * `NextEvent(ctx, feed)` – loads persisted state, evaluates all hints, and returns an `Event` capturing the scheduler's perspective for the current tick.
 * `Event.Ready()` – determines whether the transporter should be invoked, returning a typed error when the event must be deferred.
 * `Event.BuildRequest(ctx)` – produces a `*transporter.Request` populated with aggregated state when the event is ready to fetch.
-* `ApplyResult(ctx, state, request, response, update)` – merges transporter responses into persisted state (validators, cache directives, rate-limit windows, error statistics, etc.).
-* `RecordFailure(ctx, state, request, err)` – handles transporter errors before an HTTP response exists, computing a conservative retry window.
+* `ApplyResult(ctx, status, request, response)` – merges transporter responses into persisted state (validators, cache directives, rate-limit windows, error statistics, etc.).
+* `RecordFailure(ctx, status, request, err)` – handles transporter errors before an HTTP response exists, computing a conservative retry window.
 
 Each feed's persisted `State` must include:
 
-* Last attempt timestamps and status codes.
+* Last attempt timestamps, status codes, and raw headers.
 * Last successful fetch metadata (entity tags, last-modified, content digests).
 * Rate limiting information (Retry-After, X-RateLimit headers, exponential backoff counters).
 * Cache directives (max-age, expires, age) translated into absolute `NotBefore` timestamps.
@@ -32,7 +32,7 @@ Each feed's persisted `State` must include:
 ## Persistence Requirements
 
 State must be updated atomically so crashes do not lead to duplicate fetches.
-When an event schedules a fetch, the resulting `transporter.Request` (prepared HTTP request, guardrail timestamps, aggregated snapshots) must be persisted before the HTTP call is launched. After completion, `ApplyResult` merges the `PersistenceUpdate` returned by `response.Resolve(...)` to compute the next eligible window.
+When an event schedules a fetch, the resulting `transporter.Request` (prepared HTTP request, guardrail timestamps, aggregated snapshots) must be persisted before the HTTP call is launched. After completion, `ApplyResult` inspects the transporter `Response` to compute the next eligible window.
 
 ## Tests
 

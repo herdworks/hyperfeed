@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/state"
@@ -16,10 +17,10 @@ var (
 
 // Scheduler manages feed updates using persistent state and the transporter.
 type Scheduler struct {
-	Feed        *hyperfeed.Feed
-	Config      *Config
-	Status      *Status
-	Clock       *Clock
+	Feed   *hyperfeed.Feed
+	Config *Config
+	Status *Status
+	Clock  Clock
 
 	State       *state.State
 	Transporter *transporter.Transporter
@@ -27,9 +28,6 @@ type Scheduler struct {
 
 // Config provides runtime configuration for a Scheduler instance.
 type Config struct {
-	// FeedID is the stable identifier for the feed this scheduler manages.
-	FeedID string
-
 	// DefaultInterval is the baseline polling interval when no hints are available.
 	// Implementations must never schedule requests more frequently than this value.
 	DefaultInterval time.Duration
@@ -38,7 +36,7 @@ type Config struct {
 	// Implementations must clamp decisions to this floor to avoid overwhelming origins.
 	MinInterval time.Duration
 
-	// MaxInterval caps how stale a feed is allowed to become. 
+	// MaxInterval caps how stale a feed is allowed to become.
 	// Implementations must clamp decisions to this ceiling even when the origin suggests very long TTLs, unless the operator explicitly overrides the value.
 	MaxInterval time.Duration
 
@@ -49,27 +47,14 @@ type Config struct {
 	// Scheduler multiplies this by the failure count when no Retry-After hint is available.
 	ErrorBackoffStep time.Duration
 
-	// HonorSkipDays toggles enforcement of RSS skipDays metadata.
-	HonorSkipDays bool
+	// DisableFeedHints turns off enforcement of RSS feed cadence hints (skipDays, skipHours, ttl).
+	DisableFeedHints bool
 
-	// HonorSkipHours toggles enforcement of RSS skipHours metadata.
-	HonorSkipHours bool
+	// DisableCacheDirectives turns off enforcement of HTTP cache headers.
+	DisableCacheDirectives bool
 
-	// HonorFeedTTL toggles enforcement of RSS ttl metadata.
-	HonorFeedTTL bool
-
-	// HonorCacheDirectives toggles enforcement of HTTP cache headers.
-	HonorCacheDirectives bool
-
-	// HonorRetryAfter toggles enforcement of Retry-After and related rate limit hints.
-	HonorRetryAfter bool
-
-	// Honor429Backoff toggles exponential backoff when repeated 429 responses are encountered even if explicit hints are missing.
-	Honor429Backoff bool
-
-	// PersistAllResponses controls whether we store metadata for successful 304 responses. 
-	// When false, only state-changing responses are persisted.
-	PersistAllResponses bool
+	// DisableRateLimitHints turns off enforcement of Retry-After and related rate limit guidance.
+	DisableRateLimitHints bool
 }
 
 // Status captures everything the scheduler must persist across ticks.
@@ -93,59 +78,65 @@ type Status struct {
 	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
 	LastStatusCode int
 
+	// LastHeaders stores the raw headers from the most recent fetch to support future hint extraction.
+	LastHeaders http.Header
+
 	// LastError stores a diagnostic summary for the most recent failure.
 	LastError string
 
 	// ConsecutiveErrors counts sequential failed attempts.
 	ConsecutiveErrors int
 
-	// Conditional captures validators for conditional requests.
-	Conditional transporter.ConditionalRequestState
+	// Conditions captures the validators for conditional requests.
+	Conditions []*transporter.Condition
 
 	// RateLimit captures rate limiting information supplied by the origin.
-	RateLimit transporter.RateLimitState
+	RateLimit RateLimitState
 
 	// CacheDirectives stores parsed HTTP cache headers.
-	CacheDirectives transporter.CacheDirectiveState
+	CacheDirectives CacheDirectiveState
 
-	// FeedTTL holds TTL hints extracted from RSS ttl, skipHours, skipDays, or equivalent metadata. Scheduler must combine this with HTTP hints.
+	// FeedTTL holds the last ttl hint observed from the feed metadata.
 	FeedTTL time.Duration
 
-	// SkipDays enumerates which weekdays should be skipped, using ISO weekday numbers (Monday=1). Stored as a map for quick lookups.
-	SkipDays map[int]bool
+	// SkipDays enumerates which weekdays should be skipped according to feed metadata.
+	SkipDays map[time.Weekday]bool
 
-	// SkipHours enumerates which hours (0-23) should be skipped.
+	// SkipHours enumerates which hours (0-23) should be skipped according to feed metadata.
 	SkipHours map[int]bool
 
 	// NextNotBefore stores the earliest permissible fetch time derived from hints and policy. Scheduler must never schedule before this timestamp.
 	NextNotBefore time.Time
-
-	// DefaultNotBefore stores when the default interval would make the feed eligible again. This is used when hints are absent or expire.
-	DefaultNotBefore time.Time
-
-	// LastContentDigest stores a digest of the last response body we actually downloaded. Helps detect silent resets when validators disappear.
-	LastContentDigest string
-
-	// LastContentDigestAlgorithm identifies the algorithm used for the digest.
-	LastContentDigestAlgorithm string
-
-	// LastContentLength tracks the most recent Content-Length header.
-	LastContentLength int64
-
-	// LastETagWeak stores the weak etag if both weak and strong validators were received. Allows fallback when servers change validator semantics.
-	LastETagWeak string
-
-	// ObservedItemCount records the number of entries parsed during the last successful update. Useful for detecting truncated feeds.
-	ObservedItemCount int
-
-	// ObservedPublishedAt stores the newest item timestamp, allowing the scheduler to reason about expected publishing cadence.
-	ObservedPublishedAt time.Time
 
 	// UserThrottleUntil stores user-imposed pause windows (manual snooze).
 	UserThrottleUntil time.Time
 
 	// Diagnostics retains arbitrary key/value pairs for debugging decisions (e.g., "retry_after": "2024-12-17T15:04Z").
 	Diagnostics map[string]string
+}
+
+// RateLimitState captures how often we are allowed to poll an origin. The
+// scheduler persists this structure across ticks.
+type RateLimitState struct {
+	BackoffUntil             time.Time
+	RetryAfter               time.Duration
+	Remaining                int
+	Reset                    time.Time
+	Window                   string
+	Consecutive429           int
+	Consecutive5xx           int
+	SuggestedPollingInterval time.Duration
+	LastStatus               int
+	HintSources              []string
+}
+
+// CacheDirectiveState normalizes cache metadata from HTTP headers.
+type CacheDirectiveState struct {
+	MaxAge       time.Duration
+	SharedMaxAge time.Duration
+	ExpiresAt    time.Time
+	Age          time.Duration
+	ETagMismatch bool
 }
 
 // Clock abstracts time so tests can inject deterministic clocks.
@@ -159,7 +150,7 @@ type Event struct {
 	// Feed contains the immutable feed metadata used for this evaluation.
 	Feed *hyperfeed.Feed
 
-	// State references the persisted scheduler state at the start of the tick.
+	// Status references the live scheduler status at the start of the tick.
 	Status *Status
 
 	// TickAt records when this event was generated.
@@ -195,6 +186,7 @@ type Decision struct {
 
 // DecisionAction enumerates scheduler outcomes.
 type DecisionAction string
+
 const (
 	// ActionFetch indicates that the feed should be fetched now.
 	ActionFetch DecisionAction = "fetch"
@@ -218,7 +210,7 @@ func (s *Scheduler) NextEvent(ctx context.Context, feed *hyperfeed.Feed) (*Event
 // ApplyResult ingests a transporter response and persists updated state. The
 // implementation must combine HTTP hints, feed metadata, and error handling to
 // compute the next eligible fetch time. Stub returns ErrNotImplemented.
-func (s *Scheduler) ApplyResult(ctx context.Context, status *Status, request *transporter.Request, response *transporter.Response, update *transporter.PersistenceUpdate) (*Status, error) {
+func (s *Scheduler) ApplyResult(ctx context.Context, status *Status, request *transporter.Request, response *transporter.Response) (*Status, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -231,7 +223,47 @@ func (s *Scheduler) RecordFailure(ctx context.Context, status *Status, request *
 
 // ========================= Config Methods ===================================
 
+const (
+	defaultInterval           = 15 * time.Minute
+	defaultMinInterval        = time.Minute
+	defaultMaxInterval        = 12 * time.Hour
+	defaultStartupGracePeriod = 5 * time.Minute
+	defaultErrorBackoffStep   = time.Minute
+)
+
+// Normalize ensures all Config fields have sane defaults and bounds.
+func (cfg *Config) Normalize() {
+	if cfg == nil {
+		return
+	}
+	if cfg.DefaultInterval == 0 {
+		cfg.DefaultInterval = defaultInterval
+	}
+	if cfg.MinInterval == 0 {
+		cfg.MinInterval = defaultMinInterval
+	}
+	if cfg.MaxInterval == 0 {
+		cfg.MaxInterval = defaultMaxInterval
+	}
+	if cfg.StartupGracePeriod == 0 {
+		cfg.StartupGracePeriod = defaultStartupGracePeriod
+	}
+	if cfg.ErrorBackoffStep == 0 {
+		cfg.ErrorBackoffStep = defaultErrorBackoffStep
+	}
+	if cfg.MinInterval > cfg.DefaultInterval {
+		cfg.MinInterval = cfg.DefaultInterval
+	}
+	if cfg.MaxInterval < cfg.DefaultInterval {
+		cfg.MaxInterval = cfg.DefaultInterval
+	}
+	if cfg.MinInterval > cfg.MaxInterval {
+		cfg.MinInterval = cfg.MaxInterval
+	}
+}
+
 // ========================= Status Methods ===================================
+
 
 // ========================= Event Methods ====================================
 

@@ -16,7 +16,9 @@ func TestRequestValidRejectsBackoff(t *testing.T) {
 
 	req := &Request{
 		HTTPRequest: &http.Request{},
-		NotBefore:   time.Now().Add(time.Hour),
+		Options: Options{
+			NotBefore: time.Now().Add(time.Hour),
+		},
 	}
 	ready, err := req.Valid()
 	if err == nil {
@@ -39,7 +41,9 @@ func TestTransporterFetchNoopWhenNotReady(t *testing.T) {
 	transporter := &Transporter{}
 	req := &Request{
 		HTTPRequest: &http.Request{},
-		NotBefore:   time.Now().Add(time.Hour),
+		Options: Options{
+			NotBefore: time.Now().Add(time.Hour),
+		},
 	}
 	resp, err := transporter.Fetch(context.Background(), req)
 	if err == nil {
@@ -53,22 +57,17 @@ func TestTransporterFetchNoopWhenNotReady(t *testing.T) {
 	}
 }
 
-// TestResponseResolveComputesNextNotBefore documents the expectation that
-// Response.Resolve translates Retry-After and cache headers into persistence
-// updates for the scheduler.
-func TestResponseResolveComputesNextNotBefore(t *testing.T) {
-	t.Skip("implementation pending: Response.Resolve must compute PersistenceUpdate hints")
+// TestResponseExposesHeaders documents the expectation that the transporter
+// surfaces raw headers for the scheduler to interpret instead of translating
+// them into scheduling directives.
+func TestResponseExposesHeaders(t *testing.T) {
+	t.Skip("implementation pending: transporter must populate response headers for scheduler interpretation")
 
-	req := &Request{HTTPRequest: &http.Request{}}
 	resp := &Response{
 		Headers:    http.Header{"Retry-After": []string{"120"}},
 		StatusCode: http.StatusOK,
 	}
-	update, err := resp.Resolve(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if update.NextNotBefore.Before(time.Now().Add(2 * time.Minute)) {
-		t.Fatalf("expected Retry-After to push next fetch into the future")
+	if resp.Headers.Get("Retry-After") == "" {
+		t.Fatalf("expected transporter response to retain Retry-After header")
 	}
 }

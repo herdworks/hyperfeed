@@ -20,7 +20,7 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 		Status: &Status{
 			FeedID:        "feed-id",
 			NextNotBefore: time.Now().Add(time.Hour),
-			RateLimit: transporter.RateLimitState{
+			RateLimit: RateLimitState{
 				BackoffUntil: time.Now().Add(2 * time.Hour),
 			},
 		},
@@ -47,14 +47,13 @@ func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
 	status := &Status{FeedID: "feed-id"}
 	req := &transporter.Request{}
 	resp := &transporter.Response{}
-	update := &transporter.PersistenceUpdate{}
 
-	newState, err := scheduler.ApplyResult(context.Background(), status, req, resp, update)
+	newState, err := scheduler.ApplyResult(context.Background(), status, req, resp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if newState.Conditional.ETag == "" {
-		t.Fatalf("expected conditional validators to be persisted")
+	if len(newState.Conditions) == 0 {
+		t.Fatalf("expected conditions to be persisted")
 	}
 }
 

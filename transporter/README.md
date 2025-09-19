@@ -20,7 +20,7 @@ The transporter exposes a compact surface area built around three concepts:
 
 ### Request
 
-Scheduler constructs a `transporter.Request` after evaluating an event. The struct contains only the distilled data the transporter needs: prepared HTTP request, conditional validators, cache directives, rate-limit snapshot, attempt counters, and guardrail timestamps. The scheduler retains the richer context.
+Scheduler constructs a `transporter.Request` after evaluating an event. The struct contains only the distilled data the transporter needs: the prepared HTTP request, applicable conditions, attempt counters, and timing guardrails. The scheduler retains the richer context.
 
 `Request.Valid()` performs preflight validation. It verifies guardrails (`NotBefore`, retry budgets, deadline) and returns `(false, ErrRequestNotReady)` when the request must be deferred. This allows the scheduler to differentiate no-ops from actual transport failures.
 
@@ -30,16 +30,13 @@ Scheduler constructs a `transporter.Request` after evaluating an event. The stru
 
 ### Response
 
-`Response` wraps the raw HTTP response together with normalized metadata: updated validators, cache directives, rate limit hints, payload digests, and timing information. `Response.Resolve(ctx, request)` distills those hints into a `PersistenceUpdate` for the scheduler.
+`Response` wraps the raw HTTP response, updated conditions, payload digests, and timing information. The scheduler interprets headers such as Retry-After or Cache-Control directly from the exposed metadata.
 
 Supporting types capture the state that must be persisted between runs:
 
-* `ConditionalRequestState` – stores ETags, Last-Modified timestamps, fallback digests, and metadata about the validators we rely on.
-* `RateLimitState` – tracks Retry-After deadlines, X-RateLimit counters, consecutive error counts, and derived polling intervals.
-* `CacheDirectiveState` – normalizes Cache-Control, Expires, and Age headers.
-* `Request` – the immutable request snapshot produced by the scheduler, including a prepared `http.Request`, guardrail timestamps, and aggregated state needed for transporter preflight checks.
-* `Response` – the normalized view of the HTTP exchange, including redirects, payload digests, and timing data.
-* `PersistenceUpdate` – the condensed state to persist after each attempt.
+* `Condition` – the shared vocabulary between scheduler and transporter for conditional requests; some kinds translate into HTTP headers while others provide validation context.
+* `Request` – the immutable request snapshot produced by the scheduler, including a prepared `http.Request`, conditions, and guardrail timestamps.
+* `Response` – the normalized view of the HTTP exchange, including redirects, payload digests, timing data, and surfaced conditions.
 
 ## Tests
 
@@ -47,6 +44,6 @@ Supporting types capture the state that must be persisted between runs:
 
 * `Request.Valid` must attach conditional headers and reject unsafe guardrail violations.
 * `Fetch` must no-op with a typed error when the request falls inside backoff windows or violates retry budgets.
-* `Response.Resolve` must translate Retry-After and cache headers into future `NextNotBefore` timestamps.
+* `Response` must surface headers and timing metadata so the scheduler can derive rate-limit and cache decisions.
 
 Once the transporter implementation is ready these tests will be turned on.
