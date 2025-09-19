@@ -200,24 +200,24 @@ const (
 
 // ========================= Scheduler Methods =============================
 
-// NextEvent computes the scheduler's next event. Implementation must load
+// Tick computes the scheduler's next event. Implementation must load
 // state, honor rate-limit hints, and update persistence optimistically to avoid
 // duplicate work after crashes. Stub returns ErrNotImplemented.
-func (s *Scheduler) NextEvent(ctx context.Context, feed *hyperfeed.Feed) (*Event, *Status, error) {
+func (s *Scheduler) Tick(ctx context.Context, feed *hyperfeed.Feed) (*Event, *Status, error) {
 	return nil, nil, ErrNotImplemented
 }
 
-// ApplyResult ingests a transporter response and persists updated state. The
+// Update ingests a transporter response and persists updated state. The
 // implementation must combine HTTP hints, feed metadata, and error handling to
 // compute the next eligible fetch time. Stub returns ErrNotImplemented.
-func (s *Scheduler) ApplyResult(ctx context.Context, status *Status, request *transporter.Request, response *transporter.Response) (*Status, error) {
+func (s *Scheduler) Update(ctx context.Context, status *Status, request *transporter.Request, response *transporter.Response) (*Status, error) {
 	return nil, ErrNotImplemented
 }
 
-// RecordFailure persists failure information when the transporter fails before
+// Log persists failure information when the transporter fails before
 // producing a response. Implementation must update error counters and
 // compute a conservative backoff. Stub returns ErrNotImplemented.
-func (s *Scheduler) RecordFailure(ctx context.Context, status *Status, request *transporter.Request, err error) (*Status, error) {
+func (s *Scheduler) Log(ctx context.Context, status *Status, request *transporter.Request, err error) (*Status, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -274,9 +274,9 @@ func (event *Event) Ready() (bool, error) {
 	return false, ErrNotImplemented
 }
 
-// BuildRequest constructs the aggregated transporter request used to perform a
+// Request constructs the aggregated transporter request used to perform a
 // fetch. The request encapsulates conditional validators, rate-limit guardrails,
 // and a prepared http.Request derived from scheduler state.
-func (event *Event) BuildRequest(ctx context.Context) (*transporter.Request, error) {
+func (event *Event) Request(ctx context.Context) (*transporter.Request, error) {
 	return nil, ErrNotImplemented
 }

@@ -14,11 +14,11 @@ The `herdworks/hyperfeed-go/scheduler` package orchestrates when to fetch each f
 
 The scheduler evaluates each tick by constructing events and coordinating with the transporter:
 
-* `NextEvent(ctx, feed)` – loads persisted state, evaluates all hints, and returns an `Event` capturing the scheduler's perspective for the current tick.
+* `Scheduler.Tick(ctx, feed)` – loads persisted state, evaluates all hints, and returns an `Event` capturing the scheduler's perspective for the current tick.
 * `Event.Ready()` – determines whether the transporter should be invoked, returning a typed error when the event must be deferred.
-* `Event.BuildRequest(ctx)` – produces a `*transporter.Request` populated with aggregated state when the event is ready to fetch.
-* `ApplyResult(ctx, status, request, response)` – merges transporter responses into persisted state (validators, cache directives, rate-limit windows, error statistics, etc.).
-* `RecordFailure(ctx, status, request, err)` – handles transporter errors before an HTTP response exists, computing a conservative retry window.
+* `Event.Request(ctx)` – produces a `*transporter.Request` populated with aggregated state when the event is ready to fetch.
+* `Scheduler.Update(ctx, status, request, response)` – merges transporter responses into persisted state (validators, cache directives, rate-limit windows, error statistics, etc.).
+* `Scheduler.Log(ctx, status, request, err)` – handles transporter errors before an HTTP response exists, computing a conservative retry window.
 
 Each feed's persisted `State` must include:
 
@@ -32,7 +32,7 @@ Each feed's persisted `State` must include:
 ## Persistence Requirements
 
 State must be updated atomically so crashes do not lead to duplicate fetches.
-When an event schedules a fetch, the resulting `transporter.Request` (prepared HTTP request, guardrail timestamps, aggregated snapshots) must be persisted before the HTTP call is launched. After completion, `ApplyResult` inspects the transporter `Response` to compute the next eligible window.
+When an event schedules a fetch, the resulting `transporter.Request` (prepared HTTP request, guardrail timestamps, aggregated snapshots) must be persisted before the HTTP call is launched. After completion, `Apply` inspects the transporter `Response` to compute the next eligible window.
 
 ## Tests
 
@@ -40,7 +40,7 @@ Placeholder tests live in `scheduler_test.go`.
 Each test calls `t.Skip(...)` but spells out the required behavior:
 
 * `Event.Ready` honors `Retry-After` and persisted backoff windows.
-* `ApplyResult` persists conditional validators after successful fetches.
-* `RecordFailure` applies exponential backoff when repeated failures occur without explicit server hints.
+* `Apply` persists conditional validators after successful fetches.
+* `Log` applies exponential backoff when repeated failures occur without explicit server hints.
 
 These tests become executable once the scheduler logic is implemented.

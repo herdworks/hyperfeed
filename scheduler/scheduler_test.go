@@ -38,9 +38,9 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 	}
 }
 
-// TestSchedulerApplyResultPersistsValidators documents the expectation that
+// TestSchedulerUpdateValidators documents the expectation that
 // conditional request metadata is saved after successful fetches.
-func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
+func TestSchedulerUpdateValidators(t *testing.T) {
 	t.Skip("implementation pending: scheduler must persist conditional validators after transporter responses")
 
 	scheduler := &Scheduler{}
@@ -48,7 +48,7 @@ func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
 	req := &transporter.Request{}
 	resp := &transporter.Response{}
 
-	newState, err := scheduler.ApplyResult(context.Background(), status, req, resp)
+	newState, err := scheduler.Update(context.Background(), status, req, resp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,16 +57,16 @@ func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
 	}
 }
 
-// TestSchedulerRecordFailureBackoff documents the expectation that repeated
+// TestSchedulerLogBackoff documents the expectation that repeated
 // failures trigger exponential backoff even without explicit Retry-After hints.
-func TestSchedulerRecordFailureBackoff(t *testing.T) {
+func TestSchedulerLogBackoff(t *testing.T) {
 	t.Skip("implementation pending: scheduler must compute exponential backoff on repeated failures")
 
 	scheduler := &Scheduler{Config: &Config{ErrorBackoffStep: time.Minute}}
 	status := &Status{FeedID: "feed-id"}
 	req := &transporter.Request{}
 
-	newState, err := scheduler.RecordFailure(context.Background(), status, req, ErrNotImplemented)
+	newState, err := scheduler.Log(context.Background(), status, req, ErrNotImplemented)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
