@@ -3,24 +3,26 @@ package hyperfeed
 import (
 	"net/url"
 	"time"
+
+	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 )
 
 // Item represents an entry within a feed.
 type Item struct {
-	// ID is an optional stable identifier for the item (e.g., a UUID or hash).
-	ID string `json:"id,omitempty"`
+	// URL is the canonical link for the item (permalink).
+	URL *url.URL `json:"url,omitempty"`
 
 	// GUID is a stable identifier provided by the source feed when available.
 	GUID string `json:"guid,omitempty"`
 
-	// URL is the canonical link for the item (permalink).
-	URL *url.URL `json:"url,omitempty"`
+	// ID is the stable HyperFeed Item identifier (e.g., a UUID or hash).
+	ID string `json:"id,omitempty"`
 
 	Title   string   `json:"title,omitempty"`
 	Authors []Author `json:"authors,omitempty"`
 
-	Published time.Time `json:"published,omitempty"`
-	Updated   time.Time `json:"updated,omitempty"`
+	Published time.Time `json:"published,omitempty"` // created timestamp
+	Updated   time.Time `json:"updated,omitempty"`   // modified timestamp
 
 	Summary string `json:"summary,omitempty"`
 	Content string `json:"content,omitempty"`
@@ -32,23 +34,6 @@ type Item struct {
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
-}
-
-// CanonicalID returns a stable identifier for the item, preferring ID, then GUID, then URL.
-func (i *Item) CanonicalID() string {
-	if i == nil {
-		return ""
-	}
-	if i.ID != "" {
-		return i.ID
-	}
-	if i.GUID != "" {
-		return i.GUID
-	}
-	if i.URL != nil {
-		return i.URL.String()
-	}
-	return ""
 }
 
 type Author struct {
@@ -67,4 +52,20 @@ type Image struct {
 	Height int      `json:"height,omitempty"`
 }
 
-// Note: Attachment type is defined in types/attachment.go
+func (i *Item) Ready() bool {
+	if i == nil {
+		return false
+	}
+	if i.URL == nil {
+		return false
+	}
+	return true
+}
+
+func (item *Item) Identifier() string {
+	if item.ID == "" {
+		u := normalized.URL(item.URL)
+		item.ID = normalized.Identifier(u.String())
+	}
+	return item.ID
+}

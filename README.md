@@ -40,19 +40,28 @@ Shared logic about common type operations will live in the corresponding type so
 
 ## Terminology
 
-- Storage: durable, queryable persistence for domain entities (subscriptions, feeds, items, and extended metadata). Backed by an embedded database (e.g., SQLite).
-- State: lightweight, rapidly changing operational metadata (e.g., ETag, Last-Modified, backoff windows, request/error counters, subscriber bookkeeping). Namespaced (subscriber/scheduler) and stored via the `state` package.
-- Cache: large binary assets (images, enclosures) with retention policies. Read-only w.r.t. domain semantics and safe to evict.
+* Storage: durable, queryable persistence for domain entities (subscriptions, feeds, items, and extended metadata). Backed by an embedded database (e.g., SQLite).
+* State: lightweight, rapidly changing operational metadata (e.g., ETag, Last-Modified, backoff windows, request/error counters, subscriber bookkeeping). Namespaced (subscriber/scheduler) and stored via the `state` package.
+* Cache: large binary assets (images, enclosures) with retention policies. Read-only w.r.t. domain semantics and safe to evict.
 
 ## Control Flow
 
-- Client: constructs the system from an OPML path and options. Defaults the root filesystem
-  to `filepath.Dir(opmlPath)` and ensures write access for `storage`, `state`, and `cache`.
-- Subscriber: single owner per OPML file. Parses OPML, normalizes subscriptions (feeds), persists
-  initial feed state (via `state`), and adds/removes per-feed Schedulers as the list changes.
-- Scheduler: one per active feed. Runs on an interval with a configured start time; evaluates
-  its state each tick to decide whether to fetch (respects rate limits/backoff). Uses `transporter`
-  to fetch, `storage` to persist items, and `cache` to store assets. Shares state/stats upward by
-  communicating, not by shared mutable structures.
-- Orchestration: light supervision/jitter may be applied by the client or a thin orchestrator,
-  but the `scheduler` package focuses solely on single‑feed scheduling semantics.
+* Client: the hyperfeed entry point.
+  * Initialized via an OPML file path and options.
+  * Defaults the root filesystem to `filepath.Dir(opmlPath)`
+  * Ensures write access for `storage`, `state`, and `cache`
+  * Configures the subscriber
+
+* Subscriber: the subscription manager (multiple feeds).
+  * One subscriber per OPML file.
+  * Subscriber parses OPML, normalizes subscriptions (feeds), and initializes feed state
+  * Subscriber manages per-feed schedulers, removing zombies
+  * Subscriber updates OPML file with changes to subscriptions (additions/edits/removals)
+  * NOTE: may apply a jitter to scheduler start times to reduce concurrent fetch requests
+
+* Scheduler: the feed manager (single feed).
+  * Configured with a feed, an interval, and a start time;
+  * Evaluates schedule state on each tick to determine when to fetch (respects rate limits/backoff).
+  * Uses `transporter` to fetch, `storage` to persist items, and `cache` to store assets.
+  * Shares state/stats upward by communicating, not by shared mutable structures.
+  * NOTE: the `scheduler` package focuses solely on single‑feed scheduling semantics

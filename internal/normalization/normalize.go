@@ -3,10 +3,20 @@ package normalization
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"net"
+	"errors"
 	"net/url"
+	"path"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode/utf8"
+
+	"path/filepath"
+)
+
+var (
+	ErrNotImplemented = errors.New("not implemented")
+	ErrInvalidPath    = errors.New("invalid path")
 )
 
 // URL returns a canonicalized copy of u:
@@ -14,42 +24,69 @@ import (
 // - Removes default ports (http:80, https:443)
 // - Sorts query parameters (by key and value)
 // - Returns nil if u is nil.
-func URL(u *url.URL) *url.URL {
-	if u == nil {
+// - Removes trailing slash from path (except for root "/")
+func URL(incoming *url.URL) *url.URL {
+	if incoming == nil {
 		return nil
 	}
-	v := *u // shallow copy
-	if v.Scheme != "" {
-		v.Scheme = strings.ToLower(v.Scheme)
+	normalized := *incoming // shallow copy
+	if normalized.Scheme != "" {
+		normalized.Scheme = strings.ToLower(normalized.Scheme)
 	}
-	host := strings.ToLower(u.Hostname())
-	port := u.Port()
-	if (v.Scheme == "http" && port == "80") || (v.Scheme == "https" && port == "443") {
-		port = ""
+	if (normalized.Scheme == "http" && normalized.Port() == "80") || (normalized.Scheme == "https" && normalized.Port() == "443") {
+		normalized.Host = normalized.Hostname() // remove default HTTP/HTTPS ports
 	}
-	if port != "" {
-		v.Host = net.JoinHostPort(host, port)
+	if normalized.Host != "" {
+		normalized.Host = strings.ToLower(normalized.Host) // lowercase host
+	}
+	if normalized.Path == "" {
+		normalized.Path = "/" // ensure non-empty path
 	} else {
-		v.Host = host
+		normalized.Path = strings.ToLower(normalized.Path)
 	}
-	v.RawQuery = v.Query().Encode() // Encode sorts keys
-	return &v
+	if normalized.Path != "/" && strings.HasSuffix(normalized.Path, "/") {
+		normalized.Path = strings.TrimSuffix(normalized.Path, "/") // remove trailing slash except for root
+	}
+	normalized.RawQuery = normalized.Query().Encode() // Encode sorts keys
+	return &normalized
 }
 
-// Domain returns a URL containing a sanitized domain
+// Href returns a normalized Href
+func Href(incoming string) (href string, err error) {
+	var u *url.URL
+	if u, err = url.Parse(incoming); err != nil {
+		return "", err
+	}
+	u = URL(u)
+	return u.String(), nil
+}
+
+// Equal reports whether two URLs are equivalent after normalization.
+func Equal(a, b *url.URL) bool {
+	A := URL(a)
+	B := URL(b)
+	if A == nil && B == nil {
+		return true
+	}
+	if A == nil || B == nil {
+		return false
+	}
+	return A.String() == B.String()
+}
+
+// Domain returns a sanitized domain string
 //
 // Used for feed identification.
-func Domain(u *url.URL) *url.URL {
+func Domain(u *url.URL) string {
 	if u == nil || u.Hostname() == "" {
-		return nil
+		return ""
 	}
 	u = URL(u)
 	labels := strings.Split(u.Hostname(), ".")
 	if len(labels) > 1 && isCommonSubdomain(labels[0]) {
 		labels = labels[1:]
 	}
-	domain := strings.Join(labels, ".")
-	return &url.URL{Host: domain}
+	return strings.Join(labels, ".")
 }
 
 // isCommonSubdomain returns true if s matches a common subdomain pattern like "www"
@@ -67,13 +104,14 @@ func isCommonSubdomain(s string) bool {
 }
 
 // Path returns a URL containing a sanitized path + query (no scheme/host).
-func Path(u *url.URL) *url.URL {
+func Path(u *url.URL) string {
 	if u == nil {
-		return nil
+		return ""
 	}
 	u = URL(u)
 	u = SanitizeParams(u)
-	return &url.URL{Path: u.Path, RawQuery: u.RawQuery}
+	p := url.URL{Path: u.Path, RawQuery: u.RawQuery}
+	return p.String()
 }
 
 // SanitizeParams removes tracking and secret query parameters from a URL.
@@ -97,17 +135,64 @@ func SanitizeParams(u *url.URL) *url.URL {
 	return &v
 }
 
-// HexID
-func HexID(u *url.URL) string {
-	u = Path(u)
-	sum := sha256.Sum256([]byte(u.String()))
-	hexFull := hex.EncodeToString(sum[:])
-	id := hexFull[:40]
-	return id
+// Identifier returns a HyperFeed identifier (first 40 chars of SHA256 hex)
+//
+// Inspired by Git's SHA-256-based object naming.
+// https://git-scm.com/docs/hash-function-transition
+func Identifier(incoming string) string {
+	sum := sha256.Sum256([]byte(incoming))
+	return hex.EncodeToString(sum[:])[:40]
 }
 
-// String returns a normalized string suitable for comparisons. Currently passthrough.
-func String(s string) string { return s }
+// CleanPath validates and normalizes relative asset paths.
+//
+// The returned path is safe to join against a cache namespace because:
+//   - Empty paths are rejected
+//   - Absolute paths are rejected
+//   - Path is cleaned, but resulting segments must stay within the item-scoped root
+//   - Cleaned paths must not collide with reserved filenames (e.g. `cache.lock`)
+//   - Each segment must match [A-Za-z0-9._-]+
+//
+// New path separators use the current OS via filepath.Join.
+func CleanPath(p string, reserved ...string) (string, error) {
+	var clean string
+	var segments []string
+	p = strings.TrimSpace(p)             // trim leading/trailing whitespace
+	p = strings.ReplaceAll(p, "\\", "/") // Treat Windows separators like POSIX for normalization.
+	if p == "" {
+		return "", ErrInvalidPath
+	}
+	if !utf8.ValidString(p) {
+		return "", ErrInvalidPath
+	}
+	if clean = path.Clean(p); clean == "." {
+		return "", ErrInvalidPath
+	}
+	if strings.HasPrefix(clean, "../") || clean == ".." {
+		return "", ErrInvalidPath
+	}
+	if strings.HasPrefix(clean, "/") {
+		return "", ErrInvalidPath
+	}
+	if len(reserved) == 0 {
+		reserved = append(reserved, CleanPathReservedFileNames...) // copy default reserved names
+	}
+	if slices.Contains(reserved, clean) {
+		return "", ErrInvalidPath
+	}
+	for _, segment := range strings.Split(clean, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", ErrInvalidPath
+		}
+		if !CleanPathSegmentPattern.MatchString(segment) {
+			return "", ErrInvalidPath
+		}
+		segments = append(segments, segment)
+	}
+	return filepath.Join(segments...), nil
+}
 
-// GUID returns a canonicalized GUID/ID string. Currently passthrough.
-func GUID(id string) string { return id }
+var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var CleanPathReservedFileNames = []string{
+	"cache.lock",
+}
