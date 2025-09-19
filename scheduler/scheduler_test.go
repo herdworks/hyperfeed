@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,27 +10,31 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
-// TestSchedulerNextDecisionRespectsRetryAfter documents the expectation that a
-// Retry-After header moves the next decision window into the future.
-func TestSchedulerNextDecisionRespectsRetryAfter(t *testing.T) {
-	t.Skip("implementation pending: scheduler must honor Retry-After and persisted backoff windows")
+// TestEventReadyRespectsRetryAfter documents the expectation that Event.Ready
+// defers fetching when Retry-After or backoff windows are still active.
+func TestEventReadyRespectsRetryAfter(t *testing.T) {
+	t.Skip("implementation pending: Event.Ready must honor Retry-After and persisted backoff windows")
 
-	scheduler := &Scheduler{}
-	feed := &hyperfeed.Feed{}
-	state := &State{
-		FeedID:        "feed-id",
-		NextNotBefore: time.Now().Add(time.Hour),
-		RateLimit: transporter.RateLimitState{
-			BackoffUntil: time.Now().Add(2 * time.Hour),
+	event := &Event{
+		Feed: &hyperfeed.Feed{},
+		Status: &Status{
+			FeedID:        "feed-id",
+			NextNotBefore: time.Now().Add(time.Hour),
+			RateLimit: transporter.RateLimitState{
+				BackoffUntil: time.Now().Add(2 * time.Hour),
+			},
 		},
+		TickAt: time.Now(),
 	}
-	_ = state
-	decision, _, err := scheduler.NextDecision(context.Background(), feed)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	ready, err := event.Ready()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
-	if decision.Action != ActionDefer {
-		t.Fatalf("expected ActionDefer, got %v", decision.Action)
+	if ready {
+		t.Fatalf("expected event to be reported as not ready")
+	}
+	if !errors.Is(err, transporter.ErrRequestNotReady) {
+		t.Fatalf("expected ErrRequestNotReady, got %v", err)
 	}
 }
 
@@ -39,12 +44,12 @@ func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
 	t.Skip("implementation pending: scheduler must persist conditional validators after transporter responses")
 
 	scheduler := &Scheduler{}
-	state := &State{FeedID: "feed-id"}
-	plan := &transporter.RequestPlan{}
-	summary := &transporter.ResponseSummary{}
+	status := &Status{FeedID: "feed-id"}
+	req := &transporter.Request{}
+	resp := &transporter.Response{}
 	update := &transporter.PersistenceUpdate{}
 
-	newState, err := scheduler.ApplyResult(context.Background(), state, plan, summary, update)
+	newState, err := scheduler.ApplyResult(context.Background(), status, req, resp, update)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -58,11 +63,11 @@ func TestSchedulerApplyResultPersistsValidators(t *testing.T) {
 func TestSchedulerRecordFailureBackoff(t *testing.T) {
 	t.Skip("implementation pending: scheduler must compute exponential backoff on repeated failures")
 
-	scheduler := &Scheduler{Options: Options{ErrorBackoffStep: time.Minute}}
-	state := &State{FeedID: "feed-id"}
-	plan := &transporter.RequestPlan{}
+	scheduler := &Scheduler{Config: &Config{ErrorBackoffStep: time.Minute}}
+	status := &Status{FeedID: "feed-id"}
+	req := &transporter.Request{}
 
-	newState, err := scheduler.RecordFailure(context.Background(), state, plan, ErrNotImplemented)
+	newState, err := scheduler.RecordFailure(context.Background(), status, req, ErrNotImplemented)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

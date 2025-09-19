@@ -2,67 +2,73 @@ package transporter
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 )
 
-// TestTransporterPrepareRequestAddsConditionalHeaders documents the expectation
-// that stored validators are attached when building requests.
-func TestTransporterPrepareRequestAddsConditionalHeaders(t *testing.T) {
-	t.Skip("implementation pending: transporter must populate conditional headers before dispatch")
+// TestRequestValidRejectsBackoff documents the expectation that Request.Valid
+// refuses to run while NotBefore is still in the future and returns
+// ErrRequestNotReady so callers can treat it as a no-op.
+func TestRequestValidRejectsBackoff(t *testing.T) {
+	t.Skip("implementation pending: Request.Valid must surface ErrRequestNotReady when guardrails block execution")
 
-	transporter := &Transporter{}
-	plan := &RequestPlan{
-		URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/feed"},
-		Conditional: ConditionalRequestState{
-			ETag:         "\"abc\"",
-			LastModified: time.Now(),
-		},
+	req := &Request{
+		HTTPRequest: &http.Request{},
+		NotBefore:   time.Now().Add(time.Hour),
 	}
-	req, err := transporter.PrepareRequest(context.Background(), plan)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	ready, err := req.Valid()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
-	if req.Header.Get("If-None-Match") == "" {
-		t.Fatalf("expected If-None-Match header to be set")
+	if ready {
+		t.Fatalf("expected request to be reported as not ready")
 	}
-}
-
-// TestTransporterExecutePlanHonorsRateLimit documents the expectation that
-// requests are denied when still inside a backoff window.
-func TestTransporterExecutePlanHonorsRateLimit(t *testing.T) {
-	t.Skip("implementation pending: transporter must refuse execution when plan is rate limited")
-
-	transporter := &Transporter{}
-	plan := &RequestPlan{
-		URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/feed"},
-		RateLimit: RateLimitState{
-			BackoffUntil: time.Now().Add(time.Hour),
-		},
-	}
-	if _, err := transporter.ExecutePlan(context.Background(), plan); err == nil {
-		t.Fatalf("expected rate-limit violation to return an error")
+	if !errors.Is(err, ErrRequestNotReady) {
+		t.Fatalf("expected ErrRequestNotReady, got %v", err)
 	}
 }
 
-// TestTransporterInterpretResponseComputesNextNotBefore documents the
-// expectation that cache and rate-limit hints influence scheduling.
-func TestTransporterInterpretResponseComputesNextNotBefore(t *testing.T) {
-	t.Skip("implementation pending: transporter must translate response hints into persistence state")
+// TestTransporterFetchNoopWhenNotReady documents the expectation that Fetch
+// performs preflight checks and returns the same typed error used by
+// Request.Valid when a request must be deferred.
+func TestTransporterFetchNoopWhenNotReady(t *testing.T) {
+	t.Skip("implementation pending: Fetch must return ErrRequestNotReady when preflight fails")
 
 	transporter := &Transporter{}
-	plan := &RequestPlan{}
-	summary := &ResponseSummary{
-		StatusCode: http.StatusOK,
+	req := &Request{
+		HTTPRequest: &http.Request{},
+		NotBefore:   time.Now().Add(time.Hour),
+	}
+	resp, err := transporter.Fetch(context.Background(), req)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if resp != nil {
+		t.Fatalf("expected response to be nil when fetch is deferred")
+	}
+	if !errors.Is(err, ErrRequestNotReady) {
+		t.Fatalf("expected ErrRequestNotReady, got %v", err)
+	}
+}
+
+// TestResponseResolveComputesNextNotBefore documents the expectation that
+// Response.Resolve translates Retry-After and cache headers into persistence
+// updates for the scheduler.
+func TestResponseResolveComputesNextNotBefore(t *testing.T) {
+	t.Skip("implementation pending: Response.Resolve must compute PersistenceUpdate hints")
+
+	req := &Request{HTTPRequest: &http.Request{}}
+	resp := &Response{
 		Headers:    http.Header{"Retry-After": []string{"120"}},
+		StatusCode: http.StatusOK,
 	}
-	update, err := transporter.InterpretResponse(context.Background(), plan, summary)
+	update, err := resp.Resolve(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if update.NextNotBefore.Sub(time.Now()) < time.Minute {
-		t.Fatalf("expected Retry-After hint to push next fetch into the future")
+	if update.NextNotBefore.Before(time.Now().Add(2 * time.Minute)) {
+		t.Fatalf("expected Retry-After to push next fetch into the future")
 	}
 }

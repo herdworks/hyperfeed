@@ -1,53 +1,52 @@
 # HyperFeed Transporter
 
-The `herdworks/hyperfeed-go/transporter` package manages HTTP interactions on
-behalf of the scheduler. The production logic is not implemented yet; instead we
-have a set of contracts that describe how HyperFeed will become a responsible
-client for every feed it touches.
+The `herdworks/hyperfeed-go/transporter` package manages HTTP interactions on behalf of the scheduler.
 
 ## Goals
 
-* No external dependencies (only `net/http`, `x/net/html`, and related standard
-  libraries).
-* Always send conditional requests when validators (ETag, Last-Modified,
-  Content-Digest) are available.
-* Advertise supported feed types via `Accept` header, including
-  `application/rss+xml`, `application/atom+xml`, and `application/feed+json`.
-* Honor every rate limiting hint (Retry-After, X-RateLimit headers, 429/503
-  semantics) before issuing new requests.
-* Translate cache headers and feed metadata into actionable persistence updates
-  for the scheduler.
+* No external dependencies (only `net/http`, `x/net/html`, and related standard libraries).
+* Always send conditional requests when validators (ETag, Last-Modified, Content-Digest) are available.
+* Advertise supported feed types via `Accept` header, including `application/rss+xml`, `application/atom+xml`, and `application/feed+json`.
+* Honor every rate limiting hint (Retry-After, X-RateLimit headers, 429/503 semantics) before issuing new requests.
+* Translate cache headers and feed metadata into actionable persistence updates for the scheduler.
 
 ## Contracts
 
-The transporter exposes three primary methods:
+The transporter exposes a compact surface area built around three concepts:
 
-* `PrepareRequest(ctx, plan)` – constructs an `http.Request` with the correct
-  conditional headers and user-specified overrides.
-* `ExecutePlan(ctx, plan)` – performs the HTTP exchange, respecting rate-limit
-  guardrails and streaming constraints while populating a `ResponseSummary`.
-* `InterpretResponse(ctx, plan, summary)` – distills cache, rate-limit, and
-  validator hints into a `PersistenceUpdate` for the scheduler.
+* `Request` – wraps an `http.Request` together with aggregate scheduler hints such as `NotBefore`, `Deadline`, conditional validators, and rate limit snapshots.
+* `Fetch(ctx, request)` – performs preflight checks via `request.Valid()` and, when ready, executes the HTTP exchange returning a `Response`.
+* `Response` – wraps the raw `http.Response` plus derived metadata. A response is resolved into scheduler persistence via `response.Resolve(ctx, request)`.
+
+### Request
+
+Scheduler constructs a `transporter.Request` after evaluating an event. The struct contains only the distilled data the transporter needs: prepared HTTP request, conditional validators, cache directives, rate-limit snapshot, attempt counters, and guardrail timestamps. The scheduler retains the richer context.
+
+`Request.Valid()` performs preflight validation. It verifies guardrails (`NotBefore`, retry budgets, deadline) and returns `(false, ErrRequestNotReady)` when the request must be deferred. This allows the scheduler to differentiate no-ops from actual transport failures.
+
+### Fetch
+
+`Fetch(ctx, request)` runs the preflight checks and returns early when `request.Valid()` fails. Typed errors communicate the reason for the no-op (e.g., `ErrRequestNotReady`, `ErrRateLimitStale`). When the request is ready, the HTTP exchange is executed, producing a `Response`.
+
+### Response
+
+`Response` wraps the raw HTTP response together with normalized metadata: updated validators, cache directives, rate limit hints, payload digests, and timing information. `Response.Resolve(ctx, request)` distills those hints into a `PersistenceUpdate` for the scheduler.
 
 Supporting types capture the state that must be persisted between runs:
 
-* `ConditionalRequestState` – stores ETags, Last-Modified timestamps, fallback
-  digests, and metadata about the validators we rely on.
-* `RateLimitState` – tracks Retry-After deadlines, X-RateLimit counters,
-  consecutive error counts, and derived polling intervals.
+* `ConditionalRequestState` – stores ETags, Last-Modified timestamps, fallback digests, and metadata about the validators we rely on.
+* `RateLimitState` – tracks Retry-After deadlines, X-RateLimit counters, consecutive error counts, and derived polling intervals.
 * `CacheDirectiveState` – normalizes Cache-Control, Expires, and Age headers.
-* `RequestPlan` – the immutable plan produced by the scheduler for a single
-  attempt, including the rate-limit snapshot seen at scheduling time.
-* `ResponseSummary` – the normalized view of the HTTP response, including
-  redirects, payload digests, and timing data.
+* `Request` – the immutable request snapshot produced by the scheduler, including a prepared `http.Request`, guardrail timestamps, and aggregated state needed for transporter preflight checks.
+* `Response` – the normalized view of the HTTP exchange, including redirects, payload digests, and timing data.
 * `PersistenceUpdate` – the condensed state to persist after each attempt.
 
 ## Tests
 
 `transporter_test.go` contains skipped test skeletons that define the contract:
 
-* Conditional headers must be attached when validators exist.
-* Plans must be rejected when a backoff window is still active.
-* Retry-After headers must translate into future `NextNotBefore` timestamps.
+* `Request.Valid` must attach conditional headers and reject unsafe guardrail violations.
+* `Fetch` must no-op with a typed error when the request falls inside backoff windows or violates retry budgets.
+* `Response.Resolve` must translate Retry-After and cache headers into future `NextNotBefore` timestamps.
 
 Once the transporter implementation is ready these tests will be turned on.
