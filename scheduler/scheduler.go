@@ -163,41 +163,6 @@ type Event struct {
 	Diagnostics map[string]string
 }
 
-// Decision expresses what the scheduler decided to do on a given tick.
-type Decision struct {
-	// Event references the event that produced this decision.
-	Event *Event
-
-	// Action is the high-level decision outcome.
-	Action DecisionAction
-
-	// Reason documents the primary driver for the decision (e.g. "retry-after", "cache-max-age", "manual-hold").
-	Reason string
-
-	// NotBefore is the earliest time the scheduler may revisit this feed.
-	NotBefore time.Time
-
-	// Request describes the HTTP exchange to execute when ActionFetch is chosen.
-	Request *transporter.Request
-
-	// GeneratedAt records when the decision was produced.
-	GeneratedAt time.Time
-}
-
-// DecisionAction enumerates scheduler outcomes.
-type DecisionAction string
-
-const (
-	// ActionFetch indicates that the feed should be fetched now.
-	ActionFetch DecisionAction = "fetch"
-
-	// ActionSkip indicates the feed should be skipped for this tick but may be eligible soon.
-	ActionSkip DecisionAction = "skip"
-
-	// ActionDefer indicates the feed is under backoff until NotBefore.
-	ActionDefer DecisionAction = "defer"
-)
-
 // ========================= Scheduler Methods =============================
 
 // Tick computes the scheduler's next event. Implementation must load
