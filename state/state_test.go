@@ -4,12 +4,21 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
+
+type Example struct {
+	Name string `json:"name,omitempty"`
+	Age  int    `json:"age,omitempty"`
+}
+func (*Example) StateFileName() string {
+	return "example.json"
+}
 
 func TestStateConfigure(t *testing.T) {
 	stateRoot := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
@@ -198,8 +207,8 @@ func TestStateCreateDestroy(t *testing.T) {
 				t.Logf("state configured from href: %q", tc.href)
 				t.Logf("state configured with URI: %q", state.URI.Path)
 			}
-			if err := state.Destroy(ctx); err != nil {
-				t.Fatalf("state.Destroy error during cleanup: %v", err)
+			if err := os.RemoveAll(stateRoot.Path); err != nil {
+				t.Fatalf("error during testdata cleanup: %v", err)
 			}
 			if exists, err := state.Exists(ctx); err != nil || exists {
 				t.Fatalf("state.Destroy failed (exists: %v, err: %q)\n", exists, err)
@@ -212,13 +221,62 @@ func TestStateCreateDestroy(t *testing.T) {
 			if exists, err := state.Exists(ctx); err != nil || !exists {
 				t.Fatalf("state.Create failed (exists: %v, err: %q)\n", exists, err)
 			}
-			if err := state.Destroy(ctx); err != nil {
-				t.Fatalf("state.Destroy error: %v", err)
+			if err := os.RemoveAll(stateRoot.Path); err != nil {
+				t.Fatalf("error during testdata cleanup: %v", err)
 			}
 			if exists, err := state.Exists(ctx); err != nil || exists {
 				t.Fatalf("state.Destroy failed, state still exists")
 			} else {
 				t.Logf("state destroyed at %q", state.URI.Path)
+			}
+		})
+	}
+}
+
+func TestStatePut(t *testing.T) {
+	var stateRoot *url.URL = &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
+	var state *State = &State{}
+	var err error
+	tests := []struct {
+		name string
+		href string
+		data StateFile
+		err  error
+	}{
+		{
+			name: "example config",
+			href: "https://example.com/feed/",
+			data: &Example{Name: "Alice", Age: 30},
+			err:  nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var file *File
+			var ctx context.Context = context.Background()
+			if err = state.Configure(stateRoot, nil, tc.href); tc.err == nil && err != nil {
+				t.Fatalf("state.Configure error: %v", err)
+			} else if tc.err != nil && errors.Is(err, tc.err) {
+				t.Logf("expected error observed: %v", err)
+				return // skip remaining tests on expected error
+			}
+			if err := os.RemoveAll(stateRoot.Path); err != nil {
+				t.Fatalf("error during testdata cleanup: %v", err)
+			}
+			if err := state.Create(); err != nil {
+				t.Fatalf("state.Create error: %v", err)
+			} else {
+				t.Logf("state created at %q", state.URI.Path)
+			}
+
+			file = &File{
+				State: state,
+				Data:  tc.data,
+			}
+			if err := file.Put(ctx); err != nil {
+				t.Fatalf("file.Put error: %v", err)
+			} else {
+				t.Logf("file put at %q", file.URI.Path)
 			}
 		})
 	}

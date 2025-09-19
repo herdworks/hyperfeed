@@ -29,8 +29,6 @@ type StateFS interface {
 	Get(ctx context.Context, uri *url.URL) (data []byte, err error)
 	Put(ctx context.Context, uri *url.URL, data []byte) error
 	Remove(ctx context.Context, uri *url.URL) error
-	RemoveAll(ctx context.Context, uri *url.URL) error
-	Destroy(ctx context.Context) error
 
 	// Evict implements retention-policy removal of expired cache blobs.
 	Evict(ctx context.Context, expiry *time.Time) (int64, error)
@@ -38,9 +36,6 @@ type StateFS interface {
 }
 
 type StateFile interface {
-	json.Marshaler
-	json.Unmarshaler
-
 	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
 }
 
@@ -145,28 +140,6 @@ func (state *State) Create() error {
 	return nil
 }
 
-// Destroy() removes the cache root directory and all contents
-func (state *State) Destroy(ctx context.Context) error {
-	if !state.Ready() {
-		return errors.New("state.Destroy: cache not ready")
-	}
-	if err := state.FS.Destroy(ctx); err != nil {
-		return fmt.Errorf("state.Destroy: error destroying root path: %w", err)
-	}
-	return nil
-}
-
-// Purge() resets the cache by performing Destroy() and Create()
-func (state *State) Purge(ctx context.Context) error {
-	if err := state.Destroy(ctx); err != nil {
-		return fmt.Errorf("state.Purge: destroy: %w", err)
-	}
-	if err := state.Create(); err != nil {
-		return fmt.Errorf("state.Purge: create: %w", err)
-	}
-	return nil
-}
-
 // Evict removes expired cache blobs using the underlying FS implementation.
 func (state *State) Evict(ctx context.Context, expiry *time.Time) (int64, error) {
 	if !state.Ready() {
@@ -219,9 +192,13 @@ func (file *File) Exists(ctx context.Context) (bool, error) {
 }
 
 // Put stores data at the cache file URI, acquiring a lock if provided by the FS implementation.
-func (file *File) Put(ctx context.Context, data []byte) (err error) {
+func (file *File) Put(ctx context.Context) (err error) {
+	var data []byte
 	if ready, err := file.Ready(); !ready {
 		return err
+	}
+	if data, err = json.MarshalIndent(file.Data, "", "\t"); err != nil {
+		return fmt.Errorf("state: marshal file data: %w", err)
 	}
 	return file.State.FS.Put(ctx, file.URI, data)
 }
