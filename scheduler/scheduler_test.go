@@ -20,7 +20,7 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 		Status: &Status{
 			FeedID:        "feed-id",
 			NextNotBefore: time.Now().Add(time.Hour),
-			RateLimit: RateLimitState{
+			RateLimit: RateLimit{
 				BackoffUntil: time.Now().Add(2 * time.Hour),
 			},
 		},

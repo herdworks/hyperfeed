@@ -91,10 +91,10 @@ type Status struct {
 	Conditions []*transporter.Condition
 
 	// RateLimit captures rate limiting information supplied by the origin.
-	RateLimit RateLimitState
+	RateLimit RateLimit
 
-	// CacheDirectives stores parsed HTTP cache headers.
-	CacheDirectives CacheDirectiveState
+	// CacheControl stores parsed HTTP cache headers.
+	CacheControl CacheControl
 
 	// FeedTTL holds the last ttl hint observed from the feed metadata.
 	FeedTTL time.Duration
@@ -115,9 +115,9 @@ type Status struct {
 	Diagnostics map[string]string
 }
 
-// RateLimitState captures how often we are allowed to poll an origin. The
+// RateLimit captures how often we are allowed to poll an origin. The
 // scheduler persists this structure across ticks.
-type RateLimitState struct {
+type RateLimit struct {
 	BackoffUntil             time.Time
 	RetryAfter               time.Duration
 	Remaining                int
@@ -130,8 +130,8 @@ type RateLimitState struct {
 	HintSources              []string
 }
 
-// CacheDirectiveState normalizes cache metadata from HTTP headers.
-type CacheDirectiveState struct {
+// CacheControl normalizes cache metadata from HTTP headers.
+type CacheControl struct {
 	MaxAge       time.Duration
 	SharedMaxAge time.Duration
 	ExpiresAt    time.Time
