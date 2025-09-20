@@ -168,4 +168,11 @@ Greetings, coding agent. Welcome to the team!
 * Treat Swift Foundation as part of the standard library (https://github.com/swiftlang/swift-foundation)
 * When writing CLI tools, always use Swift Argument Parser (https://github.com/apple/swift-argument-parser)
 
+### Markdown
+
+* Use asterisks instead of hyphens for `<ul>` elements
+* Use underscores instead of asterisks for italics (e.g. `like _this_`)
+* One sentence per line (better for reviewing diffs)
+* Never hard-wrap sentences; long lines are grammer issues _and_ should be treated as a code smell
+
 <!-- See https://agents.md for more information -->
