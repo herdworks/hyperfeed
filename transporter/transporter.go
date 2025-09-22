@@ -70,8 +70,8 @@ type Config struct {
 // this snapshot so the transporter can run without needing broader scheduler
 // context.
 type Request struct {
-	// HTTPRequest is the fully constructed HTTP request, ready for dispatch.
-	HTTPRequest *http.Request
+	// *http.Request is the fully constructed HTTP request, ready for dispatch.
+	*http.Request
 
 	// CreatedAt records when the request was built.
 	CreatedAt time.Time
@@ -228,9 +228,6 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 	if t == nil {
 		return nil, ErrInvalidRequest
 	}
-	if request == nil || request.HTTPRequest == nil {
-		return nil, ErrInvalidRequest
-	}
 
 	t.Init()
 	if !t.Ready() {
@@ -304,11 +301,17 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 // request should be postponed without counting against error budgets. The stub
 // returns ErrNotImplemented until real logic is added.
 func (request *Request) Valid() (bool, error) {
+	if request == nil {
+		return false, ErrInvalidRequest
+	}
+	if request.Request == nil {
+		return false, ErrInvalidRequest
+	}
 	return true, nil
 }
 
 func (request *Request) prepareHTTPRequest(ctx context.Context, cfg *Config) (*http.Request, []context.CancelFunc, error) {
-	if request == nil || request.HTTPRequest == nil {
+	if request == nil || request.Request == nil {
 		return nil, nil, ErrInvalidRequest
 	}
 
@@ -317,7 +320,7 @@ func (request *Request) prepareHTTPRequest(ctx context.Context, cfg *Config) (*h
 		baseCtx = context.Background()
 	}
 
-	cloned := request.HTTPRequest.Clone(baseCtx)
+	cloned := request.Request.Clone(baseCtx)
 	if cloned.URL == nil {
 		return nil, nil, ErrInvalidRequest
 	}

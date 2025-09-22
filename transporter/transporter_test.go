@@ -20,7 +20,7 @@ func TestRequestValidRejectsBackoff(t *testing.T) {
 	t.Skip("implementation pending: Request.Valid must surface ErrRequestNotReady when guardrails block execution")
 
 	req := &Request{
-		HTTPRequest: &http.Request{},
+		Request: &http.Request{},
 		Options: Options{
 			NotBefore: time.Now().Add(time.Hour),
 		},
@@ -45,7 +45,7 @@ func TestTransporterFetchNoopWhenNotReady(t *testing.T) {
 
 	transporter := &Transporter{}
 	req := &Request{
-		HTTPRequest: &http.Request{},
+		Request: &http.Request{},
 		Options: Options{
 			NotBefore: time.Now().Add(time.Hour),
 		},
@@ -111,7 +111,7 @@ func TestTransporterFetchPopulatesResponse(t *testing.T) {
 	}
 
 	transporter := &Transporter{}
-	response, err := transporter.Fetch(context.Background(), &Request{HTTPRequest: req})
+	response, err := transporter.Fetch(context.Background(), &Request{Request: req})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -210,8 +210,8 @@ func TestTransporterFetchAppliesOptionHeaders(t *testing.T) {
 
 	transporter := &Transporter{}
 	response, err := transporter.Fetch(context.Background(), &Request{
-		HTTPRequest: req,
-		Conditions:  []*Condition{condition},
+		Request:    req,
+		Conditions: []*Condition{condition},
 		Options: Options{Headers: map[string]string{
 			"User-Agent": "custom-agent/1.0",
 			"X-Debug":    "enabled",
@@ -260,7 +260,7 @@ func TestTransporterFetchRespectsBodyLimit(t *testing.T) {
 	}
 
 	transporter := &Transporter{Config: &Config{Timeout: time.Second, MaxBodySize: 4}}
-	resp, err := transporter.Fetch(context.Background(), &Request{HTTPRequest: req})
+	resp, err := transporter.Fetch(context.Background(), &Request{Request: req})
 	if err == nil {
 		if resp != nil {
 			resp.Response.Body.Close()
