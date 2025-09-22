@@ -1,8 +1,12 @@
 package transporter
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,13 +14,25 @@ import (
 )
 
 var (
-	ErrNotImplemented  = errors.New("transporter: not implemented")
-	ErrRequestNotReady = errors.New("transporter: request not ready")
-	ErrRequestExpired  = errors.New("transporter: request deadline exceeded")
-	ErrInvalidRequest  = errors.New("transporter: invalid request")
+	ErrNotImplemented   = errors.New("transporter: not implemented")
+	ErrRequestNotReady  = errors.New("transporter: request not ready")
+	ErrRequestExpired   = errors.New("transporter: request deadline exceeded")
+	ErrInvalidRequest   = errors.New("transporter: invalid request")
+	ErrTooManyRedirects = errors.New("transporter: too many redirects")
+	ErrResponseTooLarge = errors.New("transporter: response body exceeds limit")
 )
 
 const UserAgent = "hyperfeed-go/transporter (+https://github.com/herdworks/hyperfeed-go)"
+
+var defaultAcceptHeader = strings.Join([]string{
+	"application/rss+xml",
+	"application/atom+xml;q=0.9",
+	"application/feed+json;q=0.8",
+	"application/xml;q=0.7",
+	"text/xml;q=0.5",
+	"application/json;q=0.4",
+	"*/*;q=0.1",
+}, ", ")
 
 // Transporter orchestrates outbound HTTP requests for feeds. The struct keeps
 // references to the HTTP client and configuration but intentionally avoids
@@ -182,15 +198,25 @@ func (transporter *Transporter) Ready() bool {
 func (transporter *Transporter) Init() {
 	if transporter.Config == nil {
 		transporter.Config = &Config{}
+	}
+	if transporter.Config.Timeout <= 0 {
 		transporter.Config.Timeout = 15 * time.Second
+	}
+	if transporter.Config.MaxRedirects <= 0 {
 		transporter.Config.MaxRedirects = 5
+	}
+	if transporter.Config.DefaultBackoff <= 0 {
 		transporter.Config.DefaultBackoff = time.Minute
+	}
+	if transporter.Config.MaxBodySize <= 0 {
 		transporter.Config.MaxBodySize = 4 << 20 // 4 MiB default buffer
 	}
 	if transporter.Client == nil {
 		transporter.Client = &http.Client{
 			Timeout: transporter.Config.Timeout,
 		}
+	} else if transporter.Client.Timeout == 0 && transporter.Config.Timeout > 0 {
+		transporter.Client.Timeout = transporter.Config.Timeout
 	}
 }
 
@@ -199,13 +225,76 @@ func (transporter *Transporter) Init() {
 // error such as ErrRequestNotReady must be returned. Stub returns
 // ErrNotImplemented until the transport logic is available.
 func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, error) {
-	if request == nil {
+	if t == nil {
 		return nil, ErrInvalidRequest
 	}
-	if _, err := request.Valid(); err != nil {
+	if request == nil || request.HTTPRequest == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	t.Init()
+	if !t.Ready() {
+		return nil, ErrInvalidRequest
+	}
+
+	ready, err := request.Valid()
+	if err != nil {
 		return nil, err
 	}
-	return nil, ErrNotImplemented
+	if !ready {
+		return nil, ErrRequestNotReady
+	}
+
+	preparedRequest, cancels, err := request.prepareHTTPRequest(ctx, t.Config)
+	if err != nil {
+		return nil, err
+	}
+	for _, cancel := range cancels {
+		defer cancel()
+	}
+
+	client := t.cloneHTTPClient()
+	tracker := newRedirectTracker(t.Config.MaxRedirects, client.CheckRedirect)
+	client.CheckRedirect = tracker.Track
+
+	start := time.Now()
+	resp, err := client.Do(preparedRequest)
+	if err != nil {
+		if errors.Is(err, ErrTooManyRedirects) {
+			return nil, ErrTooManyRedirects
+		}
+		return nil, err
+	}
+
+	body, err := readResponseBody(resp.Body, t.Config.MaxBodySize)
+	if err != nil {
+		return nil, err
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	resp.ContentLength = int64(len(body))
+
+	receivedAt := time.Now()
+	headers := cloneHeader(resp.Header)
+	duration := receivedAt.Sub(start)
+
+	response := &Response{
+		Response:      resp,
+		StatusCode:    resp.StatusCode,
+		Headers:       headers,
+		Body:          body,
+		ReceivedAt:    receivedAt,
+		Duration:      duration,
+		RedirectChain: tracker.Snapshot(),
+		Conditions:    extractResponseConditions(headers, receivedAt),
+	}
+
+	if bodyDigest, algorithm := computeBodyDigest(body); bodyDigest != "" {
+		response.BodyDigest = bodyDigest
+		response.BodyDigestAlgorithm = algorithm
+	}
+
+	return response, nil
 }
 
 // ========================= Request Methods =============================
@@ -215,7 +304,106 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 // request should be postponed without counting against error budgets. The stub
 // returns ErrNotImplemented until real logic is added.
 func (request *Request) Valid() (bool, error) {
-	return false, ErrNotImplemented
+	return true, nil
+}
+
+func (request *Request) prepareHTTPRequest(ctx context.Context, cfg *Config) (*http.Request, []context.CancelFunc, error) {
+	if request == nil || request.HTTPRequest == nil {
+		return nil, nil, ErrInvalidRequest
+	}
+
+	baseCtx := ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+
+	cloned := request.HTTPRequest.Clone(baseCtx)
+	if cloned.URL == nil {
+		return nil, nil, ErrInvalidRequest
+	}
+	if cloned.Method == "" {
+		cloned.Method = http.MethodGet
+	}
+
+	var cancels []context.CancelFunc
+	currentCtx := cloned.Context()
+
+	if !request.Options.Deadline.IsZero() {
+		nextCtx, cancel, err := applyDeadline(currentCtx, request.Options.Deadline)
+		if err != nil {
+			for _, cancelFn := range cancels {
+				cancelFn()
+			}
+			return nil, nil, err
+		}
+		if cancel != nil {
+			cancels = append(cancels, cancel)
+			currentCtx = nextCtx
+		}
+	}
+
+	if cfg != nil && cfg.Timeout > 0 {
+		nextCtx, cancel := applyTimeout(currentCtx, cfg.Timeout)
+		if cancel != nil {
+			cancels = append(cancels, cancel)
+			currentCtx = nextCtx
+		}
+	}
+
+	if currentCtx != cloned.Context() {
+		cloned = cloned.WithContext(currentCtx)
+	}
+
+	request.applyHeaders(cloned)
+
+	return cloned, cancels, nil
+}
+
+func (request *Request) applyHeaders(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", UserAgent)
+	}
+	if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", defaultAcceptHeader)
+	}
+
+	if !request.Options.DisableConditional {
+		for _, condition := range request.Conditions {
+			header := condition.Header()
+			for name, values := range header {
+				canonical := http.CanonicalHeaderKey(name)
+				req.Header.Del(canonical)
+				for _, value := range values {
+					if value == "" {
+						continue
+					}
+					req.Header.Add(canonical, value)
+				}
+			}
+		}
+	}
+
+	for key, value := range request.Options.Headers {
+		canonical := http.CanonicalHeaderKey(key)
+		if canonical == "" {
+			continue
+		}
+		if canonical == "Host" {
+			req.Host = value
+			continue
+		}
+		req.Header.Del(canonical)
+		if value != "" {
+			req.Header.Set(canonical, value)
+		}
+	}
 }
 
 // ========================= Condition Methods ===========================
@@ -309,4 +497,224 @@ func (condition *Condition) HeaderValue() string {
 	default:
 		return ""
 	}
+}
+
+// ========================= Helper Functions ===========================
+
+func (t *Transporter) cloneHTTPClient() *http.Client {
+	if t == nil || t.Client == nil {
+		return &http.Client{}
+	}
+	clone := *t.Client
+	return &clone
+}
+
+func cloneHeader(header http.Header) http.Header {
+	if header == nil {
+		return http.Header{}
+	}
+	return header.Clone()
+}
+
+func readResponseBody(reader io.ReadCloser, maxSize int64) ([]byte, error) {
+	if reader == nil {
+		return nil, nil
+	}
+	defer reader.Close()
+
+	if maxSize <= 0 {
+		return io.ReadAll(reader)
+	}
+
+	limited := &io.LimitedReader{R: reader, N: maxSize + 1}
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxSize {
+		return nil, ErrResponseTooLarge
+	}
+	return data, nil
+}
+
+func computeBodyDigest(body []byte) (string, string) {
+	hash := sha256.Sum256(body)
+	digest := base64.StdEncoding.EncodeToString(hash[:])
+	return digest, "sha-256"
+}
+
+func extractResponseConditions(headers http.Header, observedAt time.Time) []*Condition {
+	if len(headers) == 0 {
+		return nil
+	}
+	if observedAt.IsZero() {
+		observedAt = time.Now()
+	}
+
+	var conditions []*Condition
+
+	for _, value := range splitHeaderValues(headers.Values("Etag")) {
+		if value == "" {
+			continue
+		}
+		condition := &Condition{
+			Kind:       ConditionIfNoneMatchStrong,
+			Name:       "ETag",
+			Value:      value,
+			Values:     []string{value},
+			ObservedAt: observedAt,
+		}
+		if strings.HasPrefix(strings.ToLower(value), "w/") {
+			condition.Kind = ConditionIfNoneMatchWeak
+		}
+		conditions = append(conditions, condition)
+	}
+
+	if lastModified := firstNonEmpty(headers.Values("Last-Modified")); lastModified != "" {
+		condition := &Condition{
+			Kind:       ConditionIfModifiedSince,
+			Name:       "Last-Modified",
+			Value:      lastModified,
+			ObservedAt: observedAt,
+		}
+		if parsed, err := http.ParseTime(lastModified); err == nil {
+			condition.TimeValue = parsed
+		}
+		conditions = append(conditions, condition)
+	}
+
+	for _, digestValue := range splitHeaderValues(headers.Values("Digest")) {
+		eq := strings.Index(digestValue, "=")
+		if eq <= 0 || eq == len(digestValue)-1 {
+			continue
+		}
+		algorithm := strings.ToLower(strings.TrimSpace(digestValue[:eq]))
+		value := strings.TrimSpace(digestValue[eq+1:])
+		if algorithm == "" || value == "" {
+			continue
+		}
+		condition := &Condition{
+			Kind:       ConditionDigest,
+			Name:       "Digest",
+			Value:      value,
+			Values:     []string{value},
+			Algorithm:  algorithm,
+			ObservedAt: observedAt,
+		}
+		conditions = append(conditions, condition)
+	}
+
+	if contentLength := firstNonEmpty(headers.Values("Content-Length")); contentLength != "" {
+		conditions = append(conditions, &Condition{
+			Kind:       ConditionContentLength,
+			Name:       "Content-Length",
+			Value:      contentLength,
+			ObservedAt: observedAt,
+		})
+	}
+
+	return conditions
+}
+
+func splitHeaderValues(values []string) []string {
+	var result []string
+	for _, value := range values {
+		for _, entry := range strings.Split(value, ",") {
+			trimmed := strings.TrimSpace(entry)
+			if trimmed == "" {
+				continue
+			}
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func firstNonEmpty(values []string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func cloneURL(u *url.URL) *url.URL {
+	if u == nil {
+		return nil
+	}
+	cloned := *u
+	return &cloned
+}
+
+func applyDeadline(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc, error) {
+	if deadline.IsZero() {
+		return ctx, nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if time.Now().After(deadline) {
+		return nil, nil, ErrRequestExpired
+	}
+	if current, ok := ctx.Deadline(); ok && !deadline.Before(current) {
+		return ctx, nil, nil
+	}
+	nextCtx, cancel := context.WithDeadline(ctx, deadline)
+	return nextCtx, cancel, nil
+}
+
+func applyTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return ctx, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	deadline := time.Now().Add(timeout)
+	if current, ok := ctx.Deadline(); ok && !deadline.Before(current) {
+		return ctx, nil
+	}
+	nextCtx, cancel := context.WithDeadline(ctx, deadline)
+	return nextCtx, cancel
+}
+
+type redirectTracker struct {
+	max   int
+	base  func(*http.Request, []*http.Request) error
+	chain []*url.URL
+}
+
+func newRedirectTracker(max int, base func(*http.Request, []*http.Request) error) *redirectTracker {
+	tracker := &redirectTracker{base: base}
+	if max <= 0 {
+		max = 5
+	}
+	tracker.max = max
+	return tracker
+}
+
+func (tracker *redirectTracker) Track(req *http.Request, via []*http.Request) error {
+	if req != nil && req.URL != nil {
+		tracker.chain = append(tracker.chain, cloneURL(req.URL))
+	}
+	if tracker.max > 0 && len(via) >= tracker.max {
+		return ErrTooManyRedirects
+	}
+	if tracker.base != nil {
+		return tracker.base(req, via)
+	}
+	return nil
+}
+
+func (tracker *redirectTracker) Snapshot() []*url.URL {
+	if tracker == nil || len(tracker.chain) == 0 {
+		return nil
+	}
+	snapshot := make([]*url.URL, len(tracker.chain))
+	for i, u := range tracker.chain {
+		snapshot[i] = cloneURL(u)
+	}
+	return snapshot
 }
