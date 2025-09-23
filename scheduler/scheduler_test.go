@@ -19,9 +19,9 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 		Feed: &hyperfeed.Feed{},
 		Status: &Status{
 			FeedID:        "feed-id",
-			NextNotBefore: time.Now().Add(time.Hour),
 			RateLimit: RateLimit{
 				BackoffUntil: time.Now().Add(2 * time.Hour),
+				RetryAfter: time.Hour,
 			},
 		},
 		TickAt: time.Now(),
@@ -38,39 +38,39 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 	}
 }
 
-// TestSchedulerUpdateValidators documents the expectation that
-// conditional request metadata is saved after successful fetches.
+// TestSchedulerUpdateValidators documents the expectation that conditional request metadata is saved after successful fetches.
 func TestSchedulerUpdateValidators(t *testing.T) {
 	t.Skip("implementation pending: scheduler must persist conditional validators after transporter responses")
 
-	scheduler := &Scheduler{}
-	status := &Status{FeedID: "feed-id"}
-	req := &transporter.Request{}
-	resp := &transporter.Response{}
+	var scheduler *Scheduler = &Scheduler{}
+	var status *Status = &Status{FeedID: "feed-id"}
+	var state *Status
+	var req *transporter.Request = &transporter.Request{}
+	var resp *transporter.Response = &transporter.Response{}
+	var err error
 
-	newState, err := scheduler.Update(context.Background(), status, req, resp)
-	if err != nil {
+	if state, err = scheduler.Update(context.Background(), status, req, resp); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(newState.Conditions) == 0 {
+	if state.ETag == "" || state.LastModifiedAt.IsZero() {
 		t.Fatalf("expected conditions to be persisted")
 	}
 }
 
-// TestSchedulerLogBackoff documents the expectation that repeated
-// failures trigger exponential backoff even without explicit Retry-After hints.
+// TestSchedulerLogBackoff documents the expectation that repeated failures trigger exponential backoff even without explicit Retry-After hints.
 func TestSchedulerLogBackoff(t *testing.T) {
 	t.Skip("implementation pending: scheduler must compute exponential backoff on repeated failures")
 
-	scheduler := &Scheduler{Config: &Config{ErrorBackoffStep: time.Minute}}
-	status := &Status{FeedID: "feed-id"}
-	req := &transporter.Request{}
+	var scheduler *Scheduler = &Scheduler{Config: &Config{ErrorBackoffStep: time.Minute}}
+	var status *Status = &Status{FeedID: "feed-id"}
+	var state *Status
+	var req *transporter.Request = &transporter.Request{}
+	var err error
 
-	newState, err := scheduler.Log(context.Background(), status, req, ErrNotImplemented)
-	if err != nil {
+	if state, err = scheduler.Log(context.Background(), status, req, ErrNotImplemented); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if newState.NextNotBefore.Before(time.Now().Add(time.Minute)) {
-		t.Fatalf("expected failure backoff to push next fetch into the future")
+	if state.RateLimit.RetryAfter == 0 {
+		t.Fatalf("expected scheduler to apply Retry-After rate limiting")
 	}
 }

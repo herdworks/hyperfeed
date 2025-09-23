@@ -72,70 +72,73 @@ type Status struct {
 	// LastAttemptAt is when we most recently attempted a fetch, successful or not.
 	LastAttemptAt time.Time
 
+	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
+	LastErrorAt time.Time
+
 	// LastSuccessAt is when we most recently fetched new content.
 	LastSuccessAt time.Time
 
 	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
 	LastStatusCode int
 
+	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
+	LastStatusCodes [30]int
+
 	// LastHeaders stores the raw headers from the most recent fetch to support future hint extraction.
 	LastHeaders http.Header
 
-	// LastError stores a diagnostic summary for the most recent failure.
-	LastError string
+	// LastModifiedAt stores the value of the Last-Modified header from the last successful fetch.
+	LastModifiedAt time.Time
 
-	// ConsecutiveErrors counts sequential failed attempts.
-	ConsecutiveErrors int
-
-	// Conditions captures the validators for conditional requests.
-	Conditions []*transporter.Condition
-
-	// RateLimit captures rate limiting information supplied by the origin.
-	RateLimit RateLimit
+	// ETag is the last/current ETag value seen for this feed.
+	ETag string
 
 	// CacheControl stores parsed HTTP cache headers.
 	CacheControl CacheControl
 
-	// FeedTTL holds the last ttl hint observed from the feed metadata.
-	FeedTTL time.Duration
+	// RateLimit captures rate limiting information supplied by the origin.
+	RateLimit RateLimit
+
+	// PausedUntil stores user-imposed pause windows (manual snooze).
+	PausedUntil time.Time
 
 	// SkipDays enumerates which weekdays should be skipped according to feed metadata.
-	SkipDays map[time.Weekday]bool
+	// SkipDays map[time.Weekday]bool
 
 	// SkipHours enumerates which hours (0-23) should be skipped according to feed metadata.
-	SkipHours map[int]bool
+	// SkipHours map[int]bool
 
 	// NextNotBefore stores the earliest permissible fetch time derived from hints and policy. Scheduler must never schedule before this timestamp.
-	NextNotBefore time.Time
-
-	// UserThrottleUntil stores user-imposed pause windows (manual snooze).
-	UserThrottleUntil time.Time
+	// NextNotBefore time.Time
 
 	// Diagnostics retains arbitrary key/value pairs for debugging decisions (e.g., "retry_after": "2024-12-17T15:04Z").
-	Diagnostics map[string]string
+	// Diagnostics map[string]string
+
+	// FeedTTL holds the last ttl hint observed from the feed metadata.
+	// FeedTTL time.Duration
 }
 
-// RateLimit captures how often we are allowed to poll an origin. The
-// scheduler persists this structure across ticks.
+// RateLimit captures how often we are allowed to poll an origin as signaled by HTTP 429/503 and related headers.
+// The scheduler persists this structure across ticks.
 type RateLimit struct {
-	BackoffUntil             time.Time
-	RetryAfter               time.Duration
-	Remaining                int
-	Reset                    time.Time
-	Window                   string
-	Consecutive429           int
-	Consecutive5xx           int
-	SuggestedPollingInterval time.Duration
-	LastStatus               int
-	HintSources              []string
+	WaitUntil                time.Time     // Self-imposed backoff time
+	BackoffUntil             time.Time     // Retry-After or computed backoff time
+	RetryAfter               time.Duration // Retry-After in seconds
+	Remaining                int           // X-RateLimit-Remaining
+	Reset                    time.Time     // X-RateLimit-Reset
+	Window                   string        // X-RateLimit-Window
+	SuggestedPollInterval    time.Duration // X-Poll-Interval in seconds
+	LastStatus               int           // last HTTP status code affecting rate limit state
+	Consecutive429           int           // count of sequential 429 responses
+	Consecutive5xx           int           // count of sequential 5xx responses
 }
 
 // CacheControl normalizes cache metadata from HTTP headers.
 type CacheControl struct {
+	Age          time.Duration
 	MaxAge       time.Duration
 	SharedMaxAge time.Duration
 	ExpiresAt    time.Time
-	Age          time.Duration
 	ETagMismatch bool
 }
 
