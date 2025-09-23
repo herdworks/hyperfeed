@@ -138,7 +138,6 @@ const (
 	ConditionLastOK            ConditionKind = "last-ok"
 	ConditionMinInterval       ConditionKind = "min-interval"
 	ConditionMaxInterval       ConditionKind = "max-interval"
-	ConditionDigest            ConditionKind = "digest"
 	ConditionContentLength     ConditionKind = "content-length"
 	ConditionIfNoneMatchStrong ConditionKind = "if-none-match-strong"
 	ConditionIfNoneMatchWeak   ConditionKind = "if-none-match-weak"
@@ -177,12 +176,6 @@ type Response struct {
 	// Duration is the round-trip time from request dispatch to final byte.
 	Duration time.Duration
 
-	// BodyDigest contains a digest of the payload when downloaded.
-	BodyDigest string
-
-	// BodyDigestAlgorithm identifies the algorithm used for BodyDigest.
-	BodyDigestAlgorithm string
-
 	// RedirectChain records intermediate redirects followed during the request.
 	RedirectChain []*url.URL
 
@@ -199,7 +192,8 @@ func (t *Transporter) NewClient() *http.Client {
 		t = &Transporter{}
 	}
 	if t.Config == nil {
-		t.Config = DefaultConfig
+		cc := *DefaultConfig // copy
+		t.Config = &cc
 	}
 	if t.Config.Timeout <= 0 {
 		t.Config.Timeout = DefaultConfig.Timeout
@@ -243,7 +237,7 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 	var response *Response = &Response{}
 	var err error
 	// if t == nil {
-	// 	return nil, ErrInvalidRequest
+	// 	return nil, ErrInvalidRequest // If we need this check, then we also need to declare tracker after this block
 	// }
 	if request.Request, cancellations, err = t.Prepare(client, ctx, request); err != nil {
 		return nil, err
@@ -254,26 +248,25 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 	if ready, err := request.Valid(); !ready || err != nil {
 		return nil, err
 	}
-	if response.Response, err = client.Do(request.Request); err != nil {
-		if errors.Is(err, ErrTooManyRedirects) {
-			return nil, ErrTooManyRedirects
-		}
+	if request.Options.Redirects {
+		client.CheckRedirect = tracker.Track // track redirects
+	}
+	if response.Response, err = client.Do(request.Request); err == nil {
+		defer response.Response.Body.Close()
+		response.ReceivedAt = time.Now()
+		response.Duration = response.ReceivedAt.Sub(request.CreatedAt)
+		response.RedirectChain = tracker.Snapshot()
+	} else if errors.Is(err, ErrTooManyRedirects) {
+		return nil, ErrTooManyRedirects
+	} else {
 		return nil, err
 	}
-	response.ReceivedAt = time.Now()
-	response.Duration = response.ReceivedAt.Sub(request.CreatedAt)
-	response.RedirectChain = tracker.Snapshot()
-
-	if response.Response.ContentLength > t.Config.MaxContentLength {
-		response.Response.Body.Close()
-		return nil, ErrResponseTooLarge
+	if response.Response.StatusCode < 200 || response.Response.StatusCode >= 300 {
+		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
 	}
-
-	// if bodyDigest, algorithm := computeBodyDigest(body); bodyDigest != "" {
-	// 	response.BodyDigest = bodyDigest
-	// 	response.BodyDigestAlgorithm = algorithm
-	// }
-
+	if response.Response.ContentLength > t.Config.MaxContentLength {
+ 		return response, ErrResponseTooLarge
+	}
 	return response, nil
 }
 
@@ -517,12 +510,6 @@ func applyContextDeadline(ctx context.Context, deadline time.Time) (context.Cont
 // 		return nil, ErrResponseTooLarge
 // 	}
 // 	return data, nil
-// }
-
-// func computeBodyDigest(body []byte) (string, string) {
-// 	hash := sha256.Sum256(body)
-// 	digest := base64.StdEncoding.EncodeToString(hash[:])
-// 	return digest, "sha-256"
 // }
 
 // func splitHeaderValues(values []string) []string {
