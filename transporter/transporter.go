@@ -1,15 +1,12 @@
 package transporter
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -41,7 +38,7 @@ var (
 		Attempt:     0,
 		MaxAttempts: 1,
 	}
-	DefaultUserAgent     = "hyperfeed-go/transporter (+https://github.com/herdworks/hyperfeed-go)"
+	DefaultUserAgent     = "HyperTexting (+https://hypertexting.com)"
 	DefaultAcceptHeaders = strings.Join([]string{
 		"application/rss+xml",
 		"application/atom+xml;q=0.9",
@@ -171,8 +168,8 @@ type Response struct {
 	// Headers contains all response headers as received.
 	Headers http.Header
 
-	// Body holds payload bytes when the transporter buffers content in memory.
-	Body []byte
+	// Bytes holds payload bytes when the transporter buffers content in memory.
+	Bytes []byte
 
 	// ReceivedAt records when the response completed.
 	ReceivedAt time.Time
@@ -199,7 +196,7 @@ type Response struct {
 // lazily initializes configuration defaults on first use.
 func (t *Transporter) NewClient() *http.Client {
 	if t == nil {
-		return &http.Client{}
+		t = &Transporter{}
 	}
 	if t.Config == nil {
 		t.Config = DefaultConfig
@@ -213,8 +210,8 @@ func (t *Transporter) NewClient() *http.Client {
 	if t.Config.MaxContentLength <= 0 {
 		t.Config.MaxContentLength = DefaultConfig.MaxContentLength
 	}
-	if t.Timeout == 0 && t.Config.Timeout > 0 {
-		t.Timeout = t.Config.Timeout
+	if t.Client.Timeout == 0 && t.Config.Timeout > 0 {
+		t.Client.Timeout = t.Config.Timeout
 	}
 	clone := t.Client // shallow copy
 	return &clone
@@ -241,79 +238,57 @@ func (t *Transporter) Get(ctx context.Context, request *Request) (*Response, err
 // If the request is not ready, a typed error such as ErrRequestReadiness must be returned.
 func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, error) {
 	var client *http.Client = t.NewClient()
-	var tracker *RedirectTracker
+	var cancellations []context.CancelFunc
+	var tracker *RedirectTracker = &RedirectTracker{max: t.Config.MaxRedirects, base: client.CheckRedirect}
 	var response *Response = &Response{}
 	var err error
-	if t == nil {
-		return nil, ErrInvalidRequest
-	}
-	preparedRequest, cancels, err := t.Prepare(ctx, request)
-	if err != nil {
+	// if t == nil {
+	// 	return nil, ErrInvalidRequest
+	// }
+	if request.Request, cancellations, err = t.Prepare(client, ctx, request); err != nil {
 		return nil, err
 	}
-	for _, cancel := range cancels {
-		defer cancel()
+	for _, cancellation := range cancellations {
+		defer cancellation()
 	}
-
-	ready, err := request.Valid()
-	if err != nil {
+	if ready, err := request.Valid(); !ready || err != nil {
 		return nil, err
 	}
-	if !ready {
-		return nil, ErrRequestReadiness
-	}
-
-	tracker = &RedirectTracker{
-		max:  t.Config.MaxRedirects,
-		base: client.CheckRedirect,
-	}
-	client.CheckRedirect = tracker.Track
-
-	start := time.Now()
-	resp, err := client.Do(preparedRequest)
-	if err != nil {
+	if response.Response, err = client.Do(request.Request); err != nil {
 		if errors.Is(err, ErrTooManyRedirects) {
 			return nil, ErrTooManyRedirects
 		}
 		return nil, err
 	}
+	response.ReceivedAt = time.Now()
+	response.Duration = response.ReceivedAt.Sub(request.CreatedAt)
+	response.RedirectChain = tracker.Snapshot()
 
-	body, err := readResponseBody(resp.Body, t.Config.MaxContentLength)
-	if err != nil {
-		return nil, err
+	if response.Response.ContentLength > t.Config.MaxContentLength {
+		response.Response.Body.Close()
+		return nil, ErrResponseTooLarge
 	}
 
-	resp.Body = io.NopCloser(bytes.NewReader(body))
-	resp.ContentLength = int64(len(body))
-
-	receivedAt := time.Now()
-	headers := resp.Header.Clone()
-	duration := receivedAt.Sub(start)
-
-	response = &Response{
-		Response:      resp,
-		StatusCode:    resp.StatusCode,
-		Headers:       headers,
-		Body:          body,
-		ReceivedAt:    receivedAt,
-		Duration:      duration,
-		RedirectChain: tracker.Snapshot(),
-	}
-
-	if bodyDigest, algorithm := computeBodyDigest(body); bodyDigest != "" {
-		response.BodyDigest = bodyDigest
-		response.BodyDigestAlgorithm = algorithm
-	}
+	// if bodyDigest, algorithm := computeBodyDigest(body); bodyDigest != "" {
+	// 	response.BodyDigest = bodyDigest
+	// 	response.BodyDigestAlgorithm = algorithm
+	// }
 
 	return response, nil
 }
 
-func (t *Transporter) Prepare(ctx context.Context, incoming *Request) (request *http.Request, cancellations []context.CancelFunc, err error) {
-	if ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
+func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming *Request) (request *http.Request, cancellations []context.CancelFunc, err error) {
+	var requestContext context.Context
+	var requestTimeouts []time.Duration
+	if t == nil || ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
 		return nil, nil, ErrInvalidRequest
 	}
-	if request, err = http.NewRequestWithContext( ctx, http.MethodGet, incoming.URL.String(), nil); err != nil {
+
+	// build the http.Request
+	if request, err = http.NewRequestWithContext(ctx, http.MethodGet, incoming.URL.String(), nil); err != nil {
 		return nil, nil, fmt.Errorf("build request: %w", err)
+	} else {
+		requestContext = request.Context()
 	}
 	if incoming.Options.Headers != nil {
 		request.Header = incoming.Options.Headers.Clone()
@@ -329,23 +304,18 @@ func (t *Transporter) Prepare(ctx context.Context, incoming *Request) (request *
 	}
 
 	// apply context deadlines and timeouts
-	currentCtx := request.Context()
+	if client.Timeout > 0 {
+		requestTimeouts = append(requestTimeouts, client.Timeout)
+	}
 	if incoming.Options.Timeout > 0 {
-		nextCtx, cancel := applyTimeout(currentCtx, incoming.Options.Timeout)
-		if cancel != nil {
-			cancellations = append(cancellations, cancel)
-			currentCtx = nextCtx
-		}
+		requestTimeouts = append(requestTimeouts, incoming.Options.Timeout)
 	}
-	if t != nil && t.Config != nil && t.Config.Timeout > 0 {
-		nextCtx, cancel := applyTimeout(currentCtx, t.Config.Timeout)
-		if cancel != nil {
-			cancellations = append(cancellations, cancel)
-			currentCtx = nextCtx
-		}
+	if timeout, cancel := applyContextTimeout(requestContext, requestTimeouts...); cancel != nil {
+		cancellations = append(cancellations, cancel)
+		requestContext = timeout
 	}
-	if currentCtx != request.Context() {
-		request = request.WithContext(currentCtx)
+	if requestContext != request.Context() {
+		request = request.WithContext(requestContext)
 	}
 
 	return request, cancellations, nil
@@ -438,6 +408,33 @@ func (condition *Condition) HeaderValue() string {
 	return strings.Join(values, ", ")
 }
 
+// ========================= RedirectTracker Methods ====================
+func (tracker *RedirectTracker) Track(req *http.Request, via []*http.Request) error {
+	if req != nil && req.URL != nil {
+		u := *req.URL // deep copy
+		tracker.chain = append(tracker.chain, &u)
+	}
+	if tracker.max > 0 && len(via) >= tracker.max {
+		return ErrTooManyRedirects
+	}
+	if tracker.base != nil {
+		return tracker.base(req, via)
+	}
+	return nil
+}
+
+func (tracker *RedirectTracker) Snapshot() []*url.URL {
+	if tracker == nil || len(tracker.chain) == 0 {
+		return nil
+	}
+	snapshot := make([]*url.URL, len(tracker.chain))
+	for i, u := range tracker.chain {
+		cloned := *u // deep copy
+		snapshot[i] = &cloned
+	}
+	return snapshot
+}
+
 // ========================= Helper Functions ===========================
 
 // mergeHeaders combines multiple http.Header maps into one.
@@ -483,117 +480,79 @@ func etagValues(incoming ...string) []string {
 	return values
 }
 
-func readResponseBody(reader io.ReadCloser, maxSize int64) ([]byte, error) {
-	if reader == nil {
-		return nil, nil
-	}
-	defer reader.Close()
-
-	if maxSize <= 0 {
-		return io.ReadAll(reader)
-	}
-
-	limited := &io.LimitedReader{R: reader, N: maxSize + 1}
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > maxSize {
-		return nil, ErrResponseTooLarge
-	}
-	return data, nil
-}
-
-func computeBodyDigest(body []byte) (string, string) {
-	hash := sha256.Sum256(body)
-	digest := base64.StdEncoding.EncodeToString(hash[:])
-	return digest, "sha-256"
-}
-
-func splitHeaderValues(values []string) []string {
-	var result []string
-	for _, value := range values {
-		for _, entry := range strings.Split(value, ",") {
-			trimmed := strings.TrimSpace(entry)
-			if trimmed == "" {
-				continue
-			}
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
-func firstNonEmpty(values []string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func cloneURL(u *url.URL) *url.URL {
-	if u == nil {
-		return nil
-	}
-	cloned := *u
-	return &cloned
-}
-
-func applyDeadline(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc, error) {
-	if deadline.IsZero() {
-		return ctx, nil, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if time.Now().After(deadline) {
-		return nil, nil, ErrRequestExpired
-	}
-	if current, ok := ctx.Deadline(); ok && !deadline.Before(current) {
-		return ctx, nil, nil
-	}
-	nextCtx, cancel := context.WithDeadline(ctx, deadline)
-	return nextCtx, cancel, nil
-}
-
-func applyTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout <= 0 {
+func applyContextTimeout(ctx context.Context, timeouts ...time.Duration) (context.Context, context.CancelFunc) {
+	if ctx == nil || len(timeouts) == 0 || slices.Min(timeouts) <= 0 {
 		return ctx, nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	return applyContextDeadline(ctx, time.Now().Add(slices.Min(timeouts)))
+}
+
+func applyContextDeadline(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc) {
+	if ctx == nil || deadline.IsZero() || time.Now().After(deadline) {
+		return ctx, nil
 	}
-	deadline := time.Now().Add(timeout)
 	if current, ok := ctx.Deadline(); ok && !deadline.Before(current) {
 		return ctx, nil
 	}
-	nextCtx, cancel := context.WithDeadline(ctx, deadline)
-	return nextCtx, cancel
+	new, cancellation := context.WithDeadline(ctx, deadline)
+	return new, cancellation
 }
 
-func (tracker *RedirectTracker) Track(req *http.Request, via []*http.Request) error {
-	if req != nil && req.URL != nil {
-		tracker.chain = append(tracker.chain, cloneURL(req.URL))
-	}
-	if tracker.max > 0 && len(via) >= tracker.max {
-		return ErrTooManyRedirects
-	}
-	if tracker.base != nil {
-		return tracker.base(req, via)
-	}
-	return nil
-}
+// func readResponseBody(reader io.ReadCloser, maxSize int64) ([]byte, error) {
+// 	if reader == nil {
+// 		return nil, nil
+// 	}
+// 	defer reader.Close()
 
-func (tracker *RedirectTracker) Snapshot() []*url.URL {
-	if tracker == nil || len(tracker.chain) == 0 {
-		return nil
-	}
-	snapshot := make([]*url.URL, len(tracker.chain))
-	for i, u := range tracker.chain {
-		snapshot[i] = cloneURL(u)
-	}
-	return snapshot
-}
+// 	if maxSize <= 0 {
+// 		return io.ReadAll(reader)
+// 	}
+
+// 	limited := &io.LimitedReader{R: reader, N: maxSize + 1}
+// 	data, err := io.ReadAll(limited)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if int64(len(data)) > maxSize {
+// 		return nil, ErrResponseTooLarge
+// 	}
+// 	return data, nil
+// }
+
+// func computeBodyDigest(body []byte) (string, string) {
+// 	hash := sha256.Sum256(body)
+// 	digest := base64.StdEncoding.EncodeToString(hash[:])
+// 	return digest, "sha-256"
+// }
+
+// func splitHeaderValues(values []string) []string {
+// 	var result []string
+// 	for _, value := range values {
+// 		for _, entry := range strings.Split(value, ",") {
+// 			trimmed := strings.TrimSpace(entry)
+// 			if trimmed == "" {
+// 				continue
+// 			}
+// 			result = append(result, trimmed)
+// 		}
+// 	}
+// 	return result
+// }
+
+// func firstNonEmpty(values []string) string {
+// 	for _, value := range values {
+// 		trimmed := strings.TrimSpace(value)
+// 		if trimmed != "" {
+// 			return trimmed
+// 		}
+// 	}
+// 	return ""
+// }
+
+// func cloneURL(u *url.URL) *url.URL {
+// 	if u == nil {
+// 		return nil
+// 	}
+// 	cloned := *u
+// 	return &cloned
+// }
