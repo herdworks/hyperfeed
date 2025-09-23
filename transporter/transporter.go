@@ -35,7 +35,7 @@ var (
 		MaxContentLength: 4 << 20, // 4 MiB
 	}
 	DefaultOptions = &Options{
-		Headers:     map[string]string{},
+		Headers:     http.Header{},
 		Timeout:     0,
 		Redirects:   false,
 		Attempt:     0,
@@ -90,7 +90,8 @@ type Request struct {
 	// *http.Request is the fully constructed HTTP request, ready for dispatch.
 	*http.Request
 
-	// Request.URL == Request.Request.URL
+	// URL
+	URL *url.URL
 
 	// CreatedAt records when the request was built.
 	CreatedAt time.Time
@@ -108,7 +109,7 @@ type Request struct {
 type Options struct {
 	// Headers specifies additional headers to include in the request.
 	// The transporter must merge these with conditional headers derived from persisted state while deduplicating case-insensitively.
-	Headers map[string]string
+	Headers http.Header
 
 	// Deadline expresses the hard cutoff for completing the exchange. The transporter should map this into context timeouts.
 	Timeout time.Duration
@@ -307,39 +308,47 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 	return response, nil
 }
 
-func (t *Transporter) Prepare(ctx context.Context, request *Request) (*http.Request, []context.CancelFunc, error) {
-	if request == nil {
+func (t *Transporter) Prepare(ctx context.Context, incoming *Request) (request *http.Request, cancellations []context.CancelFunc, err error) {
+	if ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
 		return nil, nil, ErrInvalidRequest
 	}
-	if request.Request == nil {
-		return nil, nil, ErrInvalidRequest
+	if request, err = http.NewRequestWithContext( ctx, http.MethodGet, incoming.URL.String(), nil); err != nil {
+		return nil, nil, fmt.Errorf("build request: %w", err)
+	}
+	if incoming.Options.Headers != nil {
+		request.Header = incoming.Options.Headers.Clone()
+	}
+	if request.Header.Get("User-Agent") == "" {
+		request.Header.Set("User-Agent", DefaultUserAgent)
+	}
+	if request.Header.Get("Accept") == "" {
+		request.Header.Set("Accept", DefaultAcceptHeaders)
+	}
+	for _, condition := range incoming.Conditions {
+		request.Header = mergeHeaders(request.Header, condition.Header())
 	}
 
-	baseCtx := ctx
-	if baseCtx == nil {
-		baseCtx = context.Background()
+	// apply context deadlines and timeouts
+	currentCtx := request.Context()
+	if incoming.Options.Timeout > 0 {
+		nextCtx, cancel := applyTimeout(currentCtx, incoming.Options.Timeout)
+		if cancel != nil {
+			cancellations = append(cancellations, cancel)
+			currentCtx = nextCtx
+		}
+	}
+	if t != nil && t.Config != nil && t.Config.Timeout > 0 {
+		nextCtx, cancel := applyTimeout(currentCtx, t.Config.Timeout)
+		if cancel != nil {
+			cancellations = append(cancellations, cancel)
+			currentCtx = nextCtx
+		}
+	}
+	if currentCtx != request.Context() {
+		request = request.WithContext(currentCtx)
 	}
 
-	cloned := request.Request.Clone(baseCtx)
-	if cloned.Method == "" {
-		cloned.Method = http.MethodGet
-	}
-
-	var cancels []context.CancelFunc
-	currentCtx := cloned.Context()
-
-	if request.Options.Timeout > time.Duration(0) {
-		// TODO: Apply per-request timeout if set
-	}
-
-	if currentCtx != cloned.Context() {
-		cloned = cloned.WithContext(currentCtx)
-	}
-
-	request.Header = mergeHeaders(cloned.Header)
-	request.Request = cloned
-
-	return cloned, cancels, nil
+	return request, cancellations, nil
 }
 
 // ========================= Request Methods =============================
@@ -441,6 +450,7 @@ func mergeHeaders(incoming ...http.Header) http.Header {
 		}
 		for name, values := range headers {
 			var exists = merged.Get(name) != ""
+			name = http.CanonicalHeaderKey(name)
 			for index, value := range values {
 				if exists && index == 0 {
 					merged.Set(name, value) // replace existing value
