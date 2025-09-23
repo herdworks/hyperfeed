@@ -49,7 +49,7 @@ type OperationKind int
 
 // OperationKind enumeration, ranged in order of least to most destructive
 const (
-	StatOperation      OperationKind = iota
+	StatOperation OperationKind = iota
 	ReadOperation
 	ListOperation
 	CreateOperation

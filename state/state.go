@@ -61,7 +61,7 @@ type File struct {
 	State *State
 	URI   *url.URL // cached file URI, if previously computed
 
-	Data  StateFile
+	Data StateFile
 }
 
 // ============================= State Methods ================================
