@@ -18,10 +18,10 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 	event := &Event{
 		Feed: &hyperfeed.Feed{},
 		Status: &Status{
-			FeedID:        "feed-id",
+			FeedID: "feed-id",
 			RateLimit: RateLimit{
 				BackoffUntil: time.Now().Add(2 * time.Hour),
-				RetryAfter: time.Hour,
+				RetryAfter:   time.Hour,
 			},
 		},
 		TickAt: time.Now(),
@@ -33,8 +33,8 @@ func TestEventReadyRespectsRetryAfter(t *testing.T) {
 	if ready {
 		t.Fatalf("expected event to be reported as not ready")
 	}
-	if !errors.Is(err, transporter.ErrRequestNotReady) {
-		t.Fatalf("expected ErrRequestNotReady, got %v", err)
+	if !errors.Is(err, transporter.ErrRequestReadiness) {
+		t.Fatalf("expected ErrRequestReadiness, got %v", err)
 	}
 }
 

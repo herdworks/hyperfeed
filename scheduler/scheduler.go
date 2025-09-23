@@ -90,6 +90,9 @@ type Status struct {
 	// LastModifiedAt stores the value of the Last-Modified header from the last successful fetch.
 	LastModifiedAt time.Time
 
+	// LastContentLength is the size of the payload from the last successful fetch.
+	LastContentLength int64
+
 	// ETag is the last/current ETag value seen for this feed.
 	ETag string
 
@@ -121,16 +124,16 @@ type Status struct {
 // RateLimit captures how often we are allowed to poll an origin as signaled by HTTP 429/503 and related headers.
 // The scheduler persists this structure across ticks.
 type RateLimit struct {
-	WaitUntil                time.Time     // Self-imposed backoff time
-	BackoffUntil             time.Time     // Retry-After or computed backoff time
-	RetryAfter               time.Duration // Retry-After in seconds
-	Remaining                int           // X-RateLimit-Remaining
-	Reset                    time.Time     // X-RateLimit-Reset
-	Window                   string        // X-RateLimit-Window
-	SuggestedPollInterval    time.Duration // X-Poll-Interval in seconds
-	LastStatus               int           // last HTTP status code affecting rate limit state
-	Consecutive429           int           // count of sequential 429 responses
-	Consecutive5xx           int           // count of sequential 5xx responses
+	WaitUntil             time.Time     // Self-imposed backoff time
+	BackoffUntil          time.Time     // Retry-After or computed backoff time
+	RetryAfter            time.Duration // Retry-After in seconds
+	Remaining             int           // X-RateLimit-Remaining
+	Reset                 time.Time     // X-RateLimit-Reset
+	Window                string        // X-RateLimit-Window
+	SuggestedPollInterval time.Duration // X-Poll-Interval in seconds
+	LastStatus            int           // last HTTP status code affecting rate limit state
+	Consecutive429        int           // count of sequential 429 responses
+	Consecutive5xx        int           // count of sequential 5xx responses
 }
 
 // CacheControl normalizes cache metadata from HTTP headers.
@@ -189,6 +192,52 @@ func (s *Scheduler) Log(ctx context.Context, status *Status, request *transporte
 	return nil, ErrNotImplemented
 }
 
+// Conditions generates a list of request conditions based on the current event state.
+func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
+	// Default conditions
+	conditions = append(
+		conditions,
+		transporter.Condition{
+			Kind:      transporter.ConditionLastOK,
+			TimeValue: scheduler.Status.LastSuccessAt,
+		},
+		transporter.Condition{
+			Kind:          transporter.ConditionMinInterval,
+			DurationValue: scheduler.Config.MinInterval,
+		},
+		transporter.Condition{
+			Kind:          transporter.ConditionMaxInterval,
+			DurationValue: scheduler.Config.MaxInterval,
+		},
+	)
+
+	// Last-Modified validator
+	if !scheduler.Status.LastModifiedAt.IsZero() {
+		conditions = append(conditions, transporter.Condition{
+			Kind:      transporter.ConditionIfModifiedSince,
+			TimeValue: scheduler.Status.LastModifiedAt,
+		})
+	}
+
+	// ETag validator
+	if scheduler.Status.ETag != "" {
+		conditions = append(conditions, transporter.Condition{
+			Kind:  transporter.ConditionIfNoneMatch,
+			Value: scheduler.Status.ETag,
+		})
+	}
+
+	// Rate limit guardrails
+	if !scheduler.Status.RateLimit.WaitUntil.IsZero() {
+		conditions = append(conditions, transporter.Condition{
+			Kind:      transporter.ConditionIfUnmodifiedSince,
+			Name:      "X-RateLimit-Wait-Until",
+			TimeValue: scheduler.Status.RateLimit.WaitUntil,
+		})
+	}
+	return conditions
+}
+
 // ========================= Config Methods ===================================
 
 const (
@@ -231,7 +280,6 @@ func (cfg *Config) Normalize() {
 }
 
 // ========================= Status Methods ===================================
-
 
 // ========================= Event Methods ====================================
 
