@@ -3,7 +3,9 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/state"
@@ -11,8 +13,24 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
+// errors
 var (
-	ErrNotImplemented = errors.New("scheduler: not implemented")
+	ErrNotImplemented   = errors.New("scheduler: not implemented")
+	ErrSchedulerRequest = errors.New("scheduler: invalid request")
+)
+
+// defaults
+var (
+	DefaultSchedulerConfig = &Config{
+		DefaultInterval:        15 * time.Minute,
+		MinInterval:            time.Minute,
+		MaxInterval:            12 * time.Hour,
+		StartupGracePeriod:     5 * time.Minute,
+		ErrorBackoffStep:       time.Minute,
+		DisableFeedHints:       false,
+		DisableCacheDirectives: false,
+		DisableRateLimitHints:  false,
+	}
 )
 
 // Scheduler manages feed updates using persistent state and the transporter.
@@ -82,7 +100,7 @@ type Status struct {
 	LastStatusCode int
 
 	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
-	LastStatusCodes [30]int
+	LastStatusCodes []int
 
 	// LastHeaders stores the raw headers from the most recent fetch to support future hint extraction.
 	LastHeaders http.Header
@@ -150,50 +168,68 @@ type Clock interface {
 	Now() time.Time
 }
 
-// Event captures the scheduler's evaluation snapshot for a single tick.
-// It combines persisted state, feed configuration, and clock information so the transporter can be engaged without reloading broader context.
-type Event struct {
-	// Feed contains the immutable feed metadata used for this evaluation.
-	Feed *hyperfeed.Feed
-
-	// Status references the live scheduler status at the start of the tick.
-	Status *Status
-
-	// TickAt records when this event was generated.
-	TickAt time.Time
-
-	// SnapshotVersion identifies the logical version of the rate-limit and validator snapshot used while evaluating readiness.
-	SnapshotVersion string
-
-	// Diagnostics captures optional breadcrumbs explaining the evaluation.
-	Diagnostics map[string]string
-}
-
 // ========================= Scheduler Methods =============================
 
 // Tick computes the scheduler's next event. Implementation must load
 // state, honor rate-limit hints, and update persistence optimistically to avoid
-// duplicate work after crashes. Stub returns ErrNotImplemented.
-func (s *Scheduler) Tick(ctx context.Context, feed *hyperfeed.Feed) (*Event, *Status, error) {
-	return nil, nil, ErrNotImplemented
+// duplicate work after crashes.
+func (s *Scheduler) Tick(ctx context.Context) error {
+	var request *transporter.Request
+	var response *transporter.Response
+	var err error
+	if ready, reason := s.Ready(); !ready {
+		return fmt.Errorf("not ready: %s", reason)
+	}
+	if request, err = s.Request(); err != nil {
+		return fmt.Errorf("failed to build request: %w", err)
+	}
+	if s.Transporter == nil {
+		s.Transporter = &transporter.Transporter{}
+	}
+	if response, err = s.Transporter.Fetch(ctx, request); err != nil {
+		return fmt.Errorf("fetch error: %w", err)
+	}
+	return s.Apply(ctx, response)
 }
 
-// Update ingests a transporter response and persists updated state. The
-// implementation must combine HTTP hints, feed metadata, and error handling to
-// compute the next eligible fetch time. Stub returns ErrNotImplemented.
-func (s *Scheduler) Update(ctx context.Context, status *Status, request *transporter.Request, response *transporter.Response) (*Status, error) {
-	return nil, ErrNotImplemented
+// Ready determines if the Scheduler is ready to be fetched again.
+func (s *Scheduler) Ready() (ready bool, reason string) {
+	var tick time.Time = time.Now().UTC()
+	if s.Status == nil {
+		return true, "new feed"
+	}
+	if tick.Before(s.Status.UpdatedAt.Add(s.Config.MinInterval)) {
+		return false, "updated too recently"
+	}
+	if tick.Before(s.Status.PausedUntil) {
+		return false, fmt.Sprintf("paused until %s", s.Status.PausedUntil)
+	}
+	if tick.Before(s.Status.RateLimit.WaitUntil) {
+		return false, fmt.Sprintf("rate limited until %s", s.Status.RateLimit.WaitUntil)
+	}
+	if tick.Before(s.Status.RateLimit.BackoffUntil) {
+		return false, fmt.Sprintf("backing off until %s", s.Status.RateLimit.BackoffUntil)
+	}
+	return true, "ready"
 }
 
-// Log persists failure information when the transporter fails before
-// producing a response. Implementation must update error counters and
-// compute a conservative backoff. Stub returns ErrNotImplemented.
-func (s *Scheduler) Log(ctx context.Context, status *Status, request *transporter.Request, err error) (*Status, error) {
-	return nil, ErrNotImplemented
+// Request builds a transporter.Request for the current feed and status.
+func (s *Scheduler) Request() (request *transporter.Request, err error) {
+	if s.Feed == nil || s.Feed.URL == nil {
+		return nil, errors.Join(ErrSchedulerRequest, fmt.Errorf("invalid feed"))
+	}
+	request = &transporter.Request{
+		URL:        s.Feed.URL,
+		Conditions: s.Conditions(),
+	}
+	return request, nil
 }
 
 // Conditions generates a list of request conditions based on the current event state.
 func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
+	if scheduler.Status == nil {
+		return nil
+	}
 	// Default conditions
 	conditions = append(
 		conditions,
@@ -238,35 +274,78 @@ func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
 	return conditions
 }
 
-// ========================= Config Methods ===================================
+// Apply updates the scheduler state based on the transporter response.
+// Implementation must update error counters, compute backoff, and persist
+// state.
+func (s *Scheduler) Apply(ctx context.Context, response *transporter.Response) error {
+	if s.Status == nil {
+		s.Status = &Status{LastStatusCodes: []int{}}
+	}
 
-const (
-	defaultInterval           = 15 * time.Minute
-	defaultMinInterval        = time.Minute
-	defaultMaxInterval        = 12 * time.Hour
-	defaultStartupGracePeriod = 5 * time.Minute
-	defaultErrorBackoffStep   = time.Minute
-)
+	// timestamps
+	s.Status.LastAttemptAt = time.Now().UTC()
+	if s.Status.CreatedAt.IsZero() {
+		s.Status.CreatedAt = s.Status.LastAttemptAt
+	}
+	if response.OK() {
+		s.Status.LastSuccessAt = s.Status.LastAttemptAt
+	} else {
+		s.Status.LastErrorAt = s.Status.LastAttemptAt
+	}
+
+	// status codes
+	limit := min(29, len(s.Status.LastStatusCodes))
+	s.Status.LastStatusCode = response.StatusCode
+	s.Status.LastStatusCodes = append([]int{response.StatusCode}, s.Status.LastStatusCodes[:limit]...)
+	if response.OK() {
+		s.Status.UpdatedAt = s.Status.LastAttemptAt
+		s.Status.LastSuccessAt = s.Status.LastAttemptAt
+	}
+
+	// headers
+	s.Status.LastHeaders = response.Response.Header.Clone()
+	if etag := response.Response.Header.Get("ETag"); etag != "" {
+		s.Status.ETag = etag
+	}
+	if cl, err := strconv.Atoi(response.Response.Header.Get("Content-Length")); err == nil && cl >= 0 {
+		s.Status.LastContentLength = int64(cl)
+	}
+	if lm := response.LastModified(); !lm.IsZero() {
+		s.Status.LastModifiedAt = lm
+	}
+
+	return ErrNotImplemented
+}
+
+// Log persists failure information when the transporter fails before
+// producing a response. Implementation must update error counters and
+// compute a conservative backoff. Stub returns ErrNotImplemented.
+func (s *Scheduler) Log(ctx context.Context, status *Status, request *transporter.Request, err error) (*Status, error) {
+	return nil, ErrNotImplemented
+}
+
+// ========================= Config Methods ===================================
 
 // Normalize ensures all Config fields have sane defaults and bounds.
 func (cfg *Config) Normalize() {
+	defaults := *DefaultSchedulerConfig // copy
 	if cfg == nil {
 		return
 	}
 	if cfg.DefaultInterval == 0 {
-		cfg.DefaultInterval = defaultInterval
+		cfg.DefaultInterval = defaults.DefaultInterval
 	}
 	if cfg.MinInterval == 0 {
-		cfg.MinInterval = defaultMinInterval
+		cfg.MinInterval = defaults.MinInterval
 	}
 	if cfg.MaxInterval == 0 {
-		cfg.MaxInterval = defaultMaxInterval
+		cfg.MaxInterval = defaults.MaxInterval
 	}
 	if cfg.StartupGracePeriod == 0 {
-		cfg.StartupGracePeriod = defaultStartupGracePeriod
+		cfg.StartupGracePeriod = defaults.StartupGracePeriod
 	}
 	if cfg.ErrorBackoffStep == 0 {
-		cfg.ErrorBackoffStep = defaultErrorBackoffStep
+		cfg.ErrorBackoffStep = defaults.ErrorBackoffStep
 	}
 	if cfg.MinInterval > cfg.DefaultInterval {
 		cfg.MinInterval = cfg.DefaultInterval
@@ -280,19 +359,3 @@ func (cfg *Config) Normalize() {
 }
 
 // ========================= Status Methods ===================================
-
-// ========================= Event Methods ====================================
-
-// Ready reports whether the transporter should be invoked for this event. When
-// the feed must be deferred, the method should return (false, ErrRequestNotReady)
-// so callers can treat it as a no-op.
-func (event *Event) Ready() (bool, error) {
-	return false, ErrNotImplemented
-}
-
-// Request constructs the aggregated transporter request used to perform a
-// fetch. The request encapsulates conditional validators, rate-limit guardrails,
-// and a prepared http.Request derived from scheduler state.
-func (event *Event) Request(ctx context.Context) (*transporter.Request, error) {
-	return nil, ErrNotImplemented
-}

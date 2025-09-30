@@ -15,6 +15,7 @@ import (
 var (
 	ErrNotImplemented       = errors.New("transporter: not implemented")
 	ErrTransporterReadiness = errors.New("transporter: transporter not ready")
+	ErrTransporterConfig    = errors.New("transporter: invalid configuration")
 	ErrRequestReadiness     = errors.New("transporter: request not ready")
 	ErrRequestExpired       = errors.New("transporter: request deadline exceeded")
 	ErrInvalidRequest       = errors.New("transporter: invalid request")
@@ -56,7 +57,7 @@ var (
 // responsible for applying conditional headers, honoring rate limits, and
 // extracting cache hints to share with the scheduler.
 type Transporter struct {
-	http.Client
+	*http.Client
 	Config *Config
 }
 
@@ -94,7 +95,7 @@ type Request struct {
 	CreatedAt time.Time
 
 	// Conditions enumerate the validators that should be attached to the HTTP request as conditional headers.
-	Conditions []*Condition
+	Conditions []Condition
 
 	// Options allows per-request overrides without mutating global Options.
 	Options Options
@@ -191,6 +192,9 @@ func (t *Transporter) NewClient() *http.Client {
 	if t == nil {
 		t = &Transporter{}
 	}
+	if t.Client == nil {
+		t.Client = &http.Client{} // default client
+	}
 	if t.Config == nil {
 		cc := *DefaultConfig // copy
 		t.Config = &cc
@@ -204,33 +208,35 @@ func (t *Transporter) NewClient() *http.Client {
 	if t.Config.MaxContentLength <= 0 {
 		t.Config.MaxContentLength = DefaultConfig.MaxContentLength
 	}
-	if t.Client.Timeout == 0 && t.Config.Timeout > 0 {
-		t.Client.Timeout = t.Config.Timeout
+
+	// return new client
+	cc := *t.Client // shallow copy of client
+	if cc.Timeout == 0 && t.Config.Timeout > 0 {
+		cc.Timeout = t.Config.Timeout
 	}
-	clone := t.Client // shallow copy
-	return &clone
+	return &cc
 }
 
 // Get fetches the content at the given href using the package HTTP client.
-func (t *Transporter) Get(ctx context.Context, request *Request) (*Response, error) {
-	var client *http.Client = t.NewClient()
-	var response *Response = &Response{}
-	var err error
-	if t == nil {
-		return nil, ErrTransporterReadiness
-	}
-	if response.Response, err = client.Do(request.Request); err != nil {
-		return nil, errors.Join(ErrResponse, fmt.Errorf("perform request: %w", err))
-	}
-	if response.StatusCode >= 200 && response.Response.StatusCode < 300 {
-		return nil, errors.Join(ErrResponse, fmt.Errorf("unexpected status: %s", response.Status))
-	}
-	return response, nil
-}
+// func (t *Transporter) Get(ctx context.Context, request *Request) (*Response, error) {
+// 	var client *http.Client = t.NewClient()
+// 	var response *Response = &Response{}
+// 	var err error
+// 	if t == nil {
+// 		return nil, ErrTransporterReadiness
+// 	}
+// 	if response.Response, err = client.Do(request.Request); err != nil {
+// 		return nil, errors.Join(ErrResponse, fmt.Errorf("perform request: %w", err))
+// 	}
+// 	if response.StatusCode >= 200 && response.Response.StatusCode < 300 {
+// 		return nil, errors.Join(ErrResponse, fmt.Errorf("unexpected status: %s", response.Status))
+// 	}
+// 	return response, nil
+// }
 
 // Fetch performs the HTTP exchange for the provided request.
 // If the request is not ready, a typed error such as ErrRequestReadiness must be returned.
-func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, error) {
+func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, error) {
 	var client *http.Client = t.NewClient()
 	var cancellations []context.CancelFunc
 	var tracker *RedirectTracker = &RedirectTracker{max: t.Config.MaxRedirects, base: client.CheckRedirect}
@@ -265,7 +271,7 @@ func (t *Transporter) Fetch(ctx context.Context, request *Request) (*Response, e
 		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
 	}
 	if response.Response.ContentLength > t.Config.MaxContentLength {
- 		return response, ErrResponseTooLarge
+		return response, ErrResponseTooLarge
 	}
 	return response, nil
 }
@@ -275,6 +281,11 @@ func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming
 	var requestTimeouts []time.Duration
 	if t == nil || ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
 		return nil, nil, ErrInvalidRequest
+	}
+
+	// timestamp the request
+	if incoming.CreatedAt.IsZero() {
+		incoming.CreatedAt = time.Now()
 	}
 
 	// build the http.Request
@@ -428,6 +439,48 @@ func (tracker *RedirectTracker) Snapshot() []*url.URL {
 	return snapshot
 }
 
+// ============================= Response Methods =============================
+
+// OK reports whether the response was successful (2xx).
+func (response *Response) OK() bool {
+	if response == nil || response.Response == nil {
+		return false
+	}
+	return response.Response.StatusCode >= 200 && response.Response.StatusCode < 300
+}
+
+// Redirected reports whether the response was a redirect (3xx).
+func (response *Response) Redirected() bool {
+	if response == nil || response.Response == nil {
+		return false
+	}
+	return response.Response.StatusCode >= 300 && response.Response.StatusCode < 400
+}
+
+// LastModified parses and returns the Last-Modified header as a time.Time value.
+// If the header is missing or malformed, a zero time is returned.
+func (response *Response) LastModified() time.Time {
+	if response == nil || response.Response == nil {
+		return time.Time{}
+	}
+	if lm := response.Response.Header.Get("Last-Modified"); lm != "" {
+		if t, err := time.Parse(http.TimeFormat, lm); err == nil {
+			return t.UTC()
+		}
+	}
+	return time.Time{}
+}
+
+// ETags extracts and normalizes ETag values from the response headers.
+// If no ETag headers are present, an empty slice is returned.
+func (response *Response) ETags() []string {
+	if response == nil || response.Response == nil {
+		return nil
+	}
+	var raw []string = response.Response.Header.Values("ETag")
+	return etagValues(raw...)
+}
+
 // ========================= Helper Functions ===========================
 
 // mergeHeaders combines multiple http.Header maps into one.
@@ -489,6 +542,38 @@ func applyContextDeadline(ctx context.Context, deadline time.Time) (context.Cont
 	}
 	new, cancellation := context.WithDeadline(ctx, deadline)
 	return new, cancellation
+}
+
+func isVendoredResponseHeader(name string) bool {
+	var vendors = map[string]string{
+		"Amazon":     "X-Amz-",
+		"Cloudflare": "Cf-",
+	}
+	for _, prefix := range vendors {
+		if strings.HasPrefix(http.CanonicalHeaderKey(name), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func isDeprecatedResponseHeader(name string) bool {
+	var deprecated = []string{
+		"Report-To",
+		"X-Pingback",
+		"X-Powered-By",
+		"X-AspNet-Version",
+		"X-AspNetMvc-Version",
+		"X-Generator",
+	}
+	return slices.Contains(deprecated, http.CanonicalHeaderKey(name))
+}
+
+func isExperimentalResponseHeader(name string) bool {
+	var experimental = []string{
+		"Nel",
+	}
+	return slices.Contains(experimental, http.CanonicalHeaderKey(name))
 }
 
 // func readResponseBody(reader io.ReadCloser, maxSize int64) ([]byte, error) {

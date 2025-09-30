@@ -3,74 +3,62 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"net/url"
 	"testing"
-	"time"
 
-	"github.com/herdworks/hyperfeed-go/transporter"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
+
+func TestSchedulerTick(t *testing.T) {
+	tests := []struct {
+		name string
+		feed *hyperfeed.Feed
+		err  error
+	}{
+		{
+			name: "valid feed",
+			feed: &hyperfeed.Feed{
+				URL: &url.URL{Scheme: "https", Host: "daringfireball.net", Path: "/feeds/json"},
+			},
+			err: nil,
+		},
+		{
+			name: "nil feed",
+			feed: nil,
+			err:  ErrSchedulerRequest,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var scheduler Scheduler = Scheduler{Feed: tc.feed}
+			var err error
+			if err = scheduler.Tick(context.Background()); tc.err != nil && err == nil {
+				t.Fatalf("expected error\nwanted: %v\n got nil", tc.err)
+			} else if tc.err != nil && !errors.Is(err, tc.err) {
+				t.Fatalf("unexpected error\nwanted: %v\n   got: %v", tc.err, err)
+			}
+			if scheduler.Status == nil {
+				t.Fatalf("no status on tick")
+			}
+			if scheduler.Status.LastAttemptAt.IsZero() {
+				t.Fatalf("scheduler.Status.LastAttemptAt not set")
+			}
+		})
+	}
+}
 
 // TestEventReadyRespectsRetryAfter documents the expectation that Event.Ready
 // defers fetching when Retry-After or backoff windows are still active.
 func TestEventReadyRespectsRetryAfter(t *testing.T) {
-	t.Skip("implementation pending: Event.Ready must honor Retry-After and persisted backoff windows")
-
-	event := &Event{
-		Feed: &hyperfeed.Feed{},
-		Status: &Status{
-			FeedID: "feed-id",
-			RateLimit: RateLimit{
-				BackoffUntil: time.Now().Add(2 * time.Hour),
-				RetryAfter:   time.Hour,
-			},
-		},
-		TickAt: time.Now(),
-	}
-	ready, err := event.Ready()
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	if ready {
-		t.Fatalf("expected event to be reported as not ready")
-	}
-	if !errors.Is(err, transporter.ErrRequestReadiness) {
-		t.Fatalf("expected ErrRequestReadiness, got %v", err)
-	}
+	t.Skip("TODO: Event.Ready must honor Retry-After and persisted backoff windows")
 }
 
 // TestSchedulerUpdateValidators documents the expectation that conditional request metadata is saved after successful fetches.
 func TestSchedulerUpdateValidators(t *testing.T) {
-	t.Skip("implementation pending: scheduler must persist conditional validators after transporter responses")
-
-	var scheduler *Scheduler = &Scheduler{}
-	var status *Status = &Status{FeedID: "feed-id"}
-	var state *Status
-	var req *transporter.Request = &transporter.Request{}
-	var resp *transporter.Response = &transporter.Response{}
-	var err error
-
-	if state, err = scheduler.Update(context.Background(), status, req, resp); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if state.ETag == "" || state.LastModifiedAt.IsZero() {
-		t.Fatalf("expected conditions to be persisted")
-	}
+	t.Skip("TODO: scheduler must persist conditional validators after transporter responses")
 }
 
 // TestSchedulerLogBackoff documents the expectation that repeated failures trigger exponential backoff even without explicit Retry-After hints.
 func TestSchedulerLogBackoff(t *testing.T) {
-	t.Skip("implementation pending: scheduler must compute exponential backoff on repeated failures")
-
-	var scheduler *Scheduler = &Scheduler{Config: &Config{ErrorBackoffStep: time.Minute}}
-	var status *Status = &Status{FeedID: "feed-id"}
-	var state *Status
-	var req *transporter.Request = &transporter.Request{}
-	var err error
-
-	if state, err = scheduler.Log(context.Background(), status, req, ErrNotImplemented); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if state.RateLimit.RetryAfter == 0 {
-		t.Fatalf("expected scheduler to apply Retry-After rate limiting")
-	}
+	t.Skip("TODO: scheduler must compute exponential backoff on repeated failures")
 }
