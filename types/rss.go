@@ -214,4 +214,3 @@ func ParseRSS(doc []byte) (*RSS, error) {
 	}
 	return &r, nil
 }
-

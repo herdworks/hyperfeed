@@ -1,4 +1,4 @@
-package scheduler
+package feeder
 
 import (
 	"context"
@@ -7,20 +7,21 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/state"
-	"github.com/herdworks/hyperfeed-go/transporter"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+
+	"github.com/herdworks/hyperfeed-go/internal/state"
+	"github.com/herdworks/hyperfeed-go/internal/transporter"
 )
 
 // errors
 var (
-	ErrNotImplemented   = errors.New("not implemented")
-	ErrSchedulerRequest = errors.New("invalid scheduler request")
+	ErrNotImplemented = errors.New("not implemented")
+	ErrFeederRequest  = errors.New("invalid feeder request")
 )
 
 // defaults
 var (
-	DefaultSchedulerConfig = &Config{
+	DefaultFeederConfig = &Config{
 		DefaultInterval:    15 * time.Minute,
 		MinInterval:        time.Minute,
 		MaxInterval:        12 * time.Hour,
@@ -28,9 +29,9 @@ var (
 	}
 )
 
-// Scheduler manages feed updates using persistent state and the transporter.
-type Scheduler struct {
-	Feed   *hyperfeed.Feed
+// Feeder is a feed reader that manages scheduling, fetching, and state persistence for a single feed.
+type Feeder struct {
+	*hyperfeed.Feed
 	Config *Config
 	Status *Status
 	Clock  Clock
@@ -39,8 +40,8 @@ type Scheduler struct {
 	Transporter *transporter.Transporter
 }
 
-// Config provides runtime configuration for a Scheduler instance.
-// TODO: should this become a Scheduler.Interval field and a SubscriberConfig struct?
+// Config provides runtime configuration for a Feeder instance.
+// TODO: should this become a Feeder.Interval field and a SubscriberConfig struct?
 type Config struct {
 	// DefaultInterval is the baseline polling interval when no hints are available.
 	// Implementations must never schedule requests more frequently than this value.
@@ -58,7 +59,7 @@ type Config struct {
 	StartupGracePeriod time.Duration `json:"startup_grace_period"`
 }
 
-// Status captures everything the scheduler must persist across ticks.
+// Status captures everything the feeder must persist across ticks.
 // The contract intentionally mirrors HTTP semantics and feed hints so we can satisfy the requirements outlined in the Feed Reader Behavior document.
 type Status struct {
 	// CreatedAt indicates when the feed was first scheduled.
@@ -105,7 +106,7 @@ type Status struct {
 }
 
 // RateLimit captures how often we are allowed to poll an origin as signaled by HTTP 429/503 and related headers.
-// The scheduler persists this structure across ticks.
+// The feeder persists this structure across ticks.
 type RateLimit struct {
 	WaitUntil    time.Time     `json:"wait_until"`    // Retry-After time
 	RetryAfter   time.Duration `json:"retry_after"`   // Retry-After seconds
@@ -131,66 +132,66 @@ type Clock interface {
 	Now() time.Time
 }
 
-// ========================= Scheduler Methods =============================
+// ========================= Feeder Methods =============================
 
-// Tick computes the scheduler's next event. Implementation must load
+// Tick computes the feeder's next event. Implementation must load
 // state, honor rate-limit hints, and update persistence optimistically to avoid
 // duplicate work after crashes.
-func (s *Scheduler) Tick(ctx context.Context) error {
+func (feeder *Feeder) Tick(ctx context.Context) error {
 	var request *transporter.Request
 	var response *transporter.Response
 	var err error
-	if ready, reason := s.Ready(); !ready {
+	if ready, reason := feeder.Ready(); !ready {
 		return fmt.Errorf("not ready: %s", reason)
 	}
-	if request, err = s.Request(); err != nil {
+	if request, err = feeder.Request(); err != nil {
 		return err
 	}
-	if s.Transporter == nil {
-		s.Transporter = &transporter.Transporter{}
+	if feeder.Transporter == nil {
+		feeder.Transporter = &transporter.Transporter{}
 	}
-	if response, err = s.Transporter.Fetch(ctx, request); err != nil {
-		return s.Log(response, err)
+	if response, err = feeder.Transporter.Fetch(ctx, request); err != nil {
+		return feeder.Log(response, err)
 	}
-	return s.Apply(ctx, response)
+	return feeder.Apply(ctx, response)
 }
 
-// Ready determines if the Scheduler is ready to be fetched again.
-func (s *Scheduler) Ready() (ready bool, reason string) {
+// Ready determines if the Feeder is ready to be fetched again.
+func (feeder *Feeder) Ready() (ready bool, reason string) {
 	var tick time.Time = time.Now().UTC()
-	if s.Status == nil {
+	if feeder.Status == nil {
 		return true, "new feed"
 	}
-	if tick.Before(s.Status.UpdatedAt.Add(s.Config.MinInterval)) {
+	if tick.Before(feeder.Status.UpdatedAt.Add(feeder.Config.MinInterval)) {
 		return false, "updated too recently"
 	}
-	if tick.Before(s.Status.PausedUntil) {
-		return false, fmt.Sprintf("paused until %s", s.Status.PausedUntil)
+	if tick.Before(feeder.Status.PausedUntil) {
+		return false, fmt.Sprintf("paused until %s", feeder.Status.PausedUntil)
 	}
-	if tick.Before(s.Status.RateLimit.WaitUntil) {
-		return false, fmt.Sprintf("rate limited until %s", s.Status.RateLimit.WaitUntil)
+	if tick.Before(feeder.Status.RateLimit.WaitUntil) {
+		return false, fmt.Sprintf("rate limited until %s", feeder.Status.RateLimit.WaitUntil)
 	}
-	if retryAfter := s.Status.LastAttemptAt.Add(s.Status.RateLimit.RetryAfter); tick.Before(retryAfter) {
+	if retryAfter := feeder.Status.LastAttemptAt.Add(feeder.Status.RateLimit.RetryAfter); tick.Before(retryAfter) {
 		return false, fmt.Sprintf("rate limited until %s", retryAfter)
 	}
 	return true, "ready"
 }
 
 // Request builds a transporter.Request for the current feed and status.
-func (s *Scheduler) Request() (request *transporter.Request, err error) {
-	if s.Feed == nil || s.Feed.URL == nil {
-		return nil, errors.Join(ErrSchedulerRequest, fmt.Errorf("invalid feed"))
+func (feeder *Feeder) Request() (request *transporter.Request, err error) {
+	if feeder.Feed == nil || feeder.Feed.URL == nil {
+		return nil, errors.Join(ErrFeederRequest, fmt.Errorf("invalid feed"))
 	}
 	request = &transporter.Request{
-		URL:        s.Feed.URL,
-		Conditions: s.Conditions(),
+		URL:        feeder.Feed.URL,
+		Conditions: feeder.Conditions(),
 	}
 	return request, nil
 }
 
 // Conditions generates a list of request conditions based on the current event state.
-func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
-	if scheduler.Status == nil {
+func (feeder *Feeder) Conditions() (conditions []transporter.Condition) {
+	if feeder.Status == nil {
 		return nil
 	}
 	// Default conditions
@@ -198,109 +199,109 @@ func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
 		conditions,
 		transporter.Condition{
 			Kind:      transporter.ConditionLastOK,
-			TimeValue: scheduler.Status.LastSuccessAt,
+			TimeValue: feeder.Status.LastSuccessAt,
 		},
 		transporter.Condition{
 			Kind:          transporter.ConditionMinInterval,
-			DurationValue: scheduler.Config.MinInterval,
+			DurationValue: feeder.Config.MinInterval,
 		},
 		transporter.Condition{
 			Kind:          transporter.ConditionMaxInterval,
-			DurationValue: scheduler.Config.MaxInterval,
+			DurationValue: feeder.Config.MaxInterval,
 		},
 		transporter.Condition{
 			Kind:          transporter.ConditionRateLimit,
-			TimeValue:     scheduler.Status.RateLimit.WaitUntil,
-			DurationValue: scheduler.Status.RateLimit.RetryAfter,
+			TimeValue:     feeder.Status.RateLimit.WaitUntil,
+			DurationValue: feeder.Status.RateLimit.RetryAfter,
 		},
 	)
 
 	// ETag validator
-	if scheduler.Status.ETag != "" {
+	if feeder.Status.ETag != "" {
 		conditions = append(conditions, transporter.Condition{
 			Kind:  transporter.ConditionIfNoneMatch,
-			Value: scheduler.Status.ETag,
+			Value: feeder.Status.ETag,
 		})
 	}
 
 	// Last-Modified validator
-	if !scheduler.Status.LastModified.IsZero() {
+	if !feeder.Status.LastModified.IsZero() {
 		conditions = append(conditions, transporter.Condition{
 			Kind:      transporter.ConditionIfModifiedSince,
-			TimeValue: scheduler.Status.LastModified,
+			TimeValue: feeder.Status.LastModified,
 		})
 	}
 
 	// Rate limit guardrails
-	if !scheduler.Status.RateLimit.WaitUntil.IsZero() {
+	if !feeder.Status.RateLimit.WaitUntil.IsZero() {
 		conditions = append(conditions, transporter.Condition{
 			Kind:      transporter.ConditionIfUnmodifiedSince,
 			Name:      "X-RateLimit-Wait-Until",
-			TimeValue: scheduler.Status.RateLimit.WaitUntil,
+			TimeValue: feeder.Status.RateLimit.WaitUntil,
 		})
 	}
 	return conditions
 }
 
-// Apply updates the scheduler state based on the transporter response.
+// Apply updates the feeder state based on the transporter response.
 // Implementation must update error counters, compute backoff, and persist
 // state.
-func (s *Scheduler) Apply(ctx context.Context, response *transporter.Response) error {
-	if s.Status == nil {
-		s.Status = &Status{LastStatusCodes: []int{}}
+func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response) error {
+	if feeder.Status == nil {
+		feeder.Status = &Status{LastStatusCodes: []int{}}
 	}
 	if response == nil || response.Request == nil {
-		s.Status.LastAttemptAt = time.Now().UTC()
+		feeder.Status.LastAttemptAt = time.Now().UTC()
 	}
-	s.ApplyTimestamps(response)
-	s.ApplyStatusCode(response)
-	s.ApplyHeaders(response)
-	s.ApplyRateLimits(response)
-	s.ApplyBody(response)
+	feeder.ApplyTimestamps(response)
+	feeder.ApplyStatusCode(response)
+	feeder.ApplyHeaders(response)
+	feeder.ApplyRateLimits(response)
+	feeder.ApplyBody(response)
 	return nil
 }
-func (s *Scheduler) ApplyTimestamps(response *transporter.Response) {
-	if s.Status.CreatedAt.IsZero() {
-		s.Status.CreatedAt = response.ReceivedAt.UTC()
+func (feeder *Feeder) ApplyTimestamps(response *transporter.Response) {
+	if feeder.Status.CreatedAt.IsZero() {
+		feeder.Status.CreatedAt = response.ReceivedAt.UTC()
 	}
-	s.Status.LastAttemptAt = response.ReceivedAt.UTC()
+	feeder.Status.LastAttemptAt = response.ReceivedAt.UTC()
 	if response.OK() {
-		s.Status.UpdatedAt = response.ReceivedAt.UTC()
-		s.Status.LastSuccessAt = response.ReceivedAt.UTC()
+		feeder.Status.UpdatedAt = response.ReceivedAt.UTC()
+		feeder.Status.LastSuccessAt = response.ReceivedAt.UTC()
 	} else {
-		s.Status.LastErrorAt = response.ReceivedAt.UTC()
+		feeder.Status.LastErrorAt = response.ReceivedAt.UTC()
 	}
 }
-func (s *Scheduler) ApplyStatusCode(response *transporter.Response) {
-	var limit int = min(29, len(s.Status.LastStatusCodes))
-	s.Status.LastStatusCode = response.StatusCode
-	s.Status.LastStatusCodes = append([]int{response.StatusCode}, s.Status.LastStatusCodes[:limit]...)
+func (feeder *Feeder) ApplyStatusCode(response *transporter.Response) {
+	var limit int = min(29, len(feeder.Status.LastStatusCodes))
+	feeder.Status.LastStatusCode = response.StatusCode
+	feeder.Status.LastStatusCodes = append([]int{response.StatusCode}, feeder.Status.LastStatusCodes[:limit]...)
 }
-func (s *Scheduler) ApplyHeaders(response *transporter.Response) {
-	s.Status.Headers = response.Response.Header.Clone()
+func (feeder *Feeder) ApplyHeaders(response *transporter.Response) {
+	feeder.Status.Headers = response.Response.Header.Clone()
 	if etag := response.Response.Header.Get("ETag"); etag != "" {
-		s.Status.ETag = etag
+		feeder.Status.ETag = etag
 	}
 	if response.Response.ContentLength > 0 {
-		s.Status.ContentLength = response.Response.ContentLength
+		feeder.Status.ContentLength = response.Response.ContentLength
 	}
-	s.Status.LastModified = response.LastModified()
+	feeder.Status.LastModified = response.LastModified()
 }
-func (s *Scheduler) ApplyRateLimits(response *transporter.Response) {
-	s.Status.RateLimit.WaitUntil = response.WaitUntil()
-	s.Status.RateLimit.RetryAfter = response.RetryAfter()
-	s.Status.RateLimit.PollInterval = response.PollInterval()
-	s.Status.RateLimit.Recent429s = count(s.Status.LastStatusCodes, func(code int) bool { return code == 429 })
-	s.Status.RateLimit.Recent5xxs = count(s.Status.LastStatusCodes, func(code int) bool { return code >= 500 })
+func (feeder *Feeder) ApplyRateLimits(response *transporter.Response) {
+	feeder.Status.RateLimit.WaitUntil = response.WaitUntil()
+	feeder.Status.RateLimit.RetryAfter = response.RetryAfter()
+	feeder.Status.RateLimit.PollInterval = response.PollInterval()
+	feeder.Status.RateLimit.Recent429s = count(feeder.Status.LastStatusCodes, func(code int) bool { return code == 429 })
+	feeder.Status.RateLimit.Recent5xxs = count(feeder.Status.LastStatusCodes, func(code int) bool { return code >= 500 })
 }
-func (s *Scheduler) ApplyBody(response *transporter.Response) {
-	s.Feed.Bytes = response.Bytes
-	// TODO: parse feed body and update s.Status.FeedTTL or s.Status.RateLimit.WaitUntil?
+func (feeder *Feeder) ApplyBody(response *transporter.Response) {
+	feeder.Feed.Bytes = response.Bytes
+	// TODO: parse feed body and update feeder.Status.FeedTTL or feeder.Status.RateLimit.WaitUntil?
 	// TODO: parse feed body and update FeedKind?
 }
 
 // Log persists failure information for the current tick.
-func (s *Scheduler) Log(response *transporter.Response, err error) error {
+func (feeder *Feeder) Log(response *transporter.Response, err error) error {
 	return ErrNotImplemented
 }
 

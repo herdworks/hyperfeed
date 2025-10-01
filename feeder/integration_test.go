@@ -1,6 +1,6 @@
 //go:build integration
 
-package scheduler
+package feeder
 
 import (
 	"context"
@@ -41,39 +41,39 @@ func TestSchedulerTickIntegration(t *testing.T) {
 		{
 			name: "nil feed",
 			feed: nil,
-			err:  ErrSchedulerRequest,
+			err:  ErrFeederRequest,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var scheduler Scheduler = Scheduler{Feed: tc.feed}
+			var feeder Feeder = Feeder{Feed: tc.feed}
 			var err error
-			if err = scheduler.Tick(context.Background()); tc.err != nil && errors.Is(err, tc.err) {
+			if err = feeder.Tick(context.Background()); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
 			} else if tc.err != nil && err == nil {
 				t.Fatalf("expected error\nwanted: %v\n   got nil", tc.err)
 			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if scheduler.Status == nil {
+			if feeder.Status == nil {
 				t.Fatalf("no status on tick")
 			}
-			if scheduler.Status.LastAttemptAt.IsZero() {
-				t.Fatalf("scheduler.Status.LastAttemptAt not set")
+			if feeder.Status.LastAttemptAt.IsZero() {
+				t.Fatalf("feeder.Status.LastAttemptAt not set")
 			}
 
-			// scheduler.status to json
-			// if statusBytes, err = json.MarshalIndent(scheduler.Status, "", "  "); err != nil {
+			// feeder.status to json
+			// if statusBytes, err = json.MarshalIndent(feeder.Status, "", "  "); err != nil {
 			// 	t.Fatalf("could not marshal status to JSON: %v", err)
 			// }
-			// t.Logf("scheduler status: %s", string(statusBytes))
+			// t.Logf("feeder status: %s", string(statusBytes))
 
-			if err = scheduler.Feed.Parse(); err != nil {
+			if err = feeder.Feed.Parse(); err != nil {
 				t.Fatalf("could not parse feed: %v", err)
 			}
-			t.Logf("Feed kind:      %s", scheduler.Feed.RawFeed.Kind())
-			t.Logf("Feed raw items: %d", scheduler.Feed.RawFeed.ItemCount())
-			t.Logf("Feed items:     %d", len(scheduler.Feed.Items))
+			t.Logf("Feed kind:      %s", feeder.Feed.RawFeed.Kind())
+			t.Logf("Feed raw items: %d", feeder.Feed.RawFeed.ItemCount())
+			t.Logf("Feed items:     %d", len(feeder.Feed.Items))
 
 			// TODO: write to storage!
 		})

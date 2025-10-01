@@ -122,8 +122,7 @@ func TestTransporterFetchIntegration(t *testing.T) {
 			t.Logf("response body contains %d bytes", len(response.Bytes))
 
 			var feed *hyperfeed.Feed = &hyperfeed.Feed{URL: tc.request.URL}
-			kind := feed.DetectKind(response.Bytes)
-			t.Logf("detected feed kind: %s", kind)
+			t.Logf("detected feed kind: %s", feed.DetectKind())
 		})
 	}
 }
