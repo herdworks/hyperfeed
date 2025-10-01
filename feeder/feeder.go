@@ -13,21 +13,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/internal/transporter"
 )
 
-// errors
-var (
-	ErrNotImplemented = errors.New("not implemented")
-	ErrFeederRequest  = errors.New("invalid feeder request")
-)
-
-// defaults
-var (
-	DefaultFeederConfig = &Config{
-		DefaultInterval:    15 * time.Minute,
-		MinInterval:        time.Minute,
-		MaxInterval:        12 * time.Hour,
-		StartupGracePeriod: 5 * time.Minute,
-	}
-)
+// ============================ Package Types =================================
 
 // Feeder manages a Feed.
 type Feeder struct {
@@ -133,6 +119,24 @@ type Clock interface {
 	Now() time.Time
 }
 
+// ============================ Package Variables =============================
+
+// errors
+var (
+	ErrNotImplemented = errors.New("not implemented")
+	ErrRequest        = errors.New("request error")
+)
+
+// defaults
+var (
+	DefaultFeederConfig = &Config{
+		DefaultInterval:    15 * time.Minute,
+		MinInterval:        time.Minute,
+		MaxInterval:        12 * time.Hour,
+		StartupGracePeriod: 5 * time.Minute,
+	}
+)
+
 // ========================= Feeder Methods =============================
 
 // Tick computes the feeder's next event. Implementation must load
@@ -181,7 +185,7 @@ func (feeder *Feeder) Ready() (ready bool, reason string) {
 // Request builds a transporter.Request for the current feed and status.
 func (feeder *Feeder) Request() (request *transporter.Request, err error) {
 	if feeder.Feed == nil || feeder.Feed.URL == nil {
-		return nil, errors.Join(ErrFeederRequest, fmt.Errorf("invalid feed"))
+		return nil, errors.Join(ErrRequest, fmt.Errorf("invalid feed"))
 	}
 	request = &transporter.Request{
 		URL:        feeder.Feed.URL,

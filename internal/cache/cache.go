@@ -17,11 +17,26 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
-var (
-	ErrConfiguration = errors.New("cache: invalid configuration")
-	ErrReadiness     = errors.New("cache: cache not ready")
-	ErrInvalidFile   = errors.New("cache: invalid file")
-)
+// ============================= Package Types ================================
+
+type Cache struct {
+	FS        CacheFS  // underlying CacheFS implementation
+	Base      *url.URL // base URI for all caches
+	URI       *url.URL // root URI for this cache (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
+	Namespace Namespace
+}
+
+type Namespace struct {
+	Domain string
+	Feed   string
+}
+
+type File struct {
+	Cache *Cache
+	Item  *hyperfeed.Item
+	Name  string
+	URI   *url.URL // cached file URI, if previously computed
+}
 
 type CacheFS interface {
 	// Ready returns true if the CacheFS is properly configured with a root URI.
@@ -42,24 +57,12 @@ type CacheFS interface {
 	Prune(ctx context.Context, dir string, allowlist ...string) error
 }
 
-type Cache struct {
-	FS        CacheFS  // underlying CacheFS implementation
-	Base      *url.URL // base URI for all caches
-	URI       *url.URL // root URI for this cache (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
-	Namespace Namespace
-}
-
-type Namespace struct {
-	Domain string
-	Feed   string
-}
-
-type File struct {
-	Cache *Cache
-	Item  *hyperfeed.Item
-	Name  string
-	URI   *url.URL // cached file URI, if previously computed
-}
+// ============================= Package Variables ============================
+var (
+	ErrConfiguration = errors.New("cache: invalid configuration")
+	ErrReadiness     = errors.New("cache: cache not ready")
+	ErrInvalidFile   = errors.New("cache: invalid file")
+)
 
 // ============================= Cache Methods ================================
 

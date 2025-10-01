@@ -17,34 +17,9 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
-type StateFS interface {
-	// Ready returns true if the StateFS is properly configured with a root URI.
-	Ready() bool
-	Configure(root *url.URL, policies ...filesystem.LockPolicy) error
-	Init() error
+// ============================= Package Types ================================
 
-	// Stat/Put/Remove provide basic CUD operations for cache blobs (cache is only responsible for writing & eviction, not reads)
-	Stat(ctx context.Context, uri *url.URL) (info os.FileInfo, err error)
-	Exists(ctx context.Context, uri *url.URL) (bool, error)
-	Get(ctx context.Context, uri *url.URL) (data []byte, err error)
-	Put(ctx context.Context, uri *url.URL, data []byte) error
-	Remove(ctx context.Context, uri *url.URL) error
-
-	// Evict implements retention-policy removal of expired cache blobs.
-	Evict(ctx context.Context, expiry *time.Time) (int64, error)
-	Prune(ctx context.Context, dir string, allowlist ...string) error
-}
-
-type StateFile interface {
-	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
-}
-
-var (
-	ErrConfiguration = errors.New("state: invalid configuration")
-	ErrReadiness     = errors.New("state: state not ready")
-	ErrInvalidFile   = errors.New("state: invalid file")
-)
-
+// State stores state files
 type State struct {
 	FS        StateFS  // underlying StateFS implementation
 	Base      *url.URL // base URI for all state stores
@@ -63,6 +38,37 @@ type File struct {
 
 	Data StateFile
 }
+
+type StateFile interface {
+	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
+}
+
+type StateFS interface {
+	// Ready returns true if the StateFS is properly configured with a root URI.
+	Ready() bool
+	Configure(root *url.URL, policies ...filesystem.LockPolicy) error
+	Init() error
+
+	// Stat/Put/Remove provide basic CUD operations for cache blobs (cache is only responsible for writing & eviction, not reads)
+	Stat(ctx context.Context, uri *url.URL) (info os.FileInfo, err error)
+	Exists(ctx context.Context, uri *url.URL) (bool, error)
+	Get(ctx context.Context, uri *url.URL) (data []byte, err error)
+	Put(ctx context.Context, uri *url.URL, data []byte) error
+	Remove(ctx context.Context, uri *url.URL) error
+
+	// Evict implements retention-policy removal of expired cache blobs.
+	Evict(ctx context.Context, expiry *time.Time) (int64, error)
+	Prune(ctx context.Context, dir string, allowlist ...string) error
+}
+
+// ============================= Package Variables ============================
+
+// errors
+var (
+	ErrConfiguration = errors.New("state: invalid configuration")
+	ErrReadiness     = errors.New("state: state not ready")
+	ErrInvalidFile   = errors.New("state: invalid file")
+)
 
 // ============================= State Methods ================================
 

@@ -11,6 +11,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// ============================= Package Types ================================
+
 // Store wraps an embedded SQLite database via the database/sql interface
 type Store struct {
 	*sql.DB
@@ -23,6 +25,17 @@ type Store struct {
 type Options struct {
 	ReadOnly bool
 }
+
+// ============================ Package Variables =============================
+
+// errors
+var (
+	ErrNotImplemented = errors.New("not implemented")
+	ErrStoreConfig    = errors.New("storage configuration invalid")
+	// TODO: replace errors.New() and fmt.Errorf() with error variables
+)
+
+// ============================ Store Methods =================================
 
 func (store *Store) DSN() (dsn string) {
 	dsn = "file:" + store.Path + "?_foreign_keys=on"
@@ -55,7 +68,7 @@ func (store *Store) Create() (err error) {
 
 func (store *Store) Destroy() (err error) {
 	if len(store.Path) == 0 {
-		return errors.New("Store.Path is required")
+		return errors.Join(ErrStoreConfig, errors.New("Store.Path is required"))
 	}
 	if err = store.Close(); err != nil {
 		return err

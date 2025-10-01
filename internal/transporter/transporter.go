@@ -12,45 +12,7 @@ import (
 	"time"
 )
 
-// Transporter errors
-var (
-	ErrTransporterNotImplemented   = errors.New("transporter not implemented")
-	ErrTransporterReadiness        = errors.New("transporter not ready")
-	ErrTransporterConfig           = errors.New("transporter configuration error")
-	ErrTransporterRequestReadiness = errors.New("transporter request not ready")
-	ErrTransporterRequestExpired   = errors.New("transporter request deadline exceeded")
-	ErrTransporterInvalidRequest   = errors.New("transporter request error")
-	ErrTransporterTooManyRedirects = errors.New("transporter redirects exceeded")
-	ErrTransporterResponse         = errors.New("transporter response error")
-	ErrTransporterResponseTooLarge = errors.New("transporter response body exceeds limit")
-)
-
-// Transporter defaults
-var (
-	DefaultConfig = &Config{
-		Wait:             1000 * time.Millisecond,
-		Timeout:          10 * time.Second,
-		MaxRedirects:     1,
-		MaxContentLength: 4 << 20, // 4 MiB
-	}
-	DefaultOptions = &Options{
-		Headers:     http.Header{},
-		Timeout:     0,
-		Redirects:   false,
-		Attempt:     0,
-		MaxAttempts: 1,
-	}
-	DefaultUserAgent     = "HyperTexting (+https://hypertexting.com)"
-	DefaultAcceptHeaders = strings.Join([]string{
-		"application/rss+xml",
-		"application/atom+xml;q=0.9",
-		"application/feed+json;q=0.8",
-		"application/xml;q=0.7",
-		"text/xml;q=0.5",
-		"application/json;q=0.4",
-		"*/*;q=0.1",
-	}, ", ")
-)
+// ============================ Package Types =================================
 
 // Transporter orchestrates outbound HTTP requests for feeds. The struct keeps
 // references to the HTTP client and configuration but intentionally avoids
@@ -136,22 +98,6 @@ type Condition struct {
 
 type ConditionKind string
 
-const (
-	ConditionLastOK            ConditionKind = "last-ok"
-	ConditionMinInterval       ConditionKind = "min-interval"
-	ConditionMaxInterval       ConditionKind = "max-interval"
-	ConditionContentLength     ConditionKind = "content-length"
-	ConditionRateLimit         ConditionKind = "rate-limit"
-	ConditionIfNoneMatchStrong ConditionKind = "if-none-match-strong"
-	ConditionIfNoneMatchWeak   ConditionKind = "if-none-match-weak"
-	ConditionIfNoneMatch       ConditionKind = "if-none-match"
-	ConditionIfMatch           ConditionKind = "if-match"
-	ConditionIfModifiedSince   ConditionKind = "if-modified-since"
-	ConditionIfUnmodifiedSince ConditionKind = "if-unmodified-since"
-	ConditionIfRange           ConditionKind = "if-range"
-	ConditionCustomHeader      ConditionKind = "custom-header"
-)
-
 type RedirectTracker struct {
 	max   int
 	base  func(*http.Request, []*http.Request) error
@@ -182,6 +128,65 @@ type Response struct {
 	// NetworkError captures transport-level failures separate from HTTP status codes.
 	NetworkError error
 }
+
+// ========================== Package Variables ===============================
+
+// Transporter errors
+var (
+	ErrNotImplemented   = errors.New("transporter not implemented")
+	ErrReadiness        = errors.New("transporter not ready")
+	ErrConfig           = errors.New("transporter configuration error")
+	ErrRequestReadiness = errors.New("transporter request not ready")
+	ErrRequestExpired   = errors.New("transporter request deadline exceeded")
+	ErrInvalidRequest   = errors.New("transporter request error")
+	ErrTooManyRedirects = errors.New("transporter redirects exceeded")
+	ErrResponse         = errors.New("transporter response error")
+	ErrResponseTooLarge = errors.New("transporter response body exceeds limit")
+)
+
+// Transporter defaults
+var (
+	DefaultConfig = &Config{
+		Wait:             1000 * time.Millisecond,
+		Timeout:          10 * time.Second,
+		MaxRedirects:     1,
+		MaxContentLength: 4 << 20, // 4 MiB
+	}
+	DefaultOptions = &Options{
+		Headers:     http.Header{},
+		Timeout:     0,
+		Redirects:   false,
+		Attempt:     0,
+		MaxAttempts: 1,
+	}
+	DefaultUserAgent     = "HyperTexting (+https://hypertexting.com)"
+	DefaultAcceptHeaders = strings.Join([]string{
+		"application/rss+xml",
+		"application/atom+xml;q=0.9",
+		"application/feed+json;q=0.8",
+		"application/xml;q=0.7",
+		"text/xml;q=0.5",
+		"application/json;q=0.4",
+		"*/*;q=0.1",
+	}, ", ")
+)
+
+// ConditionKind enumeration
+const (
+	ConditionLastOK            ConditionKind = "last-ok"
+	ConditionMinInterval       ConditionKind = "min-interval"
+	ConditionMaxInterval       ConditionKind = "max-interval"
+	ConditionContentLength     ConditionKind = "content-length"
+	ConditionRateLimit         ConditionKind = "rate-limit"
+	ConditionIfNoneMatchStrong ConditionKind = "if-none-match-strong"
+	ConditionIfNoneMatchWeak   ConditionKind = "if-none-match-weak"
+	ConditionIfNoneMatch       ConditionKind = "if-none-match"
+	ConditionIfMatch           ConditionKind = "if-match"
+	ConditionIfModifiedSince   ConditionKind = "if-modified-since"
+	ConditionIfUnmodifiedSince ConditionKind = "if-unmodified-since"
+	ConditionIfRange           ConditionKind = "if-range"
+	ConditionCustomHeader      ConditionKind = "custom-header"
+)
 
 // ========================== Transporter Methods =============================
 
@@ -245,21 +250,21 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 		response.ReceivedAt = time.Now()
 		response.Duration = response.ReceivedAt.Sub(request.CreatedAt)
 		response.RedirectChain = tracker.Snapshot()
-	} else if errors.Is(err, ErrTransporterTooManyRedirects) {
-		return nil, ErrTransporterTooManyRedirects
+	} else if errors.Is(err, ErrTooManyRedirects) {
+		return nil, ErrTooManyRedirects
 	} else {
 		return nil, err
 	}
 	if response.Response.StatusCode < 200 || response.Response.StatusCode >= 300 {
-		return response, fmt.Errorf("%w: %s", ErrTransporterResponse, response.Response.Status)
+		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
 	}
 	if response.Response.ContentLength > t.Config.MaxContentLength {
-		return response, ErrTransporterResponseTooLarge
+		return response, ErrResponseTooLarge
 	}
 	if data, err = io.ReadAll(response.Response.Body); err == nil {
 		response.Bytes = data
 	} else {
-		return nil, ErrTransporterResponse
+		return nil, ErrResponse
 	}
 	return response, nil
 }
@@ -268,7 +273,7 @@ func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming
 	var requestContext context.Context
 	var requestTimeouts []time.Duration
 	if t == nil || ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
-		return nil, nil, ErrTransporterInvalidRequest
+		return nil, nil, ErrInvalidRequest
 	}
 
 	// timestamp the request
@@ -320,13 +325,13 @@ func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming
 // The stub returns ErrNotImplemented until real logic is added.
 func (request *Request) Valid() (bool, error) {
 	if request == nil {
-		return false, ErrTransporterInvalidRequest
+		return false, ErrInvalidRequest
 	}
 	if request.Request == nil {
-		return false, ErrTransporterInvalidRequest
+		return false, ErrInvalidRequest
 	}
 	if request.Request.URL == nil {
-		return false, ErrTransporterInvalidRequest
+		return false, ErrInvalidRequest
 	}
 	return true, nil
 }
@@ -407,7 +412,7 @@ func (tracker *RedirectTracker) Track(req *http.Request, via []*http.Request) er
 		tracker.chain = append(tracker.chain, &u)
 	}
 	if tracker.max > 0 && len(via) >= tracker.max {
-		return ErrTransporterTooManyRedirects
+		return ErrTooManyRedirects
 	}
 	if tracker.base != nil {
 		return tracker.base(req, via)

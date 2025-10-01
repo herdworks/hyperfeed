@@ -14,15 +14,9 @@ import (
 	"time"
 )
 
-var (
-	ErrConfiguration    = errors.New("filesystem: invalid configuration")
-	ErrSecurityScope    = errors.New("filesystem: security scope violation")
-	ErrAdvisoryLock     = errors.New("filesystem: advisory lock error")
-	ErrInvalidLockToken = errors.New("filesystem: invalid lock token")
-)
+// ============================= Package Types ================================
 
-// FileSystem provides a filesystem-backed implementation that operates beneath
-// higher-level packages such as cache or state.
+// FileSystem is a filesystem abstraction with support for optional advisory locking policies
 type FileSystem struct {
 	URI             *url.URL
 	LockingPolicies []LockPolicy
@@ -47,7 +41,17 @@ type LockPolicy struct {
 // * an "Update" is a ReadOperation + CreateOperation
 type OperationKind int
 
-// OperationKind enumeration, ranged in order of least to most destructive
+// ============================ Package variables =============================
+
+// errors
+var (
+	ErrConfiguration    = errors.New("filesystem: invalid configuration")
+	ErrSecurityScope    = errors.New("filesystem: security scope violation")
+	ErrAdvisoryLock     = errors.New("filesystem: advisory lock error")
+	ErrInvalidLockToken = errors.New("filesystem: invalid lock token")
+)
+
+// OperationKind enumeration
 const (
 	StatOperation OperationKind = iota
 	ReadOperation
@@ -58,6 +62,7 @@ const (
 	DeleteAllOperation
 )
 
+// SudoOperation is a convenience slice of all OperationKinds
 var SudoOperation = []OperationKind{
 	StatOperation,
 	CreateOperation,
