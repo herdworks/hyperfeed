@@ -13,16 +13,16 @@ HyperFeed doesn't differentiate between text-based feeds and other content types
 
 ## Packages
 
-The `herdworks/hyperfeed-go` project contains the following high-level packages:
+HyperFeed functionality is organized into the following packages:
 
 * `herdworks/hyperfeed-go/types`: the core HyperFeed types
-* `herdworks/hyperfeed-go/subscriber`: subscription management (wraps the `hyperfeed.SubscriptionList` type)
-* `herdworks/hyperfeed-go/feeder`: feed reader (wraps the `hyperfeed.Feed` type)
+* `herdworks/hyperfeed-go/subscriber`: a Subscriber manages a SubscriptionList
+* `herdworks/hyperfeed-go/feeder`: a Feeder manages a Feed
 * `herdworks/hyperfeed-go/internal`: transport, storage, cache, etc
 
 ## Types
 
-The `herdworks/hyperfeed-go` packages should operate on a core set of types (defined in `herdworks/hyperfeed-go/types`), including:
+HyperFeed packages operate on a core set of [types](`herdworks/hyperfeed-go/types`), including:
 
 * `hyperfeed.SubscriptionList` (a subscription list; typically represented by an OPML file)
 * `hyperfeed.Feed` (an individual RSS or Atom feed)
@@ -33,7 +33,7 @@ The `herdworks/hyperfeed-go` packages should operate on a core set of types (def
 * `hyperfeed.Atom` (types/atom.go)
 * `hyperfeed.JSONFeed` Feed (types/jsonfeed.go)
 
-Shared logic about common type operations will live in the corresponding type source file (e.g. `types/feed.go`), whereas package-specific operations will live in the packages (e.g. `Scheduler` embeds `SubscriptionList`, `Feeder` embeds `Feed`).
+Shared logic about common type operations will live in the corresponding type source file (e.g. `types/feed.go`), whereas package-specific operations will live in the packages (e.g. `Scheduler` wraps `SubscriptionList`, `Feeder` wraps `Feed`).
 
 ## Control Flow
 

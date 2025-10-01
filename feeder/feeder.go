@@ -29,9 +29,10 @@ var (
 	}
 )
 
-// Feeder is a feed reader that manages scheduling, fetching, and state persistence for a single feed.
+// Feeder manages a Feed.
 type Feeder struct {
 	*hyperfeed.Feed
+
 	Config *Config
 	Status *Status
 	Clock  Clock
