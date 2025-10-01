@@ -24,13 +24,15 @@ type Item struct {
 	Published time.Time `json:"published,omitempty"` // created timestamp
 	Updated   time.Time `json:"updated,omitempty"`   // modified timestamp
 
-	Summary string `json:"summary,omitempty"`
-	Content string `json:"content,omitempty"`
-
-	Attachments []Attachment `json:"attachments,omitempty"`
+	Summary     string       `json:"summary,omitempty"`
+	Content     string       `json:"content,omitempty"`
+	Images      []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
+	Links       []*url.URL   `json:"links,omitempty"`
 	Categories  []string     `json:"categories,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"` // RSS enclosures, JSONFeed attachments
 
-	Image *Image `json:"image,omitempty"`
+	// Comments is a URL pointing to a comments page for the item.
+	Comments *url.URL `json:"comments,omitempty"`
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`

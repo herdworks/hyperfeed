@@ -23,12 +23,12 @@ func TestOpenAndSchema(t *testing.T) {
 	t.Cleanup(func() { store.Close() })
 
 	// Insert a subscription list record to verify tables exist.
-	err = store.Exec(ctx, "INSERT INTO subscription_lists(id, uri) VALUES(?, ?);", "sub1", "https://example.com")
+	err = store.Exec(ctx, "INSERT INTO subscriptionlists(id, uri) VALUES(?, ?);", "sub1", "https://example.com")
 	if err != nil {
 		t.Fatalf("insert subscription: %v", err)
 	}
 
-	rows, err := store.Query(ctx, "SELECT id FROM subscription_lists")
+	rows, err := store.Query(ctx, "SELECT id FROM subscriptionlists")
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}

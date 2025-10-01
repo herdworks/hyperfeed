@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/state"
@@ -15,21 +14,17 @@ import (
 
 // errors
 var (
-	ErrNotImplemented   = errors.New("scheduler: not implemented")
-	ErrSchedulerRequest = errors.New("scheduler: invalid request")
+	ErrNotImplemented   = errors.New("not implemented")
+	ErrSchedulerRequest = errors.New("invalid scheduler request")
 )
 
 // defaults
 var (
 	DefaultSchedulerConfig = &Config{
-		DefaultInterval:        15 * time.Minute,
-		MinInterval:            time.Minute,
-		MaxInterval:            12 * time.Hour,
-		StartupGracePeriod:     5 * time.Minute,
-		ErrorBackoffStep:       time.Minute,
-		DisableFeedHints:       false,
-		DisableCacheDirectives: false,
-		DisableRateLimitHints:  false,
+		DefaultInterval:    15 * time.Minute,
+		MinInterval:        time.Minute,
+		MaxInterval:        12 * time.Hour,
+		StartupGracePeriod: 5 * time.Minute,
 	}
 )
 
@@ -45,122 +40,90 @@ type Scheduler struct {
 }
 
 // Config provides runtime configuration for a Scheduler instance.
+// TODO: should this become a Scheduler.Interval field and a SubscriberConfig struct?
 type Config struct {
 	// DefaultInterval is the baseline polling interval when no hints are available.
 	// Implementations must never schedule requests more frequently than this value.
-	DefaultInterval time.Duration
+	DefaultInterval time.Duration `json:"default_interval"`
 
 	// MinInterval constrains how aggressively we can poll, even when feeds publish explicit TTL hints.
 	// Implementations must clamp decisions to this floor to avoid overwhelming origins.
-	MinInterval time.Duration
+	MinInterval time.Duration `json:"min_interval"`
 
 	// MaxInterval caps how stale a feed is allowed to become.
 	// Implementations must clamp decisions to this ceiling even when the origin suggests very long TTLs, unless the operator explicitly overrides the value.
-	MaxInterval time.Duration
+	MaxInterval time.Duration `json:"max_interval"`
 
 	// StartupGracePeriod allows newly subscribed feeds to be fetched more aggressively during onboarding without violating server hints.
-	StartupGracePeriod time.Duration
-
-	// ErrorBackoffStep defines the base duration added per consecutive error.
-	// Scheduler multiplies this by the failure count when no Retry-After hint is available.
-	ErrorBackoffStep time.Duration
-
-	// DisableFeedHints turns off enforcement of RSS feed cadence hints (skipDays, skipHours, ttl).
-	DisableFeedHints bool
-
-	// DisableCacheDirectives turns off enforcement of HTTP cache headers.
-	DisableCacheDirectives bool
-
-	// DisableRateLimitHints turns off enforcement of Retry-After and related rate limit guidance.
-	DisableRateLimitHints bool
+	StartupGracePeriod time.Duration `json:"startup_grace_period"`
 }
 
 // Status captures everything the scheduler must persist across ticks.
 // The contract intentionally mirrors HTTP semantics and feed hints so we can satisfy the requirements outlined in the Feed Reader Behavior document.
 type Status struct {
-	// FeedID is stored redundantly to guard against persistence mix-ups.
-	FeedID string
-
 	// CreatedAt indicates when the feed was first scheduled.
-	CreatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
 
 	// UpdatedAt indicates when the state was last modified.
-	UpdatedAt time.Time
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// LastAttemptAt is when we most recently attempted a fetch, successful or not.
-	LastAttemptAt time.Time
-
-	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
-	LastErrorAt time.Time
+	LastAttemptAt time.Time `json:"last_attempt_at"`
 
 	// LastSuccessAt is when we most recently fetched new content.
-	LastSuccessAt time.Time
+	LastSuccessAt time.Time `json:"last_success_at"`
 
-	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
-	LastStatusCode int
-
-	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
-	LastStatusCodes []int
-
-	// LastHeaders stores the raw headers from the most recent fetch to support future hint extraction.
-	LastHeaders http.Header
-
-	// LastModifiedAt stores the value of the Last-Modified header from the last successful fetch.
-	LastModifiedAt time.Time
-
-	// LastContentLength is the size of the payload from the last successful fetch.
-	LastContentLength int64
-
-	// ETag is the last/current ETag value seen for this feed.
-	ETag string
-
-	// CacheControl stores parsed HTTP cache headers.
-	CacheControl CacheControl
-
-	// RateLimit captures rate limiting information supplied by the origin.
-	RateLimit RateLimit
+	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
+	LastErrorAt time.Time `json:"last_error_at"`
 
 	// PausedUntil stores user-imposed pause windows (manual snooze).
-	PausedUntil time.Time
+	PausedUntil time.Time `json:"paused_until"`
 
-	// SkipDays enumerates which weekdays should be skipped according to feed metadata.
-	// SkipDays map[time.Weekday]bool
+	// ETag stores the value of the ETag header from the last successful fetch.
+	ETag string `json:"etag"`
 
-	// SkipHours enumerates which hours (0-23) should be skipped according to feed metadata.
-	// SkipHours map[int]bool
+	// ContentLength stores the value of the Content-Length header from the last successful fetch.
+	ContentLength int64 `json:"content_length"`
 
-	// NextNotBefore stores the earliest permissible fetch time derived from hints and policy. Scheduler must never schedule before this timestamp.
-	// NextNotBefore time.Time
+	// LastModified stores the value of the Last-Modified header from the last successful fetch.
+	LastModified time.Time `json:"last_modified"`
 
-	// Diagnostics retains arbitrary key/value pairs for debugging decisions (e.g., "retry_after": "2024-12-17T15:04Z").
-	// Diagnostics map[string]string
+	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
+	LastStatusCode int `json:"last_status_code"`
 
-	// FeedTTL holds the last ttl hint observed from the feed metadata.
-	// FeedTTL time.Duration
+	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
+	LastStatusCodes []int `json:"last_status_codes"`
+
+	// CacheControl stores parsed HTTP cache headers.
+	CacheControl CacheControl `json:"cache_control"`
+
+	// RateLimit captures rate limiting information supplied by the origin.
+	RateLimit RateLimit `json:"rate_limit"`
+
+	// Headers stores the raw headers from the most recent fetch to support future hint extraction.
+	Headers http.Header `json:"headers"`
 }
 
 // RateLimit captures how often we are allowed to poll an origin as signaled by HTTP 429/503 and related headers.
 // The scheduler persists this structure across ticks.
 type RateLimit struct {
-	WaitUntil             time.Time     // Self-imposed backoff time
-	BackoffUntil          time.Time     // Retry-After or computed backoff time
-	RetryAfter            time.Duration // Retry-After in seconds
-	Remaining             int           // X-RateLimit-Remaining
-	Reset                 time.Time     // X-RateLimit-Reset
-	Window                string        // X-RateLimit-Window
-	SuggestedPollInterval time.Duration // X-Poll-Interval in seconds
-	LastStatus            int           // last HTTP status code affecting rate limit state
-	Consecutive429        int           // count of sequential 429 responses
-	Consecutive5xx        int           // count of sequential 5xx responses
+	WaitUntil    time.Time     `json:"wait_until"`    // Retry-After time
+	RetryAfter   time.Duration `json:"retry_after"`   // Retry-After seconds
+	PollInterval time.Duration `json:"poll_interval"` // X-Poll-Interval in seconds
+	Recent429s   int           `json:"recent_429s"`   // count of 429 responses in the last 30 requests
+	Recent5xxs   int           `json:"recent_5xxs"`   // count of 5xx responses in the last 30 requests
+	// Remaining             int           `json:"remaining"` // X-RateLimit-Remaining
+	// Reset                 time.Time     `json:"reset"` // X-RateLimit-Reset
+	// Window                string        `json:"window"` // X-RateLimit-Window
 }
 
 // CacheControl normalizes cache metadata from HTTP headers.
 type CacheControl struct {
-	Age          time.Duration
-	MaxAge       time.Duration
-	SharedMaxAge time.Duration
-	ExpiresAt    time.Time
-	ETagMismatch bool
+	Age          time.Duration `json:"age"`
+	MaxAge       time.Duration `json:"max_age"`
+	SharedMaxAge time.Duration `json:"shared_max_age"`
+	ExpiresAt    time.Time     `json:"expires_at"`
+	ETagMismatch bool          `json:"etag_mismatch"`
 }
 
 // Clock abstracts time so tests can inject deterministic clocks.
@@ -181,13 +144,13 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		return fmt.Errorf("not ready: %s", reason)
 	}
 	if request, err = s.Request(); err != nil {
-		return fmt.Errorf("failed to build request: %w", err)
+		return err
 	}
 	if s.Transporter == nil {
 		s.Transporter = &transporter.Transporter{}
 	}
 	if response, err = s.Transporter.Fetch(ctx, request); err != nil {
-		return fmt.Errorf("fetch error: %w", err)
+		return s.Log(response, err)
 	}
 	return s.Apply(ctx, response)
 }
@@ -207,8 +170,8 @@ func (s *Scheduler) Ready() (ready bool, reason string) {
 	if tick.Before(s.Status.RateLimit.WaitUntil) {
 		return false, fmt.Sprintf("rate limited until %s", s.Status.RateLimit.WaitUntil)
 	}
-	if tick.Before(s.Status.RateLimit.BackoffUntil) {
-		return false, fmt.Sprintf("backing off until %s", s.Status.RateLimit.BackoffUntil)
+	if retryAfter := s.Status.LastAttemptAt.Add(s.Status.RateLimit.RetryAfter); tick.Before(retryAfter) {
+		return false, fmt.Sprintf("rate limited until %s", retryAfter)
 	}
 	return true, "ready"
 }
@@ -245,21 +208,26 @@ func (scheduler *Scheduler) Conditions() (conditions []transporter.Condition) {
 			Kind:          transporter.ConditionMaxInterval,
 			DurationValue: scheduler.Config.MaxInterval,
 		},
+		transporter.Condition{
+			Kind:          transporter.ConditionRateLimit,
+			TimeValue:     scheduler.Status.RateLimit.WaitUntil,
+			DurationValue: scheduler.Status.RateLimit.RetryAfter,
+		},
 	)
-
-	// Last-Modified validator
-	if !scheduler.Status.LastModifiedAt.IsZero() {
-		conditions = append(conditions, transporter.Condition{
-			Kind:      transporter.ConditionIfModifiedSince,
-			TimeValue: scheduler.Status.LastModifiedAt,
-		})
-	}
 
 	// ETag validator
 	if scheduler.Status.ETag != "" {
 		conditions = append(conditions, transporter.Condition{
 			Kind:  transporter.ConditionIfNoneMatch,
 			Value: scheduler.Status.ETag,
+		})
+	}
+
+	// Last-Modified validator
+	if !scheduler.Status.LastModified.IsZero() {
+		conditions = append(conditions, transporter.Condition{
+			Kind:      transporter.ConditionIfModifiedSince,
+			TimeValue: scheduler.Status.LastModified,
 		})
 	}
 
@@ -281,81 +249,67 @@ func (s *Scheduler) Apply(ctx context.Context, response *transporter.Response) e
 	if s.Status == nil {
 		s.Status = &Status{LastStatusCodes: []int{}}
 	}
-
-	// timestamps
-	s.Status.LastAttemptAt = time.Now().UTC()
+	if response == nil || response.Request == nil {
+		s.Status.LastAttemptAt = time.Now().UTC()
+	}
+	s.ApplyTimestamps(response)
+	s.ApplyStatusCode(response)
+	s.ApplyHeaders(response)
+	s.ApplyRateLimits(response)
+	s.ApplyBody(response)
+	return nil
+}
+func (s *Scheduler) ApplyTimestamps(response *transporter.Response) {
 	if s.Status.CreatedAt.IsZero() {
-		s.Status.CreatedAt = s.Status.LastAttemptAt
+		s.Status.CreatedAt = response.ReceivedAt.UTC()
 	}
+	s.Status.LastAttemptAt = response.ReceivedAt.UTC()
 	if response.OK() {
-		s.Status.LastSuccessAt = s.Status.LastAttemptAt
+		s.Status.UpdatedAt = response.ReceivedAt.UTC()
+		s.Status.LastSuccessAt = response.ReceivedAt.UTC()
 	} else {
-		s.Status.LastErrorAt = s.Status.LastAttemptAt
+		s.Status.LastErrorAt = response.ReceivedAt.UTC()
 	}
-
-	// status codes
-	limit := min(29, len(s.Status.LastStatusCodes))
+}
+func (s *Scheduler) ApplyStatusCode(response *transporter.Response) {
+	var limit int = min(29, len(s.Status.LastStatusCodes))
 	s.Status.LastStatusCode = response.StatusCode
 	s.Status.LastStatusCodes = append([]int{response.StatusCode}, s.Status.LastStatusCodes[:limit]...)
-	if response.OK() {
-		s.Status.UpdatedAt = s.Status.LastAttemptAt
-		s.Status.LastSuccessAt = s.Status.LastAttemptAt
-	}
-
-	// headers
-	s.Status.LastHeaders = response.Response.Header.Clone()
+}
+func (s *Scheduler) ApplyHeaders(response *transporter.Response) {
+	s.Status.Headers = response.Response.Header.Clone()
 	if etag := response.Response.Header.Get("ETag"); etag != "" {
 		s.Status.ETag = etag
 	}
-	if cl, err := strconv.Atoi(response.Response.Header.Get("Content-Length")); err == nil && cl >= 0 {
-		s.Status.LastContentLength = int64(cl)
+	if response.Response.ContentLength > 0 {
+		s.Status.ContentLength = response.Response.ContentLength
 	}
-	if lm := response.LastModified(); !lm.IsZero() {
-		s.Status.LastModifiedAt = lm
-	}
+	s.Status.LastModified = response.LastModified()
+}
+func (s *Scheduler) ApplyRateLimits(response *transporter.Response) {
+	s.Status.RateLimit.WaitUntil = response.WaitUntil()
+	s.Status.RateLimit.RetryAfter = response.RetryAfter()
+	s.Status.RateLimit.PollInterval = response.PollInterval()
+	s.Status.RateLimit.Recent429s = count(s.Status.LastStatusCodes, func(code int) bool { return code == 429 })
+	s.Status.RateLimit.Recent5xxs = count(s.Status.LastStatusCodes, func(code int) bool { return code >= 500 })
+}
+func (s *Scheduler) ApplyBody(response *transporter.Response) {
+	s.Feed.Bytes = response.Bytes
+	// TODO: parse feed body and update s.Status.FeedTTL or s.Status.RateLimit.WaitUntil?
+	// TODO: parse feed body and update FeedKind?
+}
 
+// Log persists failure information for the current tick.
+func (s *Scheduler) Log(response *transporter.Response, err error) error {
 	return ErrNotImplemented
 }
 
-// Log persists failure information when the transporter fails before
-// producing a response. Implementation must update error counters and
-// compute a conservative backoff. Stub returns ErrNotImplemented.
-func (s *Scheduler) Log(ctx context.Context, status *Status, request *transporter.Request, err error) (*Status, error) {
-	return nil, ErrNotImplemented
+// ========================= Helper Functions ===========================
+func count[T any](slice []T, f func(T) bool) (count int) {
+	for _, s := range slice {
+		if f(s) {
+			count++
+		}
+	}
+	return count
 }
-
-// ========================= Config Methods ===================================
-
-// Normalize ensures all Config fields have sane defaults and bounds.
-func (cfg *Config) Normalize() {
-	defaults := *DefaultSchedulerConfig // copy
-	if cfg == nil {
-		return
-	}
-	if cfg.DefaultInterval == 0 {
-		cfg.DefaultInterval = defaults.DefaultInterval
-	}
-	if cfg.MinInterval == 0 {
-		cfg.MinInterval = defaults.MinInterval
-	}
-	if cfg.MaxInterval == 0 {
-		cfg.MaxInterval = defaults.MaxInterval
-	}
-	if cfg.StartupGracePeriod == 0 {
-		cfg.StartupGracePeriod = defaults.StartupGracePeriod
-	}
-	if cfg.ErrorBackoffStep == 0 {
-		cfg.ErrorBackoffStep = defaults.ErrorBackoffStep
-	}
-	if cfg.MinInterval > cfg.DefaultInterval {
-		cfg.MinInterval = cfg.DefaultInterval
-	}
-	if cfg.MaxInterval < cfg.DefaultInterval {
-		cfg.MaxInterval = cfg.DefaultInterval
-	}
-	if cfg.MinInterval > cfg.MaxInterval {
-		cfg.MinInterval = cfg.MaxInterval
-	}
-}
-
-// ========================= Status Methods ===================================

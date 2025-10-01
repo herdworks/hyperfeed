@@ -3,6 +3,10 @@ package hyperfeed
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
+	"net/url"
+	"strconv"
+	"time"
 
 	"golang.org/x/net/html/charset"
 )
@@ -39,16 +43,16 @@ type RSSChannel struct {
 }
 
 type RSSItem struct {
-	Title       string        `xml:"title"`
-	Link        string        `xml:"link"`
-	Description string        `xml:"description"`
-	Author      string        `xml:"author"`
-	Comments    string        `xml:"comments"`
-	GUID        *RSSGUID      `xml:"guid"`
-	PubDate     string        `xml:"pubDate"`
-	Categories  []RSSCategory `xml:"category"`
-	Enclosure   *RSSEnclosure `xml:"enclosure"`
-	Source      *RSSSource    `xml:"source"`
+	Link        string         `xml:"link"`
+	Title       string         `xml:"title"`
+	Description string         `xml:"description"`
+	Author      string         `xml:"author"`
+	Comments    string         `xml:"comments"`
+	GUID        *RSSGUID       `xml:"guid"`
+	PubDate     string         `xml:"pubDate"`
+	Categories  []RSSCategory  `xml:"category"`
+	Enclosures  []RSSEnclosure `xml:"enclosure"`
+	Source      *RSSSource     `xml:"source"`
 
 	// Extensions captures additional namespaced elements under <item>.
 	Extensions []Extension `xml:",any" json:"-"`
@@ -115,6 +119,8 @@ type RSSDays struct {
 	Days []string `xml:"day"`
 }
 
+// ============================ RSS Methods ===================================
+
 // RawFeed.Kind() compliance
 func (r *RSS) Kind() FeedKind {
 	return FeedKindRSS_2_0
@@ -124,6 +130,73 @@ func (r *RSS) Kind() FeedKind {
 func (r *RSS) ItemCount() int {
 	return len(r.Channel.Items)
 }
+
+// RawFeed.ParseItems() compliance
+func (r *RSS) ParseItems() (items []*Item) {
+	for _, rssitem := range r.Channel.Items {
+		item, err := r.ParseItem(&rssitem)
+		if err != nil {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items
+}
+func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
+	item = &Item{}
+	item.Title = rssitem.Title
+	item.Summary = rssitem.Description
+	if item.URL, err = url.Parse(rssitem.Link); err != nil {
+		return nil, err
+	}
+	if rssitem.GUID != nil {
+		item.ID = rssitem.GUID.Value
+	}
+	item.Authors = []Author{
+		{
+			Email: rssitem.Author,
+		},
+	}
+	if item.Comments, err = url.Parse(rssitem.Comments); err != nil {
+		return nil, err
+	}
+	if item.Published, err = r.ParseDate(rssitem.PubDate); err != nil {
+		return nil, err
+	}
+	for _, enclosure := range rssitem.Enclosures {
+		var att Attachment
+		if att.URL, err = url.Parse(enclosure.URL); err != nil {
+			return nil, err
+		}
+		if att.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
+			return nil, err
+		}
+		att.Mimetype = enclosure.Type
+		item.Attachments = append(item.Attachments, att)
+	}
+	for _, category := range rssitem.Categories {
+		item.Categories = append(item.Categories, category.Text)
+	}
+	return item, nil
+}
+
+func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
+	if t, err = time.Parse(time.RFC1123, dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse(time.RFC1123Z, dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse(time.RFC822, dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse(time.RFC822Z, dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
+}
+
+// ============================ Helper Functions ==============================
 
 // RSSDetected returns true if the document appears to be RSS.
 func RSSDetected(doc []byte) bool {
@@ -142,4 +215,3 @@ func ParseRSS(doc []byte) (*RSS, error) {
 	return &r, nil
 }
 
-// Extension type and its UnmarshalXML are defined in types/metadata.go

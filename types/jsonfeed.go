@@ -2,6 +2,8 @@ package hyperfeed
 
 import (
 	"encoding/json"
+	"net/url"
+	"time"
 )
 
 // JSONFeed represents a JSON Feed document as defined by https://jsonfeed.org/version/1.1
@@ -65,6 +67,8 @@ type JSONItem struct {
 	Attachments   []JSONFeedAttachment `json:"attachments,omitempty"`
 }
 
+// ============================ JSONFeed Methods ==============================
+
 // RawFeed.Kind() compliance
 func (jf JSONFeed) Kind() FeedKind {
 	switch jf.Version {
@@ -81,6 +85,67 @@ func (jf JSONFeed) Kind() FeedKind {
 func (jf *JSONFeed) ItemCount() int {
 	return len(jf.Items)
 }
+
+// RawFeed.Items() compliance
+func (jf *JSONFeed) ParseItems() (items []*Item) {
+	for _, i := range jf.Items {
+		items = append(items, jf.ParseItem(&i))
+	}
+	return items
+}
+func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item) {
+	item = &Item{}
+
+	item.ID = jsonfeeditem.ID
+	item.Title = jsonfeeditem.Title
+	item.Summary = jsonfeeditem.Summary
+	if jsonfeeditem.ContentHTML != "" {
+		item.Content = jsonfeeditem.ContentHTML
+	} else {
+		item.Content = jsonfeeditem.ContentText
+	}
+	if u, err := url.Parse(jsonfeeditem.URL); err == nil && u != nil {
+		item.URL = u
+	}
+	if t, err := time.Parse(time.RFC3339, jsonfeeditem.DatePublished); err == nil {
+		item.Published = t
+	}
+	if t, err := time.Parse(time.RFC3339, jsonfeeditem.DateModified); err == nil {
+		item.Updated = t
+	}
+	if u, err := url.Parse(jsonfeeditem.ExternalURL); err == nil && u != nil {
+		item.Links = append(item.Links, u)
+	}
+	if u, err := url.Parse(jsonfeeditem.BannerImage); err == nil && u != nil {
+		item.Images = append(item.Images, &Image{URL: u, Title: "Feed item banner image"})
+	}
+	if u, err := url.Parse(jsonfeeditem.Image); err == nil && u != nil {
+		item.Images = append(item.Images, &Image{URL: u, Title: "Feed item image"})
+	}
+	if jsonfeeditem.Author != nil {
+		item.Authors = append(item.Authors, *jf.ToAuthor(jsonfeeditem.Author))
+	}
+	for _, author := range jsonfeeditem.Authors {
+		item.Authors = append(item.Authors, *jf.ToAuthor(&author))
+	}
+	return item
+}
+
+func (jf *JSONFeed) ToAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
+	author = &Author{Name: jfauthor.Name}
+	if u, err := url.Parse(jfauthor.URL); err == nil && u != nil && u.Scheme == "mailto" {
+		author.Email = u.Opaque
+	}
+	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil && u.Scheme != "mailto" {
+		author.URL = u
+	}
+	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil {
+		author.Avatar = u
+	}
+	return author
+}
+
+// ============================ Helper Functions ==============================
 
 // JSONFeedDetected returns true if the document appears to be JSON Feed.
 func JSONFeedDetected(doc []byte) bool {

@@ -26,20 +26,19 @@ func TestDetectKind(t *testing.T) {
 		t.Fatalf("Failed to read test data directory: %v", err)
 	}
 	for _, f := range files {
+		var feed Feed = Feed{}
 		if f.IsDir() {
 			continue
 		}
-		feedBytes, err := os.ReadFile(testdatadir + f.Name())
-		if err != nil {
+		if feed.Bytes, err = os.ReadFile(testdatadir + f.Name()); err != nil {
 			t.Fatalf("Failed to read feed file %q: %v", f.Name(), err)
 		}
-		var feed Feed
-		feedKind := feed.DetectKind(feedBytes)
+		feedKind := feed.DetectKind()
 		if feedKind == "" {
 			t.Logf("Could not detect kind for feed file %q", f.Name())
 			continue
 		}
-		if err = feed.Parse(feedKind, feedBytes); err != nil {
+		if err = feed.Parse(); err != nil {
 			t.Logf("Parse error for feed file %q: %v", f.Name(), err)
 			continue
 		}

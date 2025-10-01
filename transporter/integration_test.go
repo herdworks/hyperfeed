@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
 // ============================================================================
@@ -117,6 +119,11 @@ func TestTransporterFetchIntegration(t *testing.T) {
 				values := strings.Join(v, ", ")
 				t.Logf("%s: %+v", http.CanonicalHeaderKey(k), values)
 			}
+			t.Logf("response body contains %d bytes", len(response.Bytes))
+
+			var feed *hyperfeed.Feed = &hyperfeed.Feed{URL: tc.request.URL}
+			kind := feed.DetectKind(response.Bytes)
+			t.Logf("detected feed kind: %s", kind)
 		})
 	}
 }

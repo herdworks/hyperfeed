@@ -11,77 +11,20 @@ import (
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
-	// URL is the canonical feed URL (RSS/Atom endpoint).
-	URL *url.URL `json:"url,omitempty"`
-	ID  string   `json:"id,omitempty"` // stable HyperFeed feed identifier (e.g. hash of feed URL path)
-
-	// Standard feed properties
+	URL         *url.URL  `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
+	ID          string    `json:"id,omitempty"`  // stable HyperFeed identifier (e.g. hash of feed URL path+query)
 	Title       string    `json:"title,omitempty"`
 	Description string    `json:"description,omitempty"`
 	Language    string    `json:"language,omitempty"`
 	Updated     time.Time `json:"updated,omitempty"`
 	Authors     []Author  `json:"authors,omitempty"`
-
-	// Non-standard/extension properties
-	Metadata Metadata `json:"metadata,omitempty"`
-
-	// Items contains the most recent items for this feed.
-	Items []*Item `json:"items,omitempty"`
-
-	// RawFeed holds the RSS, Atom, or JSON Feed representation of the feed.
-	RawFeed RawFeed `json:"-"`
+	Metadata    Metadata  `json:"metadata,omitempty"` // Non-standard/extension properties
+	Items       []*Item   `json:"items,omitempty"`    // the most recent items for this feed
+	Bytes       []byte    `json:"-"`                  // the most recent contents (raw bytes) for this feed
+	RawFeed     RawFeed   `json:"-"`                  // RSS, Atom, or JSON Feed representation of the feed
 }
 
-// Domain returns the feed's domain (host) portion of its URL.
-func (feed *Feed) Domain() string {
-	return normalized.Domain(feed.URL)
-}
-
-// Identifier returns the stable identifier for the feed, computing it if needed.
-func (feed *Feed) Identifier() string {
-	if feed.ID == "" {
-		feed.ID = normalized.Identifier(normalized.Path(feed.URL))
-	}
-	return feed.ID
-}
-
-// DetectKind inspects the provided document (JSON or XML) and returns the
-// detected feed kind/version. Accepts either []byte or string input.
-func (f *Feed) DetectKind(doc any) FeedKind {
-	var b []byte
-	switch v := any(doc).(type) {
-	case []byte:
-		b = v
-	case string:
-		b = []byte(v)
-	default:
-		return FeedKindUnknown
-	}
-
-	// empty document detection
-	if len(bytes.TrimSpace(b)) == 0 {
-		return FeedKindUnknown
-	}
-
-	// JSONFeed detection
-	if JSONFeedDetected(b) {
-		return FeedKindJSONFeed
-	}
-
-	// RSS detection
-	if RSSDetected(b) {
-		return FeedKindRSS
-	}
-
-	// Atom detection
-	if atom.AtomDetected(b) {
-		return FeedKindAtom
-	}
-
-	return FeedKindUnknown
-}
-
-// FeedKind enumerates known feed type/version pairs (e.g., "rss/2.0").
+// FeedKind is a feed type/version pair (e.g., "rss/2.0")
 type FeedKind string
 
 const (
@@ -103,38 +46,64 @@ const (
 // before normalization. Implementations should report their concrete kind
 // and version via Kind().
 type RawFeed interface {
-	// Kind returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1).
-	Kind() FeedKind
-	ItemCount() int
+	Kind() FeedKind      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
+	ItemCount() int      // returns the number of items in the feed
+	ParseItems() []*Item // parses and returns the feed's items
 }
 
-func (feed *Feed) AutoParse(doc []byte) (err error) {
-	return feed.Parse(feed.DetectKind(doc), doc)
+// ============================ Feed Methods ==================================
+
+// Domain returns the feed's domain (host) portion of its URL.
+func (feed *Feed) Domain() string {
+	return normalized.Domain(feed.URL)
 }
 
-func (feed *Feed) Parse(kind FeedKind, doc []byte) (err error) {
-	switch kind {
+// Identifier returns the stable identifier for the feed, computing it if needed.
+func (feed *Feed) Identifier() string {
+	if feed.ID == "" {
+		feed.ID = normalized.Identifier(normalized.Path(feed.URL))
+	}
+	return feed.ID
+}
+
+// DetectKind inspects the provided document (JSON or XML) and returns the
+// detected feed kind/version. Accepts either []byte or string input.
+func (f *Feed) DetectKind() FeedKind {
+	if f.Bytes == nil {
+		return FeedKindUnknown
+	}
+	if len(bytes.TrimSpace(f.Bytes)) == 0 {
+		return FeedKindUnknown // empty document
+	}
+	if JSONFeedDetected(f.Bytes) {
+		return FeedKindJSONFeed
+	}
+	if RSSDetected(f.Bytes) {
+		return FeedKindRSS
+	}
+	if atom.AtomDetected(f.Bytes) {
+		return FeedKindAtom
+	}
+	return FeedKindUnknown
+}
+
+func (feed *Feed) Parse() (err error) {
+	switch feed.DetectKind() {
 	case FeedKindRSS, FeedKindRSS_0_9_1, FeedKindRSS_0_9_2, FeedKindRSS_2_0:
-		rawfeed, err := ParseRSS(doc)
-		if err != nil {
+		if feed.RawFeed, err = ParseRSS(feed.Bytes); err != nil {
 			return err
 		}
-		feed.RawFeed = rawfeed
-		return nil
 	case FeedKindAtom, FeedKindAtom_0_3, FeedKindAtom_1_0:
-		rawfeed, err := ParseAtom(doc)
-		if err != nil {
+		if feed.RawFeed, err = ParseAtom(feed.Bytes); err != nil {
 			return err
 		}
-		feed.RawFeed = rawfeed
-		return nil
 	case FeedKindJSONFeed, FeedKindJSONFeed_1_0, FeedKindJSONFeed_1_1:
-		rawfeed, err := ParseJSONFeed(doc)
-		if err != nil {
+		if feed.RawFeed, err = ParseJSONFeed(feed.Bytes); err != nil {
 			return err
 		}
-		feed.RawFeed = rawfeed
-		return nil
+	}
+	if feed.RawFeed != nil {
+		feed.Items = feed.RawFeed.ParseItems()
 	}
 	return nil
 }

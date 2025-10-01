@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -65,9 +66,15 @@ func (store *Store) Destroy() (err error) {
 	return err // this *should* be nil, but could be an error
 }
 
-func (store *Store) Initialize(ctx context.Context) error {
-	_, err := store.DB.ExecContext(ctx, schema)
-	return err
+func (store *Store) Initialize(ctx context.Context) (err error) {
+	var schemaBytes []byte
+	if schemaBytes, err = Schema(); err != nil {
+		return fmt.Errorf("storage: load schema: %w", err)
+	}
+	if _, err = store.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
+		return fmt.Errorf("storage: apply schema: %w", err)
+	}
+	return nil
 }
 
 func (store *Store) Open(ctx context.Context) (err error) {

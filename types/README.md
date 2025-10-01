@@ -103,7 +103,7 @@ Wire model for RSS 0.9x/2.0 parsing with extension preservation.
 
 - Root: `RSS` { `Version`, `Channel` }
 - Channel: standard RSS elements (`title`, `link`, `description`, etc.) plus `Items []RSSItem`
-- Item: core RSS fields plus `Enclosure *RSSEnclosure` and `Extensions []Extension`
+- Item: core RSS fields plus `Enclosures []RSSEnclosure` and `Extensions []Extension`
 - Enclosure: `{ URL, Length, Type }` attributes
 - Helpers: `RSSDetect([]byte) bool`, `ParseRSS([]byte) (*RSS, error)` with `charset.NewReaderLabel` for non‑UTF8 encodings
 

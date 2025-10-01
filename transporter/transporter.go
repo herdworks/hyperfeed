@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -13,15 +14,15 @@ import (
 
 // Transporter errors
 var (
-	ErrNotImplemented       = errors.New("transporter: not implemented")
-	ErrTransporterReadiness = errors.New("transporter: transporter not ready")
-	ErrTransporterConfig    = errors.New("transporter: invalid configuration")
-	ErrRequestReadiness     = errors.New("transporter: request not ready")
-	ErrRequestExpired       = errors.New("transporter: request deadline exceeded")
-	ErrInvalidRequest       = errors.New("transporter: invalid request")
-	ErrTooManyRedirects     = errors.New("transporter: too many redirects")
-	ErrResponse             = errors.New("transporter: response error")
-	ErrResponseTooLarge     = errors.New("transporter: response body exceeds limit")
+	ErrTransporterNotImplemented   = errors.New("transporter not implemented")
+	ErrTransporterReadiness        = errors.New("transporter not ready")
+	ErrTransporterConfig           = errors.New("transporter configuration error")
+	ErrTransporterRequestReadiness = errors.New("transporter request not ready")
+	ErrTransporterRequestExpired   = errors.New("transporter request deadline exceeded")
+	ErrTransporterInvalidRequest   = errors.New("transporter request error")
+	ErrTransporterTooManyRedirects = errors.New("transporter redirects exceeded")
+	ErrTransporterResponse         = errors.New("transporter response error")
+	ErrTransporterResponseTooLarge = errors.New("transporter response body exceeds limit")
 )
 
 // Transporter defaults
@@ -140,6 +141,7 @@ const (
 	ConditionMinInterval       ConditionKind = "min-interval"
 	ConditionMaxInterval       ConditionKind = "max-interval"
 	ConditionContentLength     ConditionKind = "content-length"
+	ConditionRateLimit         ConditionKind = "rate-limit"
 	ConditionIfNoneMatchStrong ConditionKind = "if-none-match-strong"
 	ConditionIfNoneMatchWeak   ConditionKind = "if-none-match-weak"
 	ConditionIfNoneMatch       ConditionKind = "if-none-match"
@@ -161,9 +163,6 @@ type RedirectTracker struct {
 // re-parsing headers.
 type Response struct {
 	*http.Response
-
-	// StatusCode is copied from Raw for convenience when Raw is present.
-	StatusCode int
 
 	// Headers contains all response headers as received.
 	Headers http.Header
@@ -217,23 +216,6 @@ func (t *Transporter) NewClient() *http.Client {
 	return &cc
 }
 
-// Get fetches the content at the given href using the package HTTP client.
-// func (t *Transporter) Get(ctx context.Context, request *Request) (*Response, error) {
-// 	var client *http.Client = t.NewClient()
-// 	var response *Response = &Response{}
-// 	var err error
-// 	if t == nil {
-// 		return nil, ErrTransporterReadiness
-// 	}
-// 	if response.Response, err = client.Do(request.Request); err != nil {
-// 		return nil, errors.Join(ErrResponse, fmt.Errorf("perform request: %w", err))
-// 	}
-// 	if response.StatusCode >= 200 && response.Response.StatusCode < 300 {
-// 		return nil, errors.Join(ErrResponse, fmt.Errorf("unexpected status: %s", response.Status))
-// 	}
-// 	return response, nil
-// }
-
 // Fetch performs the HTTP exchange for the provided request.
 // If the request is not ready, a typed error such as ErrRequestReadiness must be returned.
 func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, error) {
@@ -241,6 +223,7 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 	var cancellations []context.CancelFunc
 	var tracker *RedirectTracker = &RedirectTracker{max: t.Config.MaxRedirects, base: client.CheckRedirect}
 	var response *Response = &Response{}
+	var data []byte
 	var err error
 	// if t == nil {
 	// 	return nil, ErrInvalidRequest // If we need this check, then we also need to declare tracker after this block
@@ -262,16 +245,21 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 		response.ReceivedAt = time.Now()
 		response.Duration = response.ReceivedAt.Sub(request.CreatedAt)
 		response.RedirectChain = tracker.Snapshot()
-	} else if errors.Is(err, ErrTooManyRedirects) {
-		return nil, ErrTooManyRedirects
+	} else if errors.Is(err, ErrTransporterTooManyRedirects) {
+		return nil, ErrTransporterTooManyRedirects
 	} else {
 		return nil, err
 	}
 	if response.Response.StatusCode < 200 || response.Response.StatusCode >= 300 {
-		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
+		return response, fmt.Errorf("%w: %s", ErrTransporterResponse, response.Response.Status)
 	}
 	if response.Response.ContentLength > t.Config.MaxContentLength {
-		return response, ErrResponseTooLarge
+		return response, ErrTransporterResponseTooLarge
+	}
+	if data, err = io.ReadAll(response.Response.Body); err == nil {
+		response.Bytes = data
+	} else {
+		return nil, ErrTransporterResponse
 	}
 	return response, nil
 }
@@ -280,7 +268,7 @@ func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming
 	var requestContext context.Context
 	var requestTimeouts []time.Duration
 	if t == nil || ctx == nil || incoming == nil || incoming.URL == nil || incoming.Request != nil {
-		return nil, nil, ErrInvalidRequest
+		return nil, nil, ErrTransporterInvalidRequest
 	}
 
 	// timestamp the request
@@ -332,13 +320,13 @@ func (t *Transporter) Prepare(client *http.Client, ctx context.Context, incoming
 // The stub returns ErrNotImplemented until real logic is added.
 func (request *Request) Valid() (bool, error) {
 	if request == nil {
-		return false, ErrInvalidRequest
+		return false, ErrTransporterInvalidRequest
 	}
 	if request.Request == nil {
-		return false, ErrInvalidRequest
+		return false, ErrTransporterInvalidRequest
 	}
 	if request.Request.URL == nil {
-		return false, ErrInvalidRequest
+		return false, ErrTransporterInvalidRequest
 	}
 	return true, nil
 }
@@ -419,7 +407,7 @@ func (tracker *RedirectTracker) Track(req *http.Request, via []*http.Request) er
 		tracker.chain = append(tracker.chain, &u)
 	}
 	if tracker.max > 0 && len(via) >= tracker.max {
-		return ErrTooManyRedirects
+		return ErrTransporterTooManyRedirects
 	}
 	if tracker.base != nil {
 		return tracker.base(req, via)
@@ -457,20 +445,6 @@ func (response *Response) Redirected() bool {
 	return response.Response.StatusCode >= 300 && response.Response.StatusCode < 400
 }
 
-// LastModified parses and returns the Last-Modified header as a time.Time value.
-// If the header is missing or malformed, a zero time is returned.
-func (response *Response) LastModified() time.Time {
-	if response == nil || response.Response == nil {
-		return time.Time{}
-	}
-	if lm := response.Response.Header.Get("Last-Modified"); lm != "" {
-		if t, err := time.Parse(http.TimeFormat, lm); err == nil {
-			return t.UTC()
-		}
-	}
-	return time.Time{}
-}
-
 // ETags extracts and normalizes ETag values from the response headers.
 // If no ETag headers are present, an empty slice is returned.
 func (response *Response) ETags() []string {
@@ -479,6 +453,38 @@ func (response *Response) ETags() []string {
 	}
 	var raw []string = response.Response.Header.Values("ETag")
 	return etagValues(raw...)
+}
+
+// LastModified returns the Last-Modified header as a time.Time value.
+func (response *Response) LastModified() time.Time {
+	if response == nil || response.Response == nil {
+		return time.Time{}
+	}
+	return headerTimeValue(response.Response.Header, "Last-Modified")
+}
+
+// WaitUntil returns the Retry-After header as a time.Time value.
+func (response *Response) WaitUntil() (date time.Time) {
+	if response == nil || response.Response == nil {
+		return time.Time{}
+	}
+	return headerTimeValue(response.Response.Header, "Retry-After")
+}
+
+// RetryAfter returns the Retry-After header as a time.Duration value.
+func (response *Response) RetryAfter() (duration time.Duration) {
+	if response == nil || response.Response == nil {
+		return 0
+	}
+	return headerDurationValue(response.Response.Header, "Retry-After")
+}
+
+// PollInterval returns the X-Poll-Interval header as a time.Duration value.
+func (response *Response) PollInterval() (duration time.Duration) {
+	if response == nil || response.Response == nil {
+		return 0
+	}
+	return headerDurationValue(response.Response.Header, "X-Poll-Interval")
 }
 
 // ========================= Helper Functions ===========================
@@ -524,6 +530,26 @@ func etagValues(incoming ...string) []string {
 		values = append(values, value)
 	}
 	return values
+}
+
+func headerDurationValue(headers http.Header, name string) (duration time.Duration) {
+	var err error
+	if value := headers.Get(name); value == "" {
+		return 0
+	} else if duration, err = time.ParseDuration(value + "s"); err != nil {
+		return 0
+	}
+	return duration
+}
+
+func headerTimeValue(headers http.Header, name string) (date time.Time) {
+	var err error
+	if value := headers.Get(name); value == "" {
+		return time.Time{}
+	} else if date, err = time.Parse(http.TimeFormat, value); err != nil {
+		return time.Time{}
+	}
+	return date
 }
 
 func applyContextTimeout(ctx context.Context, timeouts ...time.Duration) (context.Context, context.CancelFunc) {
