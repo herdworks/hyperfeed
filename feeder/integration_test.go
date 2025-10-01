@@ -68,12 +68,12 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			// }
 			// t.Logf("feeder status: %s", string(statusBytes))
 
-			if err = feeder.Feed.Parse(); err != nil {
+			if err = feeder.Parse(); err != nil {
 				t.Fatalf("could not parse feed: %v", err)
 			}
-			t.Logf("Feed kind:      %s", feeder.Feed.RawFeed.Kind())
-			t.Logf("Feed raw items: %d", feeder.Feed.RawFeed.ItemCount())
-			t.Logf("Feed items:     %d", len(feeder.Feed.Items))
+			t.Logf("Feed kind:      %s", feeder.RawFeed.Kind())
+			t.Logf("Feed raw items: %d", feeder.RawFeed.ItemCount())
+			t.Logf("Feed items:     %d", len(feeder.Items))
 
 			// TODO: write to storage!
 		})
