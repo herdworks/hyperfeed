@@ -4,10 +4,13 @@ package feeder
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/url"
+	"path/filepath"
 	"testing"
 
+	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
@@ -25,6 +28,13 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			err: nil,
 		},
 		{
+			name: "valid atom feeds",
+			feed: &hyperfeed.Feed{
+				URL: &url.URL{Scheme: "https", Host: "feeds.kottke.org", Path: "/main"},
+			},
+			err: nil,
+		},
+		{
 			name: "valid jsonfeed feed",
 			feed: &hyperfeed.Feed{
 				URL: &url.URL{Scheme: "https", Host: "daringfireball.net", Path: "/feeds/json"},
@@ -32,23 +42,28 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			err: nil,
 		},
 		{
-			name: "valid atom feed",
+			name: "rss feed with attachments",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "feeds.kottke.org", Path: "/main"},
+				URL: &url.URL{Scheme: "https", Host: "daringfireball.net", Path: "/thetalkshow/rss"},
 			},
 			err: nil,
 		},
 		{
 			name: "nil feed",
 			feed: nil,
-			err:  ErrFeederRequest,
+			err:  ErrFeed,
 		},
 	}
 	for _, tc := range tests {
+		var ctx context.Context = context.Background()
+		var db *database.Database = &database.Database{Path: filepath.Join("testdata", "test.db")}
+		// if err := db.Destroy(); err != nil {
+		// 	t.Fatalf("destroy test.db: %v", err)
+		// }
 		t.Run(tc.name, func(t *testing.T) {
-			var feeder Feeder = Feeder{Feed: tc.feed}
+			var feeder Feeder = Feeder{Feed: tc.feed, Database: db}
 			var err error
-			if err = feeder.Tick(context.Background()); tc.err != nil && errors.Is(err, tc.err) {
+			if err = feeder.Tick(ctx); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
 			} else if tc.err != nil && err == nil {
 				t.Fatalf("expected error\nwanted: %v\n   got nil", tc.err)
@@ -63,10 +78,11 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			}
 
 			// feeder.status to json
-			// if statusBytes, err = json.MarshalIndent(feeder.Status, "", "  "); err != nil {
-			// 	t.Fatalf("could not marshal status to JSON: %v", err)
-			// }
-			// t.Logf("feeder status: %s", string(statusBytes))
+			var statusBytes []byte
+			if statusBytes, err = json.Marshal(feeder.Status); err != nil {
+				t.Fatalf("could not marshal status to JSON: %v", err)
+			}
+			t.Logf("feeder status: %s", string(statusBytes))
 
 			if err = feeder.Parse(); err != nil {
 				t.Fatalf("could not parse feed: %v", err)
@@ -75,7 +91,18 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			t.Logf("Feed raw items: %d", feeder.RawFeed.ItemCount())
 			t.Logf("Feed items:     %d", len(feeder.Items))
 
-			// TODO: write to storage!
+			// Write to the database
+			if err = feeder.Database.Open(ctx); err == nil {
+				t.Cleanup(func() { feeder.Database.Close() })
+			} else {
+				t.Fatalf("open test.db: %v", err)
+			}
+			if err = feeder.SaveFeed(ctx); err != nil {
+				t.Fatalf("saving feed: %v", err)
+			}
+			if err = feeder.SaveItems(ctx); err != nil {
+				t.Fatalf("saving items: %v", err)
+			}
 		})
 	}
 }

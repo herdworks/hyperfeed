@@ -48,3 +48,10 @@ func TestDetectKind(t *testing.T) {
 		t.Logf("Kind %q for feed file %q (%d items)", feedKind, f.Name(), feed.RawFeed.ItemCount())
 	}
 }
+
+func TestFeedRowCompliance(t *testing.T) {
+	var feed Feed = Feed{}
+	if err := RowComplianceTest(&feed); err != nil {
+		t.Fatalf("Feed Row compliance failed: %v", err)
+	}
+}

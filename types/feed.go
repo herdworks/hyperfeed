@@ -2,6 +2,8 @@ package hyperfeed
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -9,24 +11,106 @@ import (
 	"github.com/herdworks/hypertemplates-go/atom"
 )
 
+// ============================ Package Types =================================
+
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
-	URL         *url.URL  `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
-	ID          string    `json:"id,omitempty"`  // stable HyperFeed identifier (e.g. hash of feed URL path+query)
-	Title       string    `json:"title,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Language    string    `json:"language,omitempty"`
-	Updated     time.Time `json:"updated,omitempty"`
-	Authors     []Author  `json:"authors,omitempty"`
-	Metadata    Metadata  `json:"metadata,omitempty"` // Non-standard/extension properties
-	Items       []*Item   `json:"items,omitempty"`    // the most recent items for this feed
-	Bytes       []byte    `json:"-"`                  // the most recent contents (raw bytes) for this feed
-	RawFeed     RawFeed   `json:"-"`                  // RSS, Atom, or JSON Feed representation of the feed
+	ID          string      `json:"id,omitempty"`  // stable HyperFeed identifier (e.g. hash of feed URL path+query)
+	URL         *url.URL    `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
+	Updated     time.Time   `json:"updated,omitempty"`
+	Language    string      `json:"language,omitempty"`
+	Title       string      `json:"title,omitempty"`
+	Description string      `json:"description,omitempty"`
+	Authors     []Author    `json:"authors,omitempty"`
+	Metadata    Metadata    `json:"metadata,omitempty"` // Non-standard/extension properties
+	Items       []*Item     `json:"items,omitempty"`    // the most recent items for this feed
+	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
+
+	Bytes   []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
+	RawFeed RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
+}
+
+// FeedStatus represents feed state (schedule, rate limiting, etc)
+type FeedStatus struct {
+	// CreatedAt indicates when the feed was first scheduled.
+	CreatedAt time.Time `json:"created_at"`
+
+	// UpdatedAt indicates when the state was last modified.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// LastAttemptAt is when we most recently attempted a fetch, successful or not.
+	LastAttemptAt time.Time `json:"last_attempt_at"`
+
+	// LastSuccessAt is when we most recently fetched new content.
+	LastSuccessAt time.Time `json:"last_success_at"`
+
+	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
+	LastErrorAt time.Time `json:"last_error_at"`
+
+	// PausedUntil stores user-imposed pause windows (manual snooze).
+	PausedUntil time.Time `json:"paused_until"`
+
+	// ETag stores the value of the ETag header from the last successful fetch.
+	ETag string `json:"etag"`
+
+	// ContentLength stores the value of the Content-Length header from the last successful fetch.
+	ContentLength int64 `json:"content_length"`
+
+	// LastModified stores the value of the Last-Modified header from the last successful fetch.
+	LastModified time.Time `json:"last_modified"`
+
+	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
+	LastStatusCode int `json:"last_status_code"`
+
+	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
+	LastStatusCodes []int `json:"last_status_codes"`
+
+	// RateLimit captures rate limiting information supplied by the origin.
+	RateLimit FeedRateLimit `json:"rate_limit"`
+
+	// CacheControl stores parsed HTTP cache headers.
+	CacheControl FeedCacheControl `json:"cache_control"`
+
+	// Headers stores the raw headers from the most recent fetch to support future hint extraction.
+	Headers http.Header `json:"headers"`
+}
+
+// FeedRateLimit captures rate limiting signals via HTTP 429/5xx status codes and related headers.
+type FeedRateLimit struct {
+	WaitUntil    time.Time     `json:"wait_until"`    // Retry-After time
+	RetryAfter   time.Duration `json:"retry_after"`   // Retry-After seconds
+	PollInterval time.Duration `json:"poll_interval"` // X-Poll-Interval in seconds
+	Recent429s   int           `json:"recent_429s"`   // count of 429 responses in the last 30 requests
+	Recent5xxs   int           `json:"recent_5xxs"`   // count of 5xx responses in the last 30 requests
+	// TODO: implement support for X-RateLimit-Remaining headers?
+	// TODO: implement support for X-RateLimit-Reset headers?
+	// TODO: implement support for X-RateLimit-Window headers?
+}
+
+// FeedCacheControl normalizes cache metadata from HTTP headers.
+type FeedCacheControl struct {
+	Age          time.Duration `json:"age"`
+	MaxAge       time.Duration `json:"max_age"`
+	SharedMaxAge time.Duration `json:"shared_max_age"`
+	ExpiresAt    time.Time     `json:"expires_at"`
+	ETagMismatch bool          `json:"etag_mismatch"`
 }
 
 // FeedKind is a feed type/version pair (e.g., "rss/2.0")
 type FeedKind string
 
+// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed)
+// before normalization. Implementations should report their concrete kind
+// and version via Kind().
+type RawFeed interface {
+	Kind() FeedKind      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
+	ItemCount() int      // returns the number of items in the feed
+	ParseItems() []*Item // parses and returns the feed's items
+}
+
+// ============================ Package Variables =============================
+
+// FeedKind enumeration
 const (
 	// Unknown or unspecified
 	FeedKindUnknown      FeedKind = ""
@@ -41,15 +125,6 @@ const (
 	FeedKindJSONFeed_1_0 FeedKind = "jsonfeed/1.0"
 	FeedKindJSONFeed_1_1 FeedKind = "jsonfeed/1.1"
 )
-
-// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed)
-// before normalization. Implementations should report their concrete kind
-// and version via Kind().
-type RawFeed interface {
-	Kind() FeedKind      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
-	ItemCount() int      // returns the number of items in the feed
-	ParseItems() []*Item // parses and returns the feed's items
-}
 
 // ============================ Feed Methods ==================================
 
@@ -106,4 +181,49 @@ func (feed *Feed) Parse() (err error) {
 		feed.Items = feed.RawFeed.ParseItems()
 	}
 	return nil
+}
+
+func (feed *Feed) RowTable() string {
+	return "feeds"
+}
+func (feed *Feed) RowColumns() []string {
+	return []string{
+		"id",
+		"url",
+		"updated_at",
+		"title",
+		"description",
+		"language",
+		"status",
+	}
+}
+func (feed *Feed) RowArguments() (args []any) {
+	if feed.URL == nil {
+		feed.URL, _ = url.Parse("")
+	}
+	args = append(args, feed.Identifier())                     // id
+	args = append(args, normalized.URL(feed.URL).String())     // url
+	args = append(args, time.Now().UTC().Format(time.RFC3339)) // updated_at
+	args = append(args, feed.Title)
+	args = append(args, feed.Description)
+	args = append(args, feed.Language)
+	if statusBytes, err := json.Marshal(feed.Status); err == nil && statusBytes != nil {
+		args = append(args, string(statusBytes)) // status
+	} else {
+		args = append(args, "{}") // emtpy status
+	}
+	return args
+}
+func (feed *Feed) RowUpdates() (updates [][2]string) {
+	// ON CONFLICT DO UPDATE SET ...
+	return [][2]string{
+		{"url", "excluded.url"},
+		{"title", "excluded.title"},
+		{"description", "excluded.description"},
+		{"language", "excluded.language"},
+		{"updated_at", "excluded.updated_at"},
+	}
+}
+func (feed *Feed) RowPK() string {
+	return "id"
 }

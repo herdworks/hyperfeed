@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 
-	"github.com/herdworks/hyperfeed-go/internal/state"
+	"github.com/herdworks/hyperfeed-go/internal/database"
 	"github.com/herdworks/hyperfeed-go/internal/transporter"
 )
 
@@ -19,99 +18,11 @@ import (
 type Feeder struct {
 	*hyperfeed.Feed
 
-	Config *Config
-	Status *Status
-	Clock  Clock
+	Interval time.Duration
 
-	State       *state.State
+	Clock       Clock // TODO
 	Transporter *transporter.Transporter
-}
-
-// Config provides runtime configuration for a Feeder instance.
-// TODO: should this become a Feeder.Interval field and a SubscriberConfig struct?
-type Config struct {
-	// DefaultInterval is the baseline polling interval when no hints are available.
-	// Implementations must never schedule requests more frequently than this value.
-	DefaultInterval time.Duration `json:"default_interval"`
-
-	// MinInterval constrains how aggressively we can poll, even when feeds publish explicit TTL hints.
-	// Implementations must clamp decisions to this floor to avoid overwhelming origins.
-	MinInterval time.Duration `json:"min_interval"`
-
-	// MaxInterval caps how stale a feed is allowed to become.
-	// Implementations must clamp decisions to this ceiling even when the origin suggests very long TTLs, unless the operator explicitly overrides the value.
-	MaxInterval time.Duration `json:"max_interval"`
-
-	// StartupGracePeriod allows newly subscribed feeds to be fetched more aggressively during onboarding without violating server hints.
-	StartupGracePeriod time.Duration `json:"startup_grace_period"`
-}
-
-// Status captures everything the feeder must persist across ticks.
-// The contract intentionally mirrors HTTP semantics and feed hints so we can satisfy the requirements outlined in the Feed Reader Behavior document.
-type Status struct {
-	// CreatedAt indicates when the feed was first scheduled.
-	CreatedAt time.Time `json:"created_at"`
-
-	// UpdatedAt indicates when the state was last modified.
-	UpdatedAt time.Time `json:"updated_at"`
-
-	// LastAttemptAt is when we most recently attempted a fetch, successful or not.
-	LastAttemptAt time.Time `json:"last_attempt_at"`
-
-	// LastSuccessAt is when we most recently fetched new content.
-	LastSuccessAt time.Time `json:"last_success_at"`
-
-	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
-	LastErrorAt time.Time `json:"last_error_at"`
-
-	// PausedUntil stores user-imposed pause windows (manual snooze).
-	PausedUntil time.Time `json:"paused_until"`
-
-	// ETag stores the value of the ETag header from the last successful fetch.
-	ETag string `json:"etag"`
-
-	// ContentLength stores the value of the Content-Length header from the last successful fetch.
-	ContentLength int64 `json:"content_length"`
-
-	// LastModified stores the value of the Last-Modified header from the last successful fetch.
-	LastModified time.Time `json:"last_modified"`
-
-	// LastStatusCode stores the HTTP status code returned on the last attempt, including 304 and error codes.
-	LastStatusCode int `json:"last_status_code"`
-
-	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
-	LastStatusCodes []int `json:"last_status_codes"`
-
-	// CacheControl stores parsed HTTP cache headers.
-	CacheControl CacheControl `json:"cache_control"`
-
-	// RateLimit captures rate limiting information supplied by the origin.
-	RateLimit RateLimit `json:"rate_limit"`
-
-	// Headers stores the raw headers from the most recent fetch to support future hint extraction.
-	Headers http.Header `json:"headers"`
-}
-
-// RateLimit captures how often we are allowed to poll an origin as signaled by HTTP 429/503 and related headers.
-// The feeder persists this structure across ticks.
-type RateLimit struct {
-	WaitUntil    time.Time     `json:"wait_until"`    // Retry-After time
-	RetryAfter   time.Duration `json:"retry_after"`   // Retry-After seconds
-	PollInterval time.Duration `json:"poll_interval"` // X-Poll-Interval in seconds
-	Recent429s   int           `json:"recent_429s"`   // count of 429 responses in the last 30 requests
-	Recent5xxs   int           `json:"recent_5xxs"`   // count of 5xx responses in the last 30 requests
-	// Remaining             int           `json:"remaining"` // X-RateLimit-Remaining
-	// Reset                 time.Time     `json:"reset"` // X-RateLimit-Reset
-	// Window                string        `json:"window"` // X-RateLimit-Window
-}
-
-// CacheControl normalizes cache metadata from HTTP headers.
-type CacheControl struct {
-	Age          time.Duration `json:"age"`
-	MaxAge       time.Duration `json:"max_age"`
-	SharedMaxAge time.Duration `json:"shared_max_age"`
-	ExpiresAt    time.Time     `json:"expires_at"`
-	ETagMismatch bool          `json:"etag_mismatch"`
+	Database    *database.Database
 }
 
 // Clock abstracts time so tests can inject deterministic clocks.
@@ -124,17 +35,10 @@ type Clock interface {
 // errors
 var (
 	ErrNotImplemented = errors.New("not implemented")
+	ErrReadiness      = errors.New("feeder not ready")
+	ErrFeed           = errors.New("invalid feed")
 	ErrRequest        = errors.New("request error")
-)
-
-// defaults
-var (
-	DefaultFeederConfig = &Config{
-		DefaultInterval:    15 * time.Minute,
-		MinInterval:        time.Minute,
-		MaxInterval:        12 * time.Hour,
-		StartupGracePeriod: 5 * time.Minute,
-	}
+	ErrDatabase       = errors.New("database error")
 )
 
 // ========================= Feeder Methods =============================
@@ -146,8 +50,8 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 	var request *transporter.Request
 	var response *transporter.Response
 	var err error
-	if ready, reason := feeder.Ready(); !ready {
-		return fmt.Errorf("not ready: %s", reason)
+	if ready, err := feeder.Ready(); !ready {
+		return errors.Join(ErrReadiness, err)
 	}
 	if request, err = feeder.Request(); err != nil {
 		return err
@@ -158,28 +62,32 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 	if response, err = feeder.Transporter.Fetch(ctx, request); err != nil {
 		return feeder.Log(response, err)
 	}
+	feeder.Feed.Updated = time.Now().UTC()
 	return feeder.Apply(ctx, response)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
-func (feeder *Feeder) Ready() (ready bool, reason string) {
+func (feeder *Feeder) Ready() (ready bool, err error) {
 	var tick time.Time = time.Now().UTC()
-	if feeder.Status == nil {
-		return true, "new feed"
+	if feeder.Feed == nil {
+		return false, ErrFeed // feeder must have a feed
 	}
-	if tick.Before(feeder.Status.UpdatedAt.Add(feeder.Config.MinInterval)) {
-		return false, "updated too recently"
+	if feeder.Feed.Status == nil {
+		return true, nil // new feed
 	}
 	if tick.Before(feeder.Status.PausedUntil) {
-		return false, fmt.Sprintf("paused until %s", feeder.Status.PausedUntil)
+		return false, nil // feed is paused
+	}
+	if tick.Before(feeder.Status.UpdatedAt.Add(feeder.Interval)) {
+		return false, nil // not enough time has passed since last update
 	}
 	if tick.Before(feeder.Status.RateLimit.WaitUntil) {
-		return false, fmt.Sprintf("rate limited until %s", feeder.Status.RateLimit.WaitUntil)
+		return false, nil // rate limited
 	}
 	if retryAfter := feeder.Status.LastAttemptAt.Add(feeder.Status.RateLimit.RetryAfter); tick.Before(retryAfter) {
-		return false, fmt.Sprintf("rate limited until %s", retryAfter)
+		return false, nil // rate limited
 	}
-	return true, "ready"
+	return true, nil
 }
 
 // Request builds a transporter.Request for the current feed and status.
@@ -205,14 +113,6 @@ func (feeder *Feeder) Conditions() (conditions []transporter.Condition) {
 		transporter.Condition{
 			Kind:      transporter.ConditionLastOK,
 			TimeValue: feeder.Status.LastSuccessAt,
-		},
-		transporter.Condition{
-			Kind:          transporter.ConditionMinInterval,
-			DurationValue: feeder.Config.MinInterval,
-		},
-		transporter.Condition{
-			Kind:          transporter.ConditionMaxInterval,
-			DurationValue: feeder.Config.MaxInterval,
 		},
 		transporter.Condition{
 			Kind:          transporter.ConditionRateLimit,
@@ -249,11 +149,10 @@ func (feeder *Feeder) Conditions() (conditions []transporter.Condition) {
 }
 
 // Apply updates the feeder state based on the transporter response.
-// Implementation must update error counters, compute backoff, and persist
-// state.
+// Implementation must update error counters, compute backoff, and persist state.
 func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response) error {
 	if feeder.Status == nil {
-		feeder.Status = &Status{LastStatusCodes: []int{}}
+		feeder.Status = &hyperfeed.FeedStatus{LastStatusCodes: []int{}}
 	}
 	if response == nil || response.Request == nil {
 		feeder.Status.LastAttemptAt = time.Now().UTC()
@@ -308,6 +207,28 @@ func (feeder *Feeder) ApplyBody(response *transporter.Response) {
 // Log persists failure information for the current tick.
 func (feeder *Feeder) Log(response *transporter.Response, err error) error {
 	return ErrNotImplemented
+}
+
+// Save persists the current feed and status to storage
+func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
+	if err = feeder.Database.PingContext(ctx); err != nil {
+		return errors.Join(ErrDatabase, err)
+	}
+	if err = feeder.Database.UpsertRowValue(ctx, feeder.Feed); err != nil {
+		return errors.Join(ErrDatabase, err)
+	}
+	return nil
+}
+func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
+	if err = feeder.Database.PingContext(ctx); err != nil {
+		return errors.Join(ErrDatabase, err)
+	}
+	for _, item := range feeder.Items {
+		if err = feeder.Database.UpsertRowValue(ctx, item); err != nil {
+			return errors.Join(ErrDatabase, err)
+		}
+	}
+	return nil
 }
 
 // ========================= Helper Functions ===========================

@@ -95,7 +95,7 @@ func (jf *JSONFeed) ParseItems() (items []*Item) {
 }
 func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item) {
 	item = &Item{}
-
+	item.Added = time.Now().UTC()
 	item.ID = jsonfeeditem.ID
 	item.Title = jsonfeeditem.Title
 	item.Summary = jsonfeeditem.Summary
@@ -140,7 +140,7 @@ func (jf *JSONFeed) ToAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
 		author.URL = u
 	}
 	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil {
-		author.Avatar = u
+		author.Favicon = u
 	}
 	return author
 }

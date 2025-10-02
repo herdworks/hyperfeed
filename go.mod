@@ -12,7 +12,7 @@ require (
 // local development dependencies (replacements)
 //
 // uncomment to use local dependencies
-// replace github.com/herdworks/hypertemplates-go => ../hypertemplates-go
+replace github.com/herdworks/hypertemplates-go => ../hypertemplates-go
 
 // transitive dependencies
 require golang.org/x/text v0.28.0 // indirect

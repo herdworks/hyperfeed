@@ -3,6 +3,7 @@ package hyperfeed
 import (
 	"encoding/xml"
 	"net/url"
+	"time"
 
 	"github.com/herdworks/hypertemplates-go/atom"
 )
@@ -36,15 +37,20 @@ func (atom *Atom) ParseItems() (items []*Item) {
 }
 
 func (atom *Atom) ParseItem(entry *atom.Entry) (item *Item, err error) {
-	item = &Item{}
 	if entry == nil {
 		return nil, nil
 	}
 
+	item = &Item{}
+	item.Added = time.Now().UTC()
 	item.ID = entry.ID
 	item.Title = entry.Title
-	item.Published = entry.Published.Time.UTC()
-	item.Updated = entry.Updated.Time.UTC()
+	if t, err := time.Parse(time.RFC3339, entry.Published); err == nil {
+		item.Published = t.UTC()
+	}
+	if t, err := time.Parse(time.RFC3339, entry.Updated); err == nil {
+		item.Updated = t.UTC()
+	}
 	if entry.Summary != nil {
 		item.Summary = entry.Summary.Body
 	}

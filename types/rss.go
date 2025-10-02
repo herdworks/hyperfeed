@@ -144,6 +144,7 @@ func (r *RSS) ParseItems() (items []*Item) {
 }
 func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	item = &Item{}
+	item.Added = time.Now().UTC()
 	item.Title = rssitem.Title
 	item.Summary = rssitem.Description
 	if item.URL, err = url.Parse(rssitem.Link); err != nil {
