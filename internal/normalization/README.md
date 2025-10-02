@@ -1,7 +1,7 @@
 # Internal Normalization
 
 The `internal/normalization` package centralizes URL and string normalization
-so all components (parsers, discovery, scheduler, storage) produce consistent
+so all components (parsers, discovery, scheduler, database) produce consistent
 canonical identifiers and links.
 
 Guidelines

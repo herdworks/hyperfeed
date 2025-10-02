@@ -209,7 +209,7 @@ func (feeder *Feeder) Log(response *transporter.Response, err error) error {
 	return ErrNotImplemented
 }
 
-// Save persists the current feed and status to storage
+// Save persists the current feed and status to the database
 func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 	if err = feeder.Database.PingContext(ctx); err != nil {
 		return errors.Join(ErrDatabase, err)

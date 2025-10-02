@@ -9,7 +9,7 @@ HyperFeed doesn't differentiate between text-based feeds and other content types
 * Support for parsing RSS (0.90–2.0), Atom (0.3/1.0), and JSON Feed (1.x)
 * Tolerant of common feed defects (bad dates, undeclared namespaces, etc.)
 * Standards compliant request management (conditional requests, respects rate limiting / backoff headers)
-* Robust filterable storage system for quick subscription navigation and offline reading
+* Robust local database for quick subscription navigation and offline reading
 
 ## Packages
 
@@ -18,7 +18,7 @@ HyperFeed functionality is organized into the following packages:
 * `herdworks/hyperfeed-go/types`: the core HyperFeed types
 * `herdworks/hyperfeed-go/subscriber`: a Subscriber manages a SubscriptionList
 * `herdworks/hyperfeed-go/feeder`: a Feeder manages a Feed
-* `herdworks/hyperfeed-go/internal`: transport, storage, cache, etc
+* `herdworks/hyperfeed-go/internal`: transport, database, cache, etc
 
 ## Types
 
@@ -40,7 +40,7 @@ Shared logic about common type operations will live in the corresponding type so
 * Client: the hyperfeed entry point.
   * Initialized via an OPML file path and options.
   * Defaults the root filesystem to `filepath.Dir(opmlPath)`
-  * Ensures write access for `storage`, `state`, and `cache`
+  * Ensures write access for `database`, `state`, and `cache`
   * Configures the subscriber
 
 * Subscriber: the subscription manager (multiple feeds).
@@ -53,6 +53,6 @@ Shared logic about common type operations will live in the corresponding type so
 * Feeder: the feed reader (single feed).
   * Configured with a feed, an interval, and a start time;
   * Evaluates schedule state on each tick to determine when to fetch (respects rate limits/backoff).
-  * Uses `transporter` to fetch, `storage` to persist items, and `cache` to store assets.
+  * Uses `transporter` to fetch, `database` to persist items, and `cache` to store assets.
   * Shares state/stats upward by communicating, not by shared mutable structures.
   * NOTE: the `scheduler` package focuses solely on single‑feed scheduling semantics
