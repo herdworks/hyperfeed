@@ -36,7 +36,7 @@ var CleanPathReservedFileNames = []string{
 // - Removes trailing slash from path (except for root "/")
 func URL(incoming *url.URL) *url.URL {
 	if incoming == nil {
-		return nil
+		return &url.URL{}
 	}
 	normalized := *incoming // shallow copy
 	if normalized.Scheme != "" {
