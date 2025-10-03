@@ -10,7 +10,6 @@ type Row interface {
 	RowColumns() []string
 	RowArguments() []any
 	RowUpdates() [][2]string
-	RowPK() string
 }
 
 func RowComplianceTest(row Row) (err error) {

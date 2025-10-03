@@ -3,11 +3,13 @@ package database
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	_ "github.com/mattn/go-sqlite3"
@@ -33,8 +35,15 @@ type Options struct {
 // errors
 var (
 	ErrNotImplemented = errors.New("not implemented")
-	ErrDatabaseConfig = errors.New("database configuration invalid")
+	ErrConfig         = errors.New("database configuration invalid")
 	// TODO: replace errors.New() and fmt.Errorf() with error variables
+)
+
+//go:embed sql/*
+var sqlFS embed.FS
+
+var (
+	schema []byte
 )
 
 // ============================ Database Methods =================================
@@ -45,6 +54,20 @@ func (db *Database) DSN() (dsn string) {
 		dsn += "&mode=ro"
 	}
 	return dsn
+}
+
+func Schema() (b []byte, err error) {
+	var schemaOnce sync.Once
+	if schema != nil {
+		return schema, nil
+	}
+	schemaOnce.Do(func() {
+		if schema, err = sqlFS.ReadFile("sql/schema.sql"); err != nil {
+			err = fmt.Errorf("database read sql/schema.sql: %w", err)
+			return
+		}
+	})
+	return schema, err
 }
 
 func (db *Database) Create() (err error) {
@@ -70,7 +93,7 @@ func (db *Database) Create() (err error) {
 
 func (db *Database) Destroy() (err error) {
 	if len(db.Path) == 0 {
-		return errors.Join(ErrDatabaseConfig, errors.New("Database.Path is required"))
+		return errors.Join(ErrConfig, errors.New("Database.Path is required"))
 	}
 	if err = db.Close(); err != nil {
 		return err
@@ -160,15 +183,15 @@ func (db *Database) UpsertRowValue(ctx context.Context, row hyperfeed.Row) (err 
 
 // ============================ Helper Methods ===================================
 func RowInsertStatement(row hyperfeed.Row) (query string) {
-	query += fmt.Sprintf("INSERT INTO %s(%s)", row.RowTable(), strings.Join(row.RowColumns(), ", "))
-	query += fmt.Sprintf("VALUES(%s)", strings.Join(RowValues(row), ", "))
-	query += fmt.Sprintf("ON CONFLICT(%s) DO NOTHING", row.RowPK())
+	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
+	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
+	query += "ON CONFLICT DO NOTHING"
 	return query
 }
 func RowUpsertStatement(row hyperfeed.Row) (query string) {
-	query += fmt.Sprintf("INSERT INTO %s(%s)", row.RowTable(), strings.Join(row.RowColumns(), ", "))
-	query += fmt.Sprintf("VALUES(%s)", strings.Join(RowValues(row), ", "))
-	query += fmt.Sprintf("ON CONFLICT(%s) DO UPDATE SET %s", row.RowPK(), RowUpdatesSet(row))
+	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
+	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
+	query += fmt.Sprintf("ON CONFLICT DO UPDATE SET %s", RowUpdatesSet(row))
 	return query
 }
 func RowValues(row hyperfeed.Row) (values []string) {

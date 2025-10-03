@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [description] TEXT,
     [language] TEXT,
 
-    [status] TEXT, -- Feeder.Status JSON string
+    [status] TEXT, -- Feed.Status JSON string
 
     [subscriptionlist_id] TEXT REFERENCES subscriptionlists(id),
 
@@ -59,17 +59,17 @@ CREATE TABLE IF NOT EXISTS authors (
 
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
-    [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
-    [title] TEXT,
+    [id] TEXT NOT NULL DEFAULT( lower(hex(randomblob(4))) ),
     [url] TEXT,
     [size] INTEGER,
     [duration] INTEGER,
     [mimetype] TEXT,
+    [title] TEXT,
     [labels] TEXT,
 
     [item_id] TEXT REFERENCES items(id),
 
-    PRIMARY KEY (id)
+    PRIMARY KEY (url,item_id) -- Composite PK
 );
 
 -- Metadata table

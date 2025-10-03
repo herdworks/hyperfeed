@@ -87,13 +87,17 @@ func (jf *JSONFeed) ItemCount() int {
 }
 
 // RawFeed.Items() compliance
-func (jf *JSONFeed) ParseItems() (items []*Item) {
+func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
 	for _, i := range jf.Items {
-		items = append(items, jf.ParseItem(&i))
+		if item, err := jf.ParseItem(&i); err == nil {
+			items = append(items, item)
+		} else {
+			return items, err
+		}
 	}
-	return items
+	return items, nil
 }
-func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item) {
+func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item, err error) {
 	item = &Item{}
 	item.Added = time.Now().UTC()
 	item.ID = jsonfeeditem.ID
@@ -128,7 +132,24 @@ func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item) {
 	for _, author := range jsonfeeditem.Authors {
 		item.Authors = append(item.Authors, *jf.ToAuthor(&author))
 	}
-	return item
+	for _, attachment := range jsonfeeditem.Attachments {
+		if a, err := jf.ParseAttachment(jsonfeeditem, &attachment); err == nil && a != nil {
+			item.Attachments = append(item.Attachments, *a)
+		}
+	}
+	return item, nil
+}
+func (jf *JSONFeed) ParseAttachment(jsonfeeditem *JSONItem, jfattachment *JSONFeedAttachment) (attachment *Attachment, err error) {
+	attachment = &Attachment{}
+	if attachment.URL, err = url.Parse(jfattachment.URL); err != nil {
+		return nil, err
+	}
+	attachment.Size = jfattachment.SizeInBytes
+	attachment.Mimetype = jfattachment.MimeType
+	attachment.Title = jfattachment.Title
+	attachment.Duration = jfattachment.DurationInSecond
+	attachment.ItemID = jsonfeeditem.ID
+	return attachment, nil
 }
 
 func (jf *JSONFeed) ToAuthor(jfauthor *JSONFeedAuthor) (author *Author) {

@@ -4,7 +4,6 @@ package feeder
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/url"
 	"path/filepath"
@@ -63,6 +62,8 @@ func TestSchedulerTickIntegration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var feeder Feeder = Feeder{Feed: tc.feed, Database: db}
 			var err error
+
+			// feeder.Tick()
 			if err = feeder.Tick(ctx); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
 			} else if tc.err != nil && err == nil {
@@ -77,21 +78,19 @@ func TestSchedulerTickIntegration(t *testing.T) {
 				t.Fatalf("feeder.Status.LastAttemptAt not set")
 			}
 
-			// feeder.status to json
-			var statusBytes []byte
-			if statusBytes, err = json.Marshal(feeder.Status); err != nil {
-				t.Fatalf("could not marshal status to JSON: %v", err)
-			}
-			t.Logf("feeder status: %s", string(statusBytes))
-
-			if err = feeder.Parse(); err != nil {
+			// feeder.Parse()
+			if err = feeder.Parse(); err == nil {
+				t.Logf("Feed kind:      %s", feeder.RawFeed.Kind())
+				t.Logf("Feed raw items: %d", feeder.RawFeed.ItemCount())
+				t.Logf("Feed items:     %d", len(feeder.Items))
+			} else {
 				t.Fatalf("could not parse feed: %v", err)
 			}
-			t.Logf("Feed kind:      %s", feeder.RawFeed.Kind())
-			t.Logf("Feed raw items: %d", feeder.RawFeed.ItemCount())
-			t.Logf("Feed items:     %d", len(feeder.Items))
+			if feeder.RawFeed.ItemCount() != len(feeder.Items) {
+				t.Fatalf("item count mismatch: RawFeed.ItemCount()=%d but len(Items)=%d", feeder.RawFeed.ItemCount(), len(feeder.Items))
+			}
 
-			// Write to the database
+			// Feeder.SaveFeed() and Feeder.SaveItems()
 			if err = feeder.Database.Open(ctx); err == nil {
 				t.Cleanup(func() { feeder.Database.Close() })
 			} else {

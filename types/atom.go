@@ -130,15 +130,16 @@ func (atom *Atom) ItemCount() int {
 }
 
 // RawFeed.ParseItems() compliance
-func (atom *Atom) ParseItems() (items []*Item) {
+func (atom *Atom) ParseItems() (items []*Item, err error) {
 	for _, atomentry := range atom.Entry {
-		item, err := atom.ParseItem(atomentry)
-		if err != nil {
-			continue
+		if item, err := atom.ParseItem(atomentry); err == nil {
+			items = append(items, item)
+		} else {
+			return items, err
 		}
-		items = append(items, item)
+
 	}
-	return items
+	return items, nil
 }
 
 func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
@@ -172,9 +173,9 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 		case "alternate", "":
 			item.URL = u
 		case "enclosure":
-			item.Attachments = append(item.Attachments, Attachment{
-				URL: u,
-			})
+			if a, err := atom.ParseAttachment(entry, &link); err == nil && a != nil {
+				item.Attachments = append(item.Attachments, *a)
+			}
 		default:
 			item.Links = append(item.Links, u)
 		}
@@ -193,6 +194,26 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 		})
 	}
 	return item, nil
+}
+
+func (atom *Atom) ParseAttachment(entry *AtomEntry, link *AtomLink) (attachment *Attachment, err error) {
+	attachment = &Attachment{}
+	if link == nil || link.Rel != "enclosure" {
+		return nil, nil // noop
+	}
+	if u, err := url.Parse(link.Href); err == nil && u != nil {
+		attachment.URL = u
+	}
+	attachment.Title = link.Title
+	attachment.Size = int64(link.Length)
+	attachment.Mimetype = link.Type
+	for _, l := range entry.Link {
+		if l.Rel != "alternate" {
+			continue
+		}
+		attachment.ItemID = entry.ID
+	}
+	return attachment, nil
 }
 
 func (atom *Atom) Unmarshal(data []byte) error {

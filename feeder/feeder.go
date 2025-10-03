@@ -227,6 +227,11 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 		if err = feeder.Database.UpsertRowValue(ctx, item); err != nil {
 			return errors.Join(ErrDatabase, err)
 		}
+		for _, attachment := range item.Attachments {
+			if err = feeder.Database.UpsertRowValue(ctx, &attachment); err != nil {
+				return errors.Join(ErrDatabase, err)
+			}
+		}
 	}
 	return nil
 }

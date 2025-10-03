@@ -59,9 +59,9 @@ type RSSItem struct {
 }
 
 type RSSEnclosure struct {
-	URL    string `xml:"url,attr"`
-	Length string `xml:"length,attr"`
-	Type   string `xml:"type,attr"`
+	URL    string `xml:"url,attr"`    // URL of the enclosure
+	Length string `xml:"length,attr"` // Size in bytes
+	Type   string `xml:"type,attr"`   // MIME type
 }
 
 // RSSGUID may include the isPermaLink attribute.
@@ -132,15 +132,15 @@ func (r *RSS) ItemCount() int {
 }
 
 // RawFeed.ParseItems() compliance
-func (r *RSS) ParseItems() (items []*Item) {
+func (r *RSS) ParseItems() (items []*Item, err error) {
 	for _, rssitem := range r.Channel.Items {
-		item, err := r.ParseItem(&rssitem)
-		if err != nil {
-			continue
+		if item, err := r.ParseItem(&rssitem); err == nil {
+			items = append(items, item)
+		} else {
+			return items, err
 		}
-		items = append(items, item)
 	}
-	return items
+	return items, nil
 }
 func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	item = &Item{}
@@ -165,20 +165,30 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 		return nil, err
 	}
 	for _, enclosure := range rssitem.Enclosures {
-		var att Attachment
-		if att.URL, err = url.Parse(enclosure.URL); err != nil {
+		var attachment *Attachment
+		if attachment, err = r.ParseAttachment(rssitem, &enclosure); err != nil {
 			return nil, err
 		}
-		if att.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
-			return nil, err
-		}
-		att.Mimetype = enclosure.Type
-		item.Attachments = append(item.Attachments, att)
+		item.Attachments = append(item.Attachments, *attachment)
 	}
 	for _, category := range rssitem.Categories {
 		item.Categories = append(item.Categories, category.Text)
 	}
 	return item, nil
+}
+func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
+	attachment = &Attachment{}
+	if attachment.URL, err = url.Parse(enclosure.URL); err != nil {
+		return nil, err
+	}
+	if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
+		return nil, err
+	}
+	attachment.Mimetype = enclosure.Type
+	if rssitem.GUID != nil {
+		attachment.ItemID = rssitem.GUID.Value
+	}
+	return attachment, nil
 }
 
 func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
@@ -194,6 +204,10 @@ func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
 	if t, err = time.Parse(time.RFC822Z, dateStr); err == nil {
 		return t.UTC(), nil
 	}
+	// catch dates without zero-padded day
+	if t, err = time.Parse("Mon, 2 Jan 2006 15:04:05 MST", dateStr); err == nil {
+		return t.UTC(), nil
+	}
 	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
 
@@ -206,12 +220,11 @@ func RSSDetected(doc []byte) bool {
 }
 
 // ParseRSS parses raw RSS XML into an RSS struct.
-func ParseRSS(doc []byte) (*RSS, error) {
-	dec := xml.NewDecoder(bytes.NewReader(doc))
-	dec.CharsetReader = charset.NewReaderLabel
-	var r RSS
-	if err := dec.Decode(&r); err != nil {
+func ParseRSS(doc []byte) (rss *RSS, err error) {
+	var decoder *xml.Decoder = xml.NewDecoder(bytes.NewReader(doc))
+	decoder.CharsetReader = charset.NewReaderLabel
+	if err = decoder.Decode(&rss); err != nil {
 		return nil, err
 	}
-	return &r, nil
+	return rss, nil
 }

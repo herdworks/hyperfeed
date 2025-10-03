@@ -77,7 +77,7 @@ func (item *Item) RowColumns() (columns []string) {
 	return []string{"id", "guid", "url", "title", "summary", "content", "published", "updated", "added"}
 }
 func (item *Item) RowArguments() (args []any) {
-	args = append(args, item.ID)
+	args = append(args, item.Identifier())
 	args = append(args, item.GUID)
 	if item.URL != nil {
 		args = append(args, item.URL.String())
@@ -103,7 +103,4 @@ func (item *Item) RowUpdates() [][2]string {
 		{"updated", "excluded.updated"},
 		{"added", "excluded.added"},
 	}
-}
-func (item *Item) RowPK() string {
-	return "id"
 }
