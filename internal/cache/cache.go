@@ -91,8 +91,8 @@ func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 		return errors.Join(ErrConfiguration, fmt.Errorf("invalid domain for feed.URL %q", feed.URL.String()))
 	}
 	cache.Base = base
-	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
-	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
+	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: fmt.Sprintf("%s", feed.Identifier())}
+	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), fmt.Sprintf("%s", feed.Identifier()), "")} // the "" element ensures trailing slash
 	cache.FS = &filesystem.FileSystem{}
 	return cache.FS.Configure(cache.URI, cache.Policies()...)
 }
@@ -220,7 +220,7 @@ func (file *File) RelativePath() (p string, err error) {
 	if name, err = normalized.CleanPath(file.Name); err != nil {
 		return "", errors.Join(ErrInvalidFile, fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err))
 	}
-	return filepath.Join(shard, file.Item.Identifier(), name), nil
+	return filepath.Join(shard, fmt.Sprintf("%s", file.Item.Identifier()), name), nil
 }
 
 // Exists() checks if the file exists

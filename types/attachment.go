@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 )
 
 // Attachment represents a generic media attachment associated with an item.
@@ -18,6 +20,7 @@ import (
 // - duration_in_seconds (JSON Feed, podcast extensions) -> Duration
 // - labels/tags (non-standard, commonly present in extensions) -> Labels
 type Attachment struct {
+	ID       string   `json:"id,omitempty"` // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
 	URL      *url.URL `json:"url,omitempty"`
 	Title    string   `json:"title,omitempty"`
 	Size     int64    `json:"size,omitempty"`     // bytes
@@ -28,11 +31,30 @@ type Attachment struct {
 	ItemID string `json:"-"` // back-reference to parent item
 }
 
+func (attachment *Attachment) Identifier() any {
+	if attachment != nil && attachment.ID != "" {
+		return attachment.ID
+	}
+	var id *url.URL = normalized.URL(attachment.URL)
+	var query url.Values = id.Query()
+	if id == nil {
+		id = &url.URL{}
+	}
+	query.Set("_size", fmt.Sprintf("%d", attachment.Size))
+	query.Set("_duration", fmt.Sprintf("%d", attachment.Duration))
+	query.Set("_mimetype", attachment.Mimetype)
+	id.RawQuery = query.Encode()
+	return normalized.Identifier(normalized.URL(id).String())
+}
 func (attachment *Attachment) RowTable() (name string) {
 	return "attachments"
 }
+func (attachment *Attachment) RowIdentifier() string {
+	return "id"
+}
 func (attachment *Attachment) RowColumns() (columns []string) {
 	return []string{
+		"id",
 		"url",
 		"title",
 		"size",
@@ -47,6 +69,7 @@ func (attachment *Attachment) RowArguments() []any {
 		fmt.Printf("WARNING: Attachment missing ItemID back-reference: %+v\n", attachment)
 	}
 	return []any{
+		attachment.Identifier(),
 		attachment.URL.String(),
 		attachment.Title,
 		attachment.Size,

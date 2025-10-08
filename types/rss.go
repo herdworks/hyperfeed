@@ -39,7 +39,7 @@ type RSSChannel struct {
 	SkipDays       *RSSDays      `xml:"skipDays"`
 	Items          []RSSItem     `xml:"item"`
 
-	Extensions []Extension `xml:",any" json:"-"`
+	Extensions []RSSExtension `xml:",any" json:"-"`
 }
 
 type RSSItem struct {
@@ -55,7 +55,18 @@ type RSSItem struct {
 	Source      *RSSSource     `xml:"source"`
 
 	// Extensions captures additional namespaced elements under <item>.
-	Extensions []Extension `xml:",any" json:"-"`
+	Extensions []RSSExtension `xml:",any" json:"-"`
+}
+
+// RSSExtension preserves any XML element outside the core spec during parsing.
+// It captures the qualified name, attributes, character data, and inner XML.
+type RSSExtension struct {
+	XMLName  xml.Name
+	Attrs    []xml.Attr `json:"-"`
+	Text     string     `json:"-"`
+	InnerXML string     `json:"-"`
+
+	Extensions []RSSExtension `xml:",any" json:"-"`
 }
 
 type RSSEnclosure struct {
@@ -119,6 +130,16 @@ type RSSDays struct {
 	Days []string `xml:"day"`
 }
 
+// ============================ Variables =====================================
+
+const (
+	ExtensionNamespaceItunesPodcast      string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+	ExtensionNamespaceYahooMediaRSS      string = "http://search.yahoo.com/mrss/"
+	ExtensionNamespaceRSSContent         string = "http://purl.org/rss/1.0/modules/content/"
+	ExtensionNamespaceDublinCoreTerms    string = "http://purl.org/dc/terms/"
+	ExtensionNamespaceDublicCoreMetadata string = "http://purl.org/dc/elements/1.1/"
+)
+
 // ============================ RSS Methods ===================================
 
 // RawFeed.Kind() compliance
@@ -153,10 +174,8 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	if rssitem.GUID != nil {
 		item.ID = rssitem.GUID.Value
 	}
-	item.Authors = []Author{
-		{
-			Email: rssitem.Author,
-		},
+	for _, author := range r.ParseAuthors(rssitem) {
+		item.Authors = append(item.Authors, *author)
 	}
 	if item.Comments, err = url.Parse(rssitem.Comments); err != nil {
 		return nil, err
@@ -176,6 +195,27 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	}
 	return item, nil
 }
+func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []*Author) {
+	var href *url.URL
+	var err error
+	if href, err = url.Parse(r.Channel.Link); err != nil {
+		href = &url.URL{}
+	}
+	if owner := GetItunesMetadata(r.Channel.Extensions, "owner"); owner != nil {
+		a := &Author{URL: href}
+		if name := GetItunesMetadata(owner.Extensions, "name"); name != nil {
+			a.Name = name.Text
+		}
+		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
+			a.Email = email.Text
+		}
+		authors = append(authors, a)
+	}
+	if author := GetItunesMetadata(rssitem.Extensions, "author"); author != nil {
+		authors = append(authors, &Author{Name: author.Text, URL: href})
+	}
+	return authors
+}
 func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
 	if attachment.URL, err = url.Parse(enclosure.URL); err != nil {
@@ -183,6 +223,11 @@ func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attach
 	}
 	if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
 		return nil, err
+	}
+	if duration := GetItunesMetadata(rssitem.Extensions, "duration"); duration != nil {
+		if v, err := time.Parse("15:04:05", duration.Text); err == nil {
+			attachment.Duration = int64(v.Hour()*3600 + v.Minute()*60 + v.Second())
+		}
 	}
 	attachment.Mimetype = enclosure.Type
 	if rssitem.GUID != nil {
@@ -211,6 +256,26 @@ func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
 	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
 
+// ============================ Extension Methods =============================
+
+// UnmarshalXML captures attributes, text, inner XML, and any nested extensions.
+func (e *RSSExtension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var payload struct {
+		Text  string         `xml:",chardata"`
+		Inner string         `xml:",innerxml"`
+		Any   []RSSExtension `xml:",any"`
+	}
+	if err := d.DecodeElement(&payload, &start); err != nil {
+		return err
+	}
+	e.XMLName = start.Name
+	e.Attrs = append(e.Attrs[:0], start.Attr...)
+	e.Text = payload.Text
+	e.InnerXML = payload.Inner
+	e.Extensions = append(e.Extensions[:0], payload.Any...)
+	return nil
+}
+
 // ============================ Helper Functions ==============================
 
 // RSSDetected returns true if the document appears to be RSS.
@@ -227,4 +292,25 @@ func ParseRSS(doc []byte) (rss *RSS, err error) {
 		return nil, err
 	}
 	return rss, nil
+}
+
+func GetExtensionMetadata(extensions []RSSExtension, namespace string, name string) *RSSExtension {
+	for _, ext := range extensions {
+		if ext.XMLName.Space == namespace && ext.XMLName.Local == name {
+			return &ext
+		}
+	}
+	return nil
+}
+
+func GetItunesMetadata(extensions []RSSExtension, name string) *RSSExtension {
+	return GetExtensionMetadata(extensions, ExtensionNamespaceItunesPodcast, name)
+}
+
+func GetYahooMediaRSSMetadata(extensions []RSSExtension, name string) *RSSExtension {
+	return GetExtensionMetadata(extensions, ExtensionNamespaceYahooMediaRSS, name)
+}
+
+func GetRSSContentMetadata(extensions []RSSExtension, name string) *RSSExtension {
+	return GetExtensionMetadata(extensions, ExtensionNamespaceRSSContent, name)
 }

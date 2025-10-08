@@ -62,7 +62,7 @@ func (i *Item) Ready() bool {
 	return true
 }
 
-func (item *Item) Identifier() string {
+func (item *Item) Identifier() any {
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
 		item.ID = normalized.Identifier(u.String())
@@ -72,6 +72,9 @@ func (item *Item) Identifier() string {
 
 func (item *Item) RowTable() string {
 	return "items"
+}
+func (item *Item) RowIdentifier() string {
+	return "id"
 }
 func (item *Item) RowColumns() (columns []string) {
 	return []string{"id", "guid", "url", "title", "summary", "content", "published", "updated", "added"}

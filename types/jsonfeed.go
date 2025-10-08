@@ -97,49 +97,76 @@ func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
 	}
 	return items, nil
 }
-func (jf *JSONFeed) ParseItem(jsonfeeditem *JSONItem) (item *Item, err error) {
+func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	item = &Item{}
 	item.Added = time.Now().UTC()
-	item.ID = jsonfeeditem.ID
-	item.Title = jsonfeeditem.Title
-	item.Summary = jsonfeeditem.Summary
-	if jsonfeeditem.ContentHTML != "" {
-		item.Content = jsonfeeditem.ContentHTML
+	item.ID = jfitem.ID
+	item.Title = jfitem.Title
+	item.Summary = jfitem.Summary
+	if jfitem.ContentHTML != "" {
+		item.Content = jfitem.ContentHTML
 	} else {
-		item.Content = jsonfeeditem.ContentText
+		item.Content = jfitem.ContentText
 	}
-	if u, err := url.Parse(jsonfeeditem.URL); err == nil && u != nil {
+	if u, err := url.Parse(jfitem.URL); err == nil && u != nil {
 		item.URL = u
 	}
-	if t, err := time.Parse(time.RFC3339, jsonfeeditem.DatePublished); err == nil {
+	if t, err := time.Parse(time.RFC3339, jfitem.DatePublished); err == nil {
 		item.Published = t
 	}
-	if t, err := time.Parse(time.RFC3339, jsonfeeditem.DateModified); err == nil {
+	if t, err := time.Parse(time.RFC3339, jfitem.DateModified); err == nil {
 		item.Updated = t
 	}
-	if u, err := url.Parse(jsonfeeditem.ExternalURL); err == nil && u != nil {
+	if u, err := url.Parse(jfitem.ExternalURL); err == nil && u != nil {
 		item.Links = append(item.Links, u)
 	}
-	if u, err := url.Parse(jsonfeeditem.BannerImage); err == nil && u != nil {
+	if u, err := url.Parse(jfitem.BannerImage); err == nil && u != nil {
 		item.Images = append(item.Images, &Image{URL: u, Title: "Feed item banner image"})
 	}
-	if u, err := url.Parse(jsonfeeditem.Image); err == nil && u != nil {
+	if u, err := url.Parse(jfitem.Image); err == nil && u != nil {
 		item.Images = append(item.Images, &Image{URL: u, Title: "Feed item image"})
 	}
-	if jsonfeeditem.Author != nil {
-		item.Authors = append(item.Authors, *jf.ToAuthor(jsonfeeditem.Author))
-	}
-	for _, author := range jsonfeeditem.Authors {
-		item.Authors = append(item.Authors, *jf.ToAuthor(&author))
-	}
-	for _, attachment := range jsonfeeditem.Attachments {
-		if a, err := jf.ParseAttachment(jsonfeeditem, &attachment); err == nil && a != nil {
-			item.Attachments = append(item.Attachments, *a)
-		}
-	}
+	item.Authors = jf.ParseAuthors(jfitem)
+	item.Attachments = jf.ParseAttachments(jfitem)
 	return item, nil
 }
-func (jf *JSONFeed) ParseAttachment(jsonfeeditem *JSONItem, jfattachment *JSONFeedAttachment) (attachment *Attachment, err error) {
+func (jf *JSONFeed) ParseAuthors(jfitem *JSONItem) (authors []Author) {
+	if jfitem.Author != nil {
+		authors = append(authors, *jf.ParseAuthor(jfitem.Author))
+	}
+	for _, author := range jfitem.Authors {
+		authors = append(authors, *jf.ParseAuthor(&author))
+	}
+	return authors
+}
+func (jf *JSONFeed) ParseAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
+	if jfauthor == nil {
+		return nil
+	} else {
+		author = &Author{Name: jfauthor.Name}
+	}
+	if u, err := url.Parse(jf.HomePageURL); err == nil {
+		author.URL = u // default to feed home page URL
+	}
+	if u, err := url.Parse(jfauthor.URL); err == nil && u != nil && u.Host != "" && u.Scheme != "mailto" {
+		author.URL = u // overwrite default feed home page URL
+	} else if u.Scheme == "mailto" {
+		author.Email = u.Opaque
+	}
+	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil {
+		author.Favicon = u
+	}
+	return author
+}
+func (jf *JSONFeed) ParseAttachments(jfitem *JSONItem) (attachments []Attachment) {
+	for _, attachment := range jfitem.Attachments {
+		if a, err := jf.ParseAttachment(jfitem, &attachment); err == nil && a != nil {
+			attachments = append(attachments, *a)
+		}
+	}
+	return attachments
+}
+func (jf *JSONFeed) ParseAttachment(jfitem *JSONItem, jfattachment *JSONFeedAttachment) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
 	if attachment.URL, err = url.Parse(jfattachment.URL); err != nil {
 		return nil, err
@@ -148,22 +175,8 @@ func (jf *JSONFeed) ParseAttachment(jsonfeeditem *JSONItem, jfattachment *JSONFe
 	attachment.Mimetype = jfattachment.MimeType
 	attachment.Title = jfattachment.Title
 	attachment.Duration = jfattachment.DurationInSecond
-	attachment.ItemID = jsonfeeditem.ID
+	attachment.ItemID = jfitem.ID
 	return attachment, nil
-}
-
-func (jf *JSONFeed) ToAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
-	author = &Author{Name: jfauthor.Name}
-	if u, err := url.Parse(jfauthor.URL); err == nil && u != nil && u.Scheme == "mailto" {
-		author.Email = u.Opaque
-	}
-	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil && u.Scheme != "mailto" {
-		author.URL = u
-	}
-	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil {
-		author.Favicon = u
-	}
-	return author
 }
 
 // ============================ Helper Functions ==============================

@@ -134,7 +134,7 @@ func (feed *Feed) Domain() string {
 }
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
-func (feed *Feed) Identifier() string {
+func (feed *Feed) Identifier() any {
 	if feed.ID == "" {
 		feed.ID = normalized.Identifier(normalized.Path(feed.URL))
 	}
@@ -187,6 +187,9 @@ func (feed *Feed) Parse() (err error) {
 
 func (feed *Feed) RowTable() string {
 	return "feeds"
+}
+func (feed *Feed) RowIdentifier() string {
+	return "id"
 }
 func (feed *Feed) RowColumns() []string {
 	return []string{

@@ -49,8 +49,9 @@ CREATE TABLE IF NOT EXISTS items (
 -- Authors table
 CREATE TABLE IF NOT EXISTS authors (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
+    [href] TEXT,
     [name] TEXT,
-    [url] TEXT,
+    [username] TEXT,
     [favicon] TEXT,
     [email] TEXT,
 
@@ -98,10 +99,29 @@ CREATE TABLE IF NOT EXISTS feed_metadata (
     PRIMARY KEY(feed_id, metadata_id)
 );
 
+-- Feed-Author join table
+CREATE TABLE IF NOT EXISTS feed_authors (
+    [feed_id] TEXT REFERENCES feeds(id),
+    [author_id] TEXT REFERENCES authors(id),
+
+    PRIMARY KEY(feed_id, author_id)
+);
+
 -- Item-Metadata join table
 CREATE TABLE IF NOT EXISTS item_metadata (
     [item_id] TEXT REFERENCES items(id),
     [metadata_id] INTEGER REFERENCES metadata(id),
     
     PRIMARY KEY(item_id, metadata_id)
+);
+
+-- Item-Author join table
+CREATE TABLE IF NOT EXISTS item_authors (
+    [item_id] TEXT REFERENCES items(id),
+    [author_id] TEXT REFERENCES authors(id),
+
+    -- indexes
+    
+
+    PRIMARY KEY(item_id, author_id)
 );

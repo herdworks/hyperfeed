@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"encoding/xml"
+	"fmt"
 	"net/url"
 	"regexp"
 	"time"
@@ -149,6 +150,7 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 
 	item = &Item{}
 	item.Added = time.Now().UTC()
+	item.URL = entry.AlternateURL()
 	item.ID = entry.ID
 	item.Title = entry.Title
 	if t, err := time.Parse(time.RFC3339, entry.Published); err == nil {
@@ -163,6 +165,16 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if entry.Content != nil {
 		item.Content = entry.Content.Body
 	}
+	if item.Authors, err = atom.ParseAuthors(entry); err != nil {
+		return item, err
+	}
+	if item.Attachments, err = atom.ParseAttachments(entry); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+func (atom *Atom) ParseItemURLs(item *Item, entry *AtomEntry) {
 	for _, link := range entry.Link {
 		var u *url.URL
 		var err error
@@ -180,22 +192,45 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 			item.Links = append(item.Links, u)
 		}
 	}
+}
 
+func (atom *Atom) ParseAuthors(entry *AtomEntry) (authors []Author, err error) {
+	var authorURL *url.URL
+	if authorURL, err = atom.EntryAuthorURL(entry); err != nil {
+		return nil, err
+	}
 	if entry.Author != nil {
-		item.Authors = append(item.Authors, Author{
+		authors = append(authors, Author{
 			Name:  entry.Author.Name,
 			Email: entry.Author.Email,
+			URL:   authorURL,
 		})
 	}
 	for _, contributor := range entry.Contributor {
-		item.Authors = append(item.Authors, Author{
+		var contributorURL *url.URL
+		if contributorURL, err = url.Parse(contributor.URI); err != nil {
+			fmt.Printf("warning parsing contributor URI: %v\n", err)
+			contributorURL = &url.URL{}
+		}
+		authors = append(authors, Author{
 			Name:  contributor.Name,
 			Email: contributor.Email,
+			URL:   contributorURL,
 		})
 	}
-	return item, nil
+	return authors, nil
 }
 
+func (atom *Atom) ParseAttachments(entry *AtomEntry) (attachments []Attachment, err error) {
+	for _, link := range entry.Link {
+		if attachment, err := atom.ParseAttachment(entry, &link); err == nil && attachment != nil {
+			attachments = append(attachments, *attachment)
+		} else if err != nil {
+			return attachments, err
+		}
+	}
+	return attachments, nil
+}
 func (atom *Atom) ParseAttachment(entry *AtomEntry, link *AtomLink) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
 	if link == nil || link.Rel != "enclosure" {
@@ -216,12 +251,36 @@ func (atom *Atom) ParseAttachment(entry *AtomEntry, link *AtomLink) (attachment 
 	return attachment, nil
 }
 
+func (atom *Atom) EntryAuthorURL(entry *AtomEntry) (u *url.URL, err error) {
+	if entry.Author != nil && entry.Author.URI != "" {
+		return url.Parse(entry.Author.URI)
+	}
+	for _, link := range atom.Link {
+		if link.Rel == "alternate" || link.Rel == "" {
+			return url.Parse(link.Href) // use feed link as default author URL
+		}
+	}
+	return &url.URL{}, nil
+}
+
 func (atom *Atom) Unmarshal(data []byte) error {
 	return xml.Unmarshal(data, &atom)
 }
 
 func (atom *Atom) MarshalIndent(prefix string, indent string) ([]byte, error) {
 	return xml.MarshalIndent(atom, prefix, indent)
+}
+
+// ============================ AtomEntry Methods =============================
+func (entry *AtomEntry) AlternateURL() *url.URL {
+	for _, link := range entry.Link {
+		if link.Rel == "alternate" || link.Rel == "" {
+			if u, err := url.Parse(link.Href); err == nil {
+				return u
+			}
+		}
+	}
+	return &url.URL{}
 }
 
 // ============================ Helper Functions ==============================

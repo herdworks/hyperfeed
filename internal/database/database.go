@@ -180,18 +180,23 @@ func (db *Database) UpsertRowValue(ctx context.Context, row hyperfeed.Row) (err 
 	_, err = db.DB.ExecContext(ctx, RowUpsertStatement(row), row.RowArguments()...)
 	return err
 }
+func (db *Database) InsertRelationValue(ctx context.Context, a, b hyperfeed.Row) (err error) {
+	_, err = db.DB.ExecContext(ctx, RelationInsertStatement(a, b), a.Identifier(), b.Identifier())
+	return err
+}
 
 // ============================ Helper Methods ===================================
 func RowInsertStatement(row hyperfeed.Row) (query string) {
-	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
+	query += fmt.Sprintf("INSERT OR IGNORE INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
 	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
-	query += "ON CONFLICT DO NOTHING"
+	query += fmt.Sprintf("RETURNING %s", row.RowIdentifier())
 	return query
 }
 func RowUpsertStatement(row hyperfeed.Row) (query string) {
 	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
 	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
-	query += fmt.Sprintf("ON CONFLICT DO UPDATE SET %s", RowUpdatesSet(row))
+	query += fmt.Sprintf("ON CONFLICT DO UPDATE SET %s ", RowUpdatesSet(row))
+	query += fmt.Sprintf("RETURNING %s", row.RowIdentifier())
 	return query
 }
 func RowValues(row hyperfeed.Row) (values []string) {
@@ -207,4 +212,9 @@ func RowUpdatesSet(row hyperfeed.Row) string {
 		updates = append(updates, fmt.Sprintf("%s = %s", key, value))
 	}
 	return strings.Join(updates, ", ")
+}
+func RelationInsertStatement(a, b hyperfeed.Row) (query string) {
+	var table string = fmt.Sprintf("%s_%s", strings.TrimRight(a.RowTable(), "s"), b.RowTable())
+	query += fmt.Sprintf("INSERT OR IGNORE INTO %s VALUES(?, ?)", table)
+	return query
 }

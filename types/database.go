@@ -6,6 +6,8 @@ import "fmt"
 
 type Row interface {
 	// required methods
+	Identifier() any
+	RowIdentifier() string
 	RowTable() string
 	RowColumns() []string
 	RowArguments() []any
