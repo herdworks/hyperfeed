@@ -133,11 +133,12 @@ type RSSDays struct {
 // ============================ Variables =====================================
 
 const (
-	ExtensionNamespaceItunesPodcast      string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
-	ExtensionNamespaceYahooMediaRSS      string = "http://search.yahoo.com/mrss/"
-	ExtensionNamespaceRSSContent         string = "http://purl.org/rss/1.0/modules/content/"
-	ExtensionNamespaceDublinCoreTerms    string = "http://purl.org/dc/terms/"
-	ExtensionNamespaceDublicCoreMetadata string = "http://purl.org/dc/elements/1.1/"
+	ExtensionNamespaceItunesPodcast       string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+	ExtensionNamespaceYahooMediaRSS       string = "http://search.yahoo.com/mrss/"
+	ExtensionNamespaceRSSContent          string = "http://purl.org/rss/1.0/modules/content/"
+	ExtensionNamespaceDublinCoreTerms     string = "http://purl.org/dc/terms/"
+	ExtensionNamespaceDublicCoreMetadata  string = "http://purl.org/dc/elements/1.1/"
+	ExtensionNamespaceScriptingNewsSource string = "http://source.scripting.com/"
 )
 
 // ============================ RSS Methods ===================================
@@ -150,6 +151,31 @@ func (r *RSS) Kind() FeedKind {
 // RawFeed.ItemCount() compliance
 func (r *RSS) ItemCount() int {
 	return len(r.Channel.Items)
+}
+
+// RawFeed.ParseFeedAuthors() compliance
+func (r *RSS) ParseFeedAuthors() (authors []Author, err error) {
+	var author Author = Author{}
+	var href string
+	if r.Channel.Link != "" {
+		href = r.Channel.Link
+	}
+	if r.Channel.Title != "" {
+		author.Name = r.Channel.Title
+	}
+	if owner := GetItunesMetadata(r.Channel.Extensions, "owner"); owner != nil {
+		if name := GetItunesMetadata(owner.Extensions, "name"); name != nil {
+			author.Name = name.Text
+		}
+		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
+			author.Email = email.Text
+		}
+	}
+	if u, err := url.Parse(href); err == nil && u != nil {
+		author.URL = u
+	}
+	authors = append(authors, author)
+	return authors, nil
 }
 
 // RawFeed.ParseItems() compliance
@@ -175,7 +201,7 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 		item.ID = rssitem.GUID.Value
 	}
 	for _, author := range r.ParseAuthors(rssitem) {
-		item.Authors = append(item.Authors, *author)
+		item.Authors = append(item.Authors, author)
 	}
 	if item.Comments, err = url.Parse(rssitem.Comments); err != nil {
 		return nil, err
@@ -195,25 +221,30 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	}
 	return item, nil
 }
-func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []*Author) {
-	var href *url.URL
-	var err error
-	if href, err = url.Parse(r.Channel.Link); err != nil {
-		href = &url.URL{}
+func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []Author) {
+	var author Author = Author{}
+	var href string
+	if r.Channel.Link != "" {
+		href = r.Channel.Link
 	}
-	if owner := GetItunesMetadata(r.Channel.Extensions, "owner"); owner != nil {
-		a := &Author{URL: href}
-		if name := GetItunesMetadata(owner.Extensions, "name"); name != nil {
-			a.Name = name.Text
+	if r.Channel.Title != "" {
+		author.Name = r.Channel.Title
+	}
+	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
+		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
+			author.Name = name.Text
 		}
-		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
-			a.Email = email.Text
+		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
+			author.Email = email.Text
 		}
-		authors = append(authors, a)
 	}
-	if author := GetItunesMetadata(rssitem.Extensions, "author"); author != nil {
-		authors = append(authors, &Author{Name: author.Text, URL: href})
+	if authorMetadata := GetItunesMetadata(rssitem.Extensions, "author"); authorMetadata != nil {
+		author.Name = authorMetadata.Text
 	}
+	if u, err := url.Parse(href); err == nil && u != nil {
+		author.URL = u
+	}
+	authors = append(authors, author)
 	return authors
 }
 func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {

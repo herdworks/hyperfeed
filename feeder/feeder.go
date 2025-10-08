@@ -217,6 +217,14 @@ func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 	if err = feeder.Database.UpsertRowValue(ctx, feeder.Feed); err != nil {
 		return errors.Join(ErrDatabase, err)
 	}
+	for _, author := range feeder.Feed.Authors {
+		if err = feeder.Database.UpsertRowValue(ctx, &author); err != nil {
+			return errors.Join(ErrDatabase, err)
+		}
+		if err = feeder.Database.InsertRelationValue(ctx, feeder.Feed, &author); err != nil {
+			return errors.Join(ErrDatabase, err)
+		}
+	}
 	return nil
 }
 func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {

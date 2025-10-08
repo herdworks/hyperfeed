@@ -86,6 +86,27 @@ func (jf *JSONFeed) ItemCount() int {
 	return len(jf.Items)
 }
 
+// RawFeed.ParseFeedAuthors() compliance
+func (jf *JSONFeed) ParseFeedAuthors() (authors []Author, err error) {
+	if jf.Author != nil {
+		authors = append(authors, *jf.ParseAuthor(jf.Author))
+	}
+	for _, author := range jf.Authors {
+		authors = append(authors, *jf.ParseAuthor(&author))
+	}
+
+	// ensure at least one author with URL matching JSONFeed.HomePageURL
+	for _, author := range authors {
+		if author.URL.String() == jf.HomePageURL {
+			return authors, nil // if author URL matches feed home page URL, return
+		}
+	}
+	if u, err := url.Parse(jf.HomePageURL); err == nil && u != nil {
+		authors = append([]Author{{Name: jf.Title, URL: u}}, authors...) // prepend JSONFeed.HomePageURL author
+	}
+	return authors, nil
+}
+
 // RawFeed.Items() compliance
 func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
 	for _, i := range jf.Items {

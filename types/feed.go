@@ -103,9 +103,10 @@ type FeedKind string
 // before normalization. Implementations should report their concrete kind
 // and version via Kind().
 type RawFeed interface {
-	Kind() FeedKind               // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
-	ItemCount() int               // returns the number of items in the feed
-	ParseItems() ([]*Item, error) // parses and returns the feed's items
+	Kind() FeedKind                      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
+	ItemCount() int                      // returns the number of items in the feed
+	ParseFeedAuthors() ([]Author, error) // parses and returns the feed's owners
+	ParseItems() ([]*Item, error)        // parses and returns the feed's items
 }
 
 // ============================ Package Variables =============================
@@ -178,6 +179,9 @@ func (feed *Feed) Parse() (err error) {
 		}
 	}
 	if feed.RawFeed != nil {
+		if feed.Authors, err = feed.RawFeed.ParseFeedAuthors(); err != nil {
+			return err
+		}
 		if feed.Items, err = feed.RawFeed.ParseItems(); err != nil {
 			return err
 		}

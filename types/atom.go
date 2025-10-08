@@ -143,6 +143,38 @@ func (atom *Atom) ParseItems() (items []*Item, err error) {
 	return items, nil
 }
 
+func (atom *Atom) ParseFeedAuthors() (authors []Author, err error) {
+	var author Author = Author{}
+	var href string
+	if atom.Author == nil {
+		atom.Author = &AtomPerson{}
+	}
+	if atom.Author.Name != "" {
+		author.Name = atom.Author.Name
+	} else {
+		author.Name = atom.Title
+	}
+	if atom.Author.Email != "" {
+		author.Email = atom.Author.Email
+	}
+	if atom.Author.URI != "" {
+		href = atom.Author.URI
+	}
+	if href == "" {
+		for _, link := range atom.Link {
+			if link.Rel == "alternate" || link.Rel == "" {
+				href = link.Href
+				break
+			}
+		}
+	}
+	if author.URL, err = url.Parse(href); err != nil {
+		return nil, err
+	}
+	authors = append(authors, author)
+	return authors, nil
+}
+
 func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if entry == nil {
 		return nil, nil
