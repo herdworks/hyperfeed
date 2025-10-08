@@ -30,7 +30,6 @@ CREATE TABLE IF NOT EXISTS feeds (
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
     [id] TEXT,
-    [guid] TEXT,
     [url] TEXT,
     [published] TIMESTAMP,
     [updated] TIMESTAMP,
@@ -50,8 +49,8 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS authors (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT,
-    [name] TEXT,
     [username] TEXT,
+    [name] TEXT,
     [favicon] TEXT,
     [email] TEXT,
 

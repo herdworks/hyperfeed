@@ -12,14 +12,11 @@ import (
 
 // Item represents an entry within a feed.
 type Item struct {
+	// ID is the canonical Item identifier (if provided).
+	ID string `json:"id,omitempty"`
+
 	// URL is the canonical link for the item (permalink).
 	URL *url.URL `json:"url,omitempty"`
-
-	// GUID is a stable identifier provided by the source feed when available.
-	GUID string `json:"guid,omitempty"`
-
-	// ID is the stable HyperFeed Item identifier (e.g., a UUID or hash).
-	ID string `json:"id,omitempty"`
 
 	Title   string   `json:"title,omitempty"`
 	Authors []Author `json:"authors,omitempty"`
@@ -77,11 +74,10 @@ func (item *Item) RowIdentifier() string {
 	return "id"
 }
 func (item *Item) RowColumns() (columns []string) {
-	return []string{"id", "guid", "url", "title", "summary", "content", "published", "updated", "added"}
+	return []string{"id", "url", "title", "summary", "content", "published", "updated", "added"}
 }
 func (item *Item) RowArguments() (args []any) {
 	args = append(args, item.Identifier())
-	args = append(args, item.GUID)
 	if item.URL != nil {
 		args = append(args, item.URL.String())
 	} else {
@@ -97,7 +93,6 @@ func (item *Item) RowArguments() (args []any) {
 }
 func (item *Item) RowUpdates() [][2]string {
 	return [][2]string{
-		{"guid", "excluded.guid"},
 		{"url", "excluded.url"},
 		{"title", "excluded.title"},
 		{"summary", "excluded.summary"},
