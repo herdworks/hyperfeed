@@ -97,8 +97,8 @@ func (state *State) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 		return errors.Join(ErrConfiguration, fmt.Errorf("invalid domain for feed.URL %q", feed.URL.String()))
 	}
 	state.Base = base
-	state.Namespace = Namespace{Domain: feed.Domain(), Feed: fmt.Sprintf("%s", feed.Identifier())}
-	state.URI = &url.URL{Path: filepath.Join(state.Base.Path, "", feed.Domain(), fmt.Sprintf("%s", feed.Identifier()), "")} // the "" element ensures trailing slash
+	state.Namespace = Namespace{Domain: feed.Domain(), Feed: fmt.Sprintf("%s", feed.PathIdentifier())}
+	state.URI = &url.URL{Path: filepath.Join(state.Base.Path, "", feed.Domain(), fmt.Sprintf("%s", feed.PathIdentifier()), "")} // the "" element ensures trailing slash
 	state.FS = &filesystem.FileSystem{}
 	return state.FS.Configure(state.URI, state.Policies()...)
 }

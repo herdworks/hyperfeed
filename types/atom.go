@@ -190,6 +190,9 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	}
 	if t, err := time.Parse(time.RFC3339, entry.Updated); err == nil {
 		item.Updated = t.UTC()
+		if item.Published.IsZero() {
+			item.Published = t.UTC()
+		}
 	}
 	if entry.Summary != nil {
 		item.Summary = entry.Summary.Body

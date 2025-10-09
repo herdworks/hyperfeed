@@ -1,9 +1,15 @@
 package subscriber
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
+	"github.com/herdworks/hyperfeed-go/feeder"
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
@@ -14,7 +20,8 @@ import (
 type Subscriber struct {
 	hyperfeed.SubscriptionList
 
-	Store *database.Database
+	Feeds    []*feeder.Feeder
+	Database *database.Database
 }
 
 // Config holds default Feeder configuration parameters
@@ -40,6 +47,7 @@ type Config struct {
 // errors
 var (
 	ErrNotImplemented = errors.New("not implemented")
+	ErrSubscriber     = errors.New("subscriber error")
 )
 
 // defaults
@@ -54,6 +62,46 @@ var (
 
 // ============================ Subscriber Methods ============================
 
-func (s *Subscriber) Init() (err error) {
+func (subscriber *Subscriber) Init() (err error) {
+	for _, outline := range subscriber.OPML.Body.Outlines {
+		var feeder *feeder.Feeder = &feeder.Feeder{
+			Feed:     &hyperfeed.Feed{Title: outline.Text},
+			Database: subscriber.Database,
+		}
+		if feeder.Feed.URL, err = url.Parse(outline.XMLURL); err != nil {
+			return err
+		}
+		subscriber.Feeds = append(subscriber.Feeds, feeder)
+	}
 	return nil
+}
+
+func (subscriber *Subscriber) Sync(ctx context.Context) (err error) {
+	var ticker *errgroup.Group
+	var cancellation context.Context
+	ticker, cancellation = errgroup.WithContext(ctx)
+	if err = subscriber.Database.Open(ctx); err != nil {
+		return err
+	}
+	for _, feed := range subscriber.Feeds {
+		f := feed // capture range variable
+		ticker.Go(func() error {
+			fmt.Printf("feed %q syncing\n", f.Feed.URL.String())
+			if err = f.Tick(cancellation); err != nil {
+				return err
+			}
+			if err = f.Parse(); err != nil {
+				return err
+			}
+			if err = f.SaveFeed(ctx); err != nil {
+				return err
+			}
+			if err = f.SaveItems(ctx); err != nil {
+				return err
+			}
+			fmt.Printf("feed %q synced %d items\n", f.Feed.URL.String(), len(f.Feed.Items))
+			return nil
+		})
+	}
+	return ticker.Wait()
 }

@@ -3,6 +3,8 @@ package hyperfeed
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -136,10 +138,23 @@ func (feed *Feed) Domain() string {
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) Identifier() any {
-	if feed.ID == "" {
-		feed.ID = normalized.Identifier(normalized.Path(feed.URL))
+	if feed != nil && feed.ID != "" {
+		return feed.ID
 	}
+	var id *url.URL = normalized.URL(feed.URL)
+	var query url.Values = id.Query()
+	if id == nil {
+		id = &url.URL{}
+	}
+	query.Set("_title", feed.Title)
+	id.RawQuery = query.Encode()
+	feed.ID = normalized.Identifier(normalized.URL(id).String())
 	return feed.ID
+}
+
+// PathIdentifier returns the stable identifier for the feed, computing it if needed.
+func (feed *Feed) PathIdentifier() any {
+	return normalized.Identifier(normalized.Path(feed.URL))
 }
 
 // DetectKind inspects the provided document (JSON or XML) and returns the
@@ -184,6 +199,8 @@ func (feed *Feed) Parse() (err error) {
 		}
 		if feed.Items, err = feed.RawFeed.ParseItems(); err != nil {
 			return err
+		} else if len(feed.Items) != feed.RawFeed.ItemCount() {
+			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
 		}
 	}
 	return nil

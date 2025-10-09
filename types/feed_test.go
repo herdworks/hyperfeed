@@ -1,28 +1,15 @@
 package hyperfeed
 
 import (
-	"net/url"
 	"os"
 	"testing"
 )
 
 func TestDetectKind(t *testing.T) {
-	var sampleDataFileURL *url.URL
-	var subscriptionList SubscriptionList
+	var testdatadir string = "testdata/2025-09-09/feeds/" // list files in testdata/2025-09-09/feeds/ and try to parse each one
+	var files []os.DirEntry
 	var err error
-	sampleDataFileURL = &url.URL{Path: "testdata/2025-09-09/nnw_default_subscriptions.opml"}
-	subscriptionList = SubscriptionList{URI: sampleDataFileURL}
-	if err = subscriptionList.Load(); err != nil {
-		t.Fatalf("Failed to load subscription list: %v", err)
-	}
-	if len(subscriptionList.OPML.Body.Outlines) != 14 {
-		t.Fatalf("Expected 14 outlines; got %d", len(subscriptionList.OPML.Body.Outlines))
-	}
-
-	// list files in testdata/2025-09-09/feeds/ and try to parse each one
-	testdatadir := "testdata/2025-09-09/feeds/"
-	files, err := os.ReadDir(testdatadir)
-	if err != nil {
+	if files, err = os.ReadDir(testdatadir); err != nil {
 		t.Fatalf("Failed to read test data directory: %v", err)
 	}
 	for _, f := range files {

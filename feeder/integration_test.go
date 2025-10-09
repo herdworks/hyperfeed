@@ -27,6 +27,13 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			err: nil,
 		},
 		{
+			name: "another valid rss feed",
+			feed: &hyperfeed.Feed{
+				URL: &url.URL{Scheme: "https", Host: "www.thisiscolossal.com", Path: "/feed/"},
+			},
+			err: nil,
+		},
+		{
 			name: "valid atom feeds",
 			feed: &hyperfeed.Feed{
 				URL: &url.URL{Scheme: "https", Host: "feeds.kottke.org", Path: "/main"},

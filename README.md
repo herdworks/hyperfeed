@@ -45,10 +45,8 @@ Shared logic about common type operations will live in the corresponding type so
 
 * Subscriber: the subscription manager (multiple feeds).
   * One subscriber per OPML file.
-  * Subscriber parses OPML, normalizes subscriptions (feeds), and initializes feed state
-  * Subscriber manages per-feed schedulers, removing zombies
+  * Subscriber parses OPML, normalizes subscriptions (feeds), and syncrhonizes feed status
   * Subscriber updates OPML file with changes to subscriptions (additions/edits/removals)
-  * NOTE: may apply a jitter to scheduler start times to reduce concurrent fetch requests
 
 * Feeder: the feed reader (single feed).
   * Configured with a feed, an interval, and a start time;
