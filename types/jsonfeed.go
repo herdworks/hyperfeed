@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"time"
 )
@@ -119,6 +120,7 @@ func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
 	return items, nil
 }
 func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
+	var published, updated time.Time
 	item = &Item{}
 	item.Added = time.Now().UTC()
 	item.ID = jfitem.ID
@@ -132,12 +134,16 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	if u, err := url.Parse(jfitem.URL); err == nil && u != nil {
 		item.URL = u
 	}
-	if t, err := time.Parse(time.RFC3339, jfitem.DatePublished); err == nil {
-		item.Published = t
+	if published, err = time.Parse(time.RFC3339, jfitem.DatePublished); jfitem.DatePublished != "" && err != nil {
+		fmt.Printf("error parsing %q published date %q: %v\n", jfitem.URL, jfitem.DatePublished, err)
+		published = time.Time{}
 	}
-	if t, err := time.Parse(time.RFC3339, jfitem.DateModified); err == nil {
-		item.Updated = t
+	if updated, err = time.Parse(time.RFC3339, jfitem.DateModified); jfitem.DateModified != "" && err != nil {
+		fmt.Printf("error parsing %q modified date %q: %v\n", jfitem.URL, jfitem.DateModified, err)
+		updated = time.Time{}
 	}
+	item.Published = earliest(published, updated)
+	item.Updated = latest(published, updated)
 	if u, err := url.Parse(jfitem.ExternalURL); err == nil && u != nil {
 		item.Links = append(item.Links, u)
 	}

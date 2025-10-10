@@ -209,6 +209,9 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	if item.Published, err = r.ParseDate(rssitem.PubDate); err != nil {
 		return nil, err
 	}
+	if item.Updated.IsZero() {
+		item.Updated = item.Published
+	}
 	for _, enclosure := range rssitem.Enclosures {
 		var attachment *Attachment
 		if attachment, err = r.ParseAttachment(rssitem, &enclosure); err != nil {

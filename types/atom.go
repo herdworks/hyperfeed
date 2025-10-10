@@ -176,24 +176,23 @@ func (atom *Atom) ParseFeedAuthors() (authors []Author, err error) {
 }
 
 func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
+	var published, updated time.Time
 	if entry == nil {
 		return nil, nil
 	}
-
 	item = &Item{}
 	item.Added = time.Now().UTC()
 	item.URL = entry.AlternateURL()
 	item.ID = entry.ID
 	item.Title = entry.Title
-	if t, err := time.Parse(time.RFC3339, entry.Published); err == nil {
-		item.Published = t.UTC()
+	if published, err = time.Parse(time.RFC3339, entry.Published); err != nil {
+		published = time.Time{}
 	}
-	if t, err := time.Parse(time.RFC3339, entry.Updated); err == nil {
-		item.Updated = t.UTC()
-		if item.Published.IsZero() {
-			item.Published = t.UTC()
-		}
+	if updated, err = time.Parse(time.RFC3339, entry.Updated); err != nil {
+		updated = time.Time{}
 	}
+	item.Published = earliest(published, updated)
+	item.Updated = latest(published, updated)
 	if entry.Summary != nil {
 		item.Summary = entry.Summary.Body
 	}

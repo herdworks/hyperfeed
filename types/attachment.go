@@ -89,3 +89,13 @@ func (attachment *Attachment) RowUpdates() [][2]string {
 		{"item_id", "excluded.item_id"},
 	}
 }
+func (attachment *Attachment) RowTargets() (targets []any) {
+	targets = append(targets, &attachment.ID)
+	targets = append(targets, &attachment.URL)
+	targets = append(targets, &attachment.Title)
+	targets = append(targets, &attachment.Size)
+	targets = append(targets, &attachment.Duration)
+	targets = append(targets, &attachment.Mimetype)
+	targets = append(targets, &attachment.Labels)
+	return targets
+}

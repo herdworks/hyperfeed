@@ -255,8 +255,19 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 	} else {
 		return nil, err
 	}
-	if response.Response.StatusCode < 200 || response.Response.StatusCode >= 300 {
+	switch response.Response.StatusCode {
+	case http.StatusOK: // proceed normally
+		break
+	case http.StatusTooManyRequests: // treat as error but proceed capture body
+		break
+	case http.StatusNoContent, http.StatusNotModified: // no body, nothing to do
+		return response, nil
+	case http.StatusServiceUnavailable, http.StatusGatewayTimeout: // 5xx errors
 		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
+	default:
+		if response.Response.StatusCode >= 400 && response.Response.StatusCode < 600 {
+			return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
+		}
 	}
 	if response.Response.ContentLength > t.Config.MaxContentLength {
 		return response, ErrResponseTooLarge
@@ -448,6 +459,14 @@ func (response *Response) Redirected() bool {
 		return false
 	}
 	return response.Response.StatusCode >= 300 && response.Response.StatusCode < 400
+}
+
+// NotModified reports whether the response was a 304 Not Modified.
+func (response *Response) NotModified() bool {
+	if response == nil || response.Response == nil {
+		return false
+	}
+	return response.Response.StatusCode == http.StatusNotModified
 }
 
 // ETags extracts and normalizes ETag values from the response headers.

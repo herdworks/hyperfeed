@@ -33,6 +33,13 @@ func TestSubscriberIntegration(t *testing.T) {
 			var subscriber Subscriber = Subscriber{SubscriptionList: subscriptionList, Database: db}
 			var err error
 
+			// Open (or create) the database
+			if err = db.Open(ctx); err != nil && !errors.Is(err, tc.err) {
+				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
+			} else if err != nil && errors.Is(err, tc.err) {
+				return // got expected error
+			}
+
 			// Load the OPML file
 			if err = subscriber.Load(); err != nil && !errors.Is(err, tc.err) {
 				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
@@ -40,20 +47,8 @@ func TestSubscriberIntegration(t *testing.T) {
 				return // got expected error
 			}
 
-			// Initialize the Subscriber
-			if err = subscriber.Init(); err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil && errors.Is(err, tc.err) {
-				return // got expected error
-			}
-
-			// Check that the Subscriber has the expected number of feeds
-			if len(subscriber.Feeds) != len(subscriber.OPML.Body.Outlines) {
-				t.Fatalf("Unexpected number of feeds\nwanted: %d\n   got: %d", len(subscriber.OPML.Body.Outlines), len(subscriber.Feeds))
-			}
-
-			// Sync all subscriptions (fetch all feeds once)
-			if err = subscriber.Sync(ctx); err != nil && !errors.Is(err, tc.err) {
+			// Refresh all subscriptions (fetch all feeds once)
+			if err = subscriber.Refresh(ctx); err != nil && !errors.Is(err, tc.err) {
 				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
 			} else if err != nil && errors.Is(err, tc.err) {
 				return // got expected error

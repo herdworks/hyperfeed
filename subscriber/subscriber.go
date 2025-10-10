@@ -2,6 +2,7 @@ package subscriber
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 type Subscriber struct {
 	hyperfeed.SubscriptionList
 
+	Config   *Config
 	Feeds    []*feeder.Feeder
 	Database *database.Database
 }
@@ -53,7 +55,7 @@ var (
 // defaults
 var (
 	DefaultFeederConfig = &Config{
-		DefaultInterval:    15 * time.Minute,
+		DefaultInterval:    1 * time.Minute,
 		MinInterval:        time.Minute,
 		MaxInterval:        12 * time.Hour,
 		StartupGracePeriod: 5 * time.Minute,
@@ -62,10 +64,30 @@ var (
 
 // ============================ Subscriber Methods ============================
 
-func (subscriber *Subscriber) Init() (err error) {
+// Load loads the SubscriptionList from its OPML URI and initializes the Subscriber
+func (subscriber *Subscriber) Load() (err error) {
+	if subscriber.Config == nil {
+		cc := *DefaultFeederConfig // copy of default config
+		subscriber.Config = &cc    // init subscriber.Config with defaults
+	}
+	if err = subscriber.SubscriptionList.Load(); err != nil {
+		return err
+	}
+	if err = subscriber.InitFeeds(); err != nil {
+		return err
+	}
+	if err = subscriber.ResolveFeeds(context.Background()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// InitFeeds initializes the managed Feeds slice ([]*feeder.Feeder)
+func (subscriber *Subscriber) InitFeeds() (err error) {
 	for _, outline := range subscriber.OPML.Body.Outlines {
 		var feeder *feeder.Feeder = &feeder.Feeder{
 			Feed:     &hyperfeed.Feed{Title: outline.Text},
+			Interval: subscriber.Config.DefaultInterval,
 			Database: subscriber.Database,
 		}
 		if feeder.Feed.URL, err = url.Parse(outline.XMLURL); err != nil {
@@ -76,7 +98,26 @@ func (subscriber *Subscriber) Init() (err error) {
 	return nil
 }
 
-func (subscriber *Subscriber) Sync(ctx context.Context) (err error) {
+// ResolveFeeds loads existing feed state from the database (if any)
+func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
+	for _, feed := range subscriber.Feeds {
+		fmt.Printf("feed %q resolving\n", feed.Feed.URL.String())
+		if err := subscriber.Database.SyncRowValues(ctx, feed.Feed); err != nil {
+			return err
+		}
+		if feed.Feed.StatusJSON == nil {
+			feed.Feed.StatusJSON = []byte("{}")
+		}
+		if err = json.Unmarshal(feed.Feed.StatusJSON, &feed.Feed.Status); err != nil {
+			return err
+		}
+		fmt.Printf("feed %q resolved\n", feed.Feed.URL.String())
+	}
+	return nil
+}
+
+// Refresh refreshes all subscribed feeds concurrently
+func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	ticker, cancellation = errgroup.WithContext(ctx)
@@ -85,19 +126,21 @@ func (subscriber *Subscriber) Sync(ctx context.Context) (err error) {
 	}
 	for _, feed := range subscriber.Feeds {
 		f := feed // capture range variable
-		ticker.Go(func() error {
+		ticker.Go(func() (e error) {
 			fmt.Printf("feed %q syncing\n", f.Feed.URL.String())
-			if err = f.Tick(cancellation); err != nil {
-				return err
+			if e = f.Tick(cancellation); errors.Is(e, feeder.ErrReadiness) {
+				// noop
+			} else if e != nil {
+				return errors.Join(ErrSubscriber, e)
 			}
-			if err = f.Parse(); err != nil {
-				return err
+			if e = f.Parse(); e != nil {
+				return errors.Join(ErrSubscriber, e)
 			}
-			if err = f.SaveFeed(ctx); err != nil {
-				return err
+			if e = f.SaveFeed(ctx); e != nil {
+				return errors.Join(ErrSubscriber, e)
 			}
-			if err = f.SaveItems(ctx); err != nil {
-				return err
+			if e = f.SaveItems(ctx); e != nil {
+				return errors.Join(ErrSubscriber, e)
 			}
 			fmt.Printf("feed %q synced %d items\n", f.Feed.URL.String(), len(f.Feed.Items))
 			return nil

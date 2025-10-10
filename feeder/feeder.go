@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
@@ -36,6 +37,9 @@ type Clock interface {
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrReadiness      = errors.New("feeder not ready")
+	ErrPaused         = errors.New("feed paused")
+	ErrTooSoonJunior  = errors.New("too soon, junior")
+	ErrRateLimited    = errors.New("rate limited")
 	ErrFeed           = errors.New("invalid feed")
 	ErrRequest        = errors.New("request error")
 	ErrDatabase       = errors.New("database error")
@@ -51,24 +55,27 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 	var response *transporter.Response
 	var err error
 	if ready, err := feeder.Ready(); !ready {
-		return errors.Join(ErrReadiness, err)
+		feeder.Log(nil, errors.Join(ErrReadiness, err))
+		return nil
 	}
 	if request, err = feeder.Request(); err != nil {
+		// TODO: is there any reason to log request generation errors?
 		return err
 	}
 	if feeder.Transporter == nil {
 		feeder.Transporter = &transporter.Transporter{}
 	}
 	if response, err = feeder.Transporter.Fetch(ctx, request); err != nil {
-		return feeder.Log(response, err)
+		feeder.Log(response, err)
+		return err
 	}
-	feeder.Feed.Updated = time.Now().UTC()
 	return feeder.Apply(ctx, response)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
 func (feeder *Feeder) Ready() (ready bool, err error) {
 	var tick time.Time = time.Now().UTC()
+	var cooldown time.Duration = feeder.Status.Cooldown()
 	if feeder.Feed == nil {
 		return false, ErrFeed // feeder must have a feed
 	}
@@ -76,16 +83,16 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 		return true, nil // new feed
 	}
 	if tick.Before(feeder.Status.PausedUntil) {
-		return false, nil // feed is paused
+		return false, ErrPaused // feed is paused
 	}
-	if tick.Before(feeder.Status.UpdatedAt.Add(feeder.Interval)) {
-		return false, nil // not enough time has passed since last update
+	if tick.Before(feeder.Status.UpdatedAt.Add(feeder.Interval + cooldown)) {
+		return false, ErrTooSoonJunior // not enough time has passed since last update
 	}
 	if tick.Before(feeder.Status.RateLimit.WaitUntil) {
-		return false, nil // rate limited
+		return false, ErrRateLimited // rate limited
 	}
-	if retryAfter := feeder.Status.LastAttemptAt.Add(feeder.Status.RateLimit.RetryAfter); tick.Before(retryAfter) {
-		return false, nil // rate limited
+	if retryAfter := feeder.Status.LastAttemptAt.Add(feeder.Status.RateLimit.RetryAfter + cooldown); tick.Before(retryAfter) {
+		return false, ErrRateLimited // rate limited
 	}
 	return true, nil
 }
@@ -154,8 +161,8 @@ func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response)
 	if feeder.Status == nil {
 		feeder.Status = &hyperfeed.FeedStatus{LastStatusCodes: []int{}}
 	}
-	if response == nil || response.Request == nil {
-		feeder.Status.LastAttemptAt = time.Now().UTC()
+	if response.NotModified() {
+		fmt.Printf("feed %q not modified\n", feeder.Feed.URL.String())
 	}
 	feeder.ApplyTimestamps(response)
 	feeder.ApplyStatusCode(response)
@@ -166,14 +173,17 @@ func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response)
 }
 func (feeder *Feeder) ApplyTimestamps(response *transporter.Response) {
 	if feeder.Status.CreatedAt.IsZero() {
-		feeder.Status.CreatedAt = response.ReceivedAt.UTC()
+		feeder.Status.CreatedAt = response.ReceivedAt.UTC() // create timestamps
 	}
-	feeder.Status.LastAttemptAt = response.ReceivedAt.UTC()
+	feeder.Status.LastAttemptAt = response.ReceivedAt.UTC() // attempt timestamps
 	if response.OK() {
-		feeder.Status.UpdatedAt = response.ReceivedAt.UTC()
-		feeder.Status.LastSuccessAt = response.ReceivedAt.UTC()
+		feeder.Feed.Updated = time.Now().UTC()                  // success timestamps
+		feeder.Status.UpdatedAt = response.ReceivedAt.UTC()     // success timestamps
+		feeder.Status.LastSuccessAt = response.ReceivedAt.UTC() // success timestamps
+	} else if response.NotModified() {
+		feeder.Status.UpdatedAt = response.ReceivedAt.UTC() // noop timestamps
 	} else {
-		feeder.Status.LastErrorAt = response.ReceivedAt.UTC()
+		feeder.Status.LastErrorAt = response.ReceivedAt.UTC() // failure timestamps
 	}
 }
 func (feeder *Feeder) ApplyStatusCode(response *transporter.Response) {
@@ -205,8 +215,30 @@ func (feeder *Feeder) ApplyBody(response *transporter.Response) {
 }
 
 // Log persists failure information for the current tick.
-func (feeder *Feeder) Log(response *transporter.Response, err error) error {
-	return ErrNotImplemented
+func (feeder *Feeder) Log(response *transporter.Response, err error) {
+	if response == nil {
+		response = &transporter.Response{Response: &http.Response{StatusCode: 0}}
+	}
+	fmt.Printf("feed %q attempt logged\n", feeder.Feed.URL.String())
+	feeder.ApplyStatusCode(response)
+	feeder.LogErrors(err)
+}
+func (feeder *Feeder) LogErrors(err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, ErrReadiness) {
+		// TODO: how to log readiness errors?
+	}
+	if errors.Is(err, ErrPaused) {
+		// TODO: how to log paused errors?
+	}
+	if errors.Is(err, ErrTooSoonJunior) {
+		// TODO: how to log too soon junior errors?
+	}
+	if errors.Is(err, ErrRateLimited) {
+		// TODO: how to log rate limited errors?
+	}
 }
 
 // Save persists the current feed and status to the database

@@ -37,6 +37,8 @@ type Item struct {
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
+
+	Href string `json:"-"` // string representation of Item.URL
 }
 
 // Image represents an image associated with a feed or item.
@@ -74,7 +76,16 @@ func (item *Item) RowIdentifier() string {
 	return "id"
 }
 func (item *Item) RowColumns() (columns []string) {
-	return []string{"id", "url", "title", "summary", "content", "published", "updated", "added"}
+	return []string{
+		"id",
+		"url",
+		"title",
+		"summary",
+		"content",
+		"published",
+		"updated",
+		"added",
+	}
 }
 func (item *Item) RowArguments() (args []any) {
 	args = append(args, item.Identifier())
@@ -99,6 +110,17 @@ func (item *Item) RowUpdates() [][2]string {
 		{"content", "excluded.content"},
 		{"published", "excluded.published"},
 		{"updated", "excluded.updated"},
-		{"added", "excluded.added"},
 	}
+}
+
+func (item *Item) RowTargets() (targets []any) {
+	targets = append(targets, &item.ID)
+	targets = append(targets, &item.Href)
+	targets = append(targets, &item.Title)
+	targets = append(targets, &item.Summary)
+	targets = append(targets, &item.Content)
+	targets = append(targets, &item.Published)
+	targets = append(targets, &item.Updated)
+	targets = append(targets, &item.Added)
+	return targets
 }

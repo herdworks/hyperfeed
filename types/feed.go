@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
@@ -17,7 +18,7 @@ import (
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
-	ID          string      `json:"id,omitempty"`  // stable HyperFeed identifier (e.g. hash of feed URL path+query)
+	ID          string      `json:"id,omitempty"`  // stable HyperFeed Feed identifier (normalized URL string)
 	URL         *url.URL    `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
 	Updated     time.Time   `json:"updated,omitempty"`
 	Language    string      `json:"language,omitempty"`
@@ -28,8 +29,10 @@ type Feed struct {
 	Items       []*Item     `json:"items,omitempty"`    // the most recent items for this feed
 	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
 
-	Bytes   []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
-	RawFeed RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
+	Href       string  `json:"-"` // string representation of Feed.URL
+	StatusJSON []byte  `json:"-"` // byte slice representation of Feed.Status (JSON)
+	Bytes      []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
+	RawFeed    RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
 }
 
 // FeedStatus represents feed state (schedule, rate limiting, etc)
@@ -138,18 +141,7 @@ func (feed *Feed) Domain() string {
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) Identifier() any {
-	if feed != nil && feed.ID != "" {
-		return feed.ID
-	}
-	var id *url.URL = normalized.URL(feed.URL)
-	var query url.Values = id.Query()
-	if id == nil {
-		id = &url.URL{}
-	}
-	query.Set("_title", feed.Title)
-	id.RawQuery = query.Encode()
-	feed.ID = normalized.Identifier(normalized.URL(id).String())
-	return feed.ID
+	return normalized.URL(feed.URL).String()
 }
 
 // PathIdentifier returns the stable identifier for the feed, computing it if needed.
@@ -210,7 +202,7 @@ func (feed *Feed) RowTable() string {
 	return "feeds"
 }
 func (feed *Feed) RowIdentifier() string {
-	return "id"
+	return "url"
 }
 func (feed *Feed) RowColumns() []string {
 	return []string{
@@ -225,14 +217,14 @@ func (feed *Feed) RowColumns() []string {
 }
 func (feed *Feed) RowArguments() (args []any) {
 	if feed.URL == nil {
-		feed.URL, _ = url.Parse("")
+		feed.URL = &url.URL{}
 	}
 	args = append(args, feed.Identifier())                     // id
 	args = append(args, normalized.URL(feed.URL).String())     // url
 	args = append(args, time.Now().UTC().Format(time.RFC3339)) // updated_at
-	args = append(args, feed.Title)
-	args = append(args, feed.Description)
-	args = append(args, feed.Language)
+	args = append(args, feed.Title)                            // title
+	args = append(args, feed.Description)                      // description
+	args = append(args, feed.Language)                         // language
 	if statusBytes, err := json.Marshal(feed.Status); err == nil && statusBytes != nil {
 		args = append(args, string(statusBytes)) // status
 	} else {
@@ -243,10 +235,44 @@ func (feed *Feed) RowArguments() (args []any) {
 func (feed *Feed) RowUpdates() (updates [][2]string) {
 	// ON CONFLICT DO UPDATE SET ...
 	return [][2]string{
-		{"url", "excluded.url"},
+		{"updated_at", "excluded.updated_at"},
 		{"title", "excluded.title"},
 		{"description", "excluded.description"},
 		{"language", "excluded.language"},
-		{"updated_at", "excluded.updated_at"},
+		{"status", "excluded.status"},
 	}
+}
+func (feed *Feed) RowTargets() (targets []any) {
+	targets = append(targets, &feed.ID)
+	targets = append(targets, &feed.Href)
+	targets = append(targets, &feed.Updated)
+	targets = append(targets, &feed.Title)
+	targets = append(targets, &feed.Description)
+	targets = append(targets, &feed.Language)
+	targets = append(targets, &feed.StatusJSON)
+	return targets
+}
+
+// ============================ Status Methods ================================
+
+// TBD if this is helpful, but it feels like an interesting experiment to optimize refresh workloads.
+func (status *FeedStatus) Cooldown() (cooldown time.Duration) {
+	var notmodifieds int = count(status.LastStatusCodes, 304)
+	var servererrs int = count(status.LastStatusCodes, 500, 502, 503, 504)
+	var toomanyreqs int = count(status.LastStatusCodes, 429)
+	cooldown += time.Duration(notmodifieds) * (12 * time.Second) // 1 minute cooldown for every 5 304s
+	cooldown += time.Duration(servererrs) * (30 * time.Second)   // 1 minute cooldown for every 2 5xxs
+	cooldown += time.Duration(toomanyreqs) * (1 * time.Minute)   // 1 minute cooldown for every 429
+	return cooldown
+}
+
+// ============================ Helper Functions ==============================
+
+func count[T comparable](items []T, matching ...T) (result int) {
+	for _, item := range items {
+		if slices.Contains(matching, item) {
+			result++
+		}
+	}
+	return result
 }

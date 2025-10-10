@@ -172,6 +172,24 @@ func (db *Database) Vacuum(ctx context.Context) error {
 	return db.Exec(ctx, "VACUUM")
 }
 
+// TODO: should this be ApplyRowValues, since it is directly modifying the row struct via pointers?
+func (db *Database) SyncRowValues(ctx context.Context, row hyperfeed.Row) (err error) {
+	var query string = fmt.Sprintf(
+		"SELECT %s FROM %s WHERE %s = ?;",
+		strings.Join(row.RowColumns(), ", "),
+		row.RowTable(),
+		row.RowIdentifier(),
+	)
+	var result *sql.Row = db.DB.QueryRowContext(ctx, query, row.Identifier())
+	var values = row.RowTargets()
+	if err = result.Scan(values...); errors.Is(err, sql.ErrNoRows) {
+		return nil // no rows found is not an error for this method
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (db *Database) InsertRowValue(ctx context.Context, row hyperfeed.Row) (err error) {
 	_, err = db.DB.ExecContext(ctx, RowInsertStatement(row), row.RowArguments()...)
 	return err
@@ -189,14 +207,12 @@ func (db *Database) InsertRelationValue(ctx context.Context, a, b hyperfeed.Row)
 func RowInsertStatement(row hyperfeed.Row) (query string) {
 	query += fmt.Sprintf("INSERT OR IGNORE INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
 	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
-	query += fmt.Sprintf("RETURNING %s", row.RowIdentifier())
 	return query
 }
 func RowUpsertStatement(row hyperfeed.Row) (query string) {
 	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
 	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
 	query += fmt.Sprintf("ON CONFLICT DO UPDATE SET %s ", RowUpdatesSet(row))
-	query += fmt.Sprintf("RETURNING %s", row.RowIdentifier())
 	return query
 }
 func RowValues(row hyperfeed.Row) (values []string) {

@@ -15,6 +15,8 @@ type Author struct {
 	Name     string   `json:"name,omitempty"`
 	Email    string   `json:"email,omitempty"`
 	Favicon  *url.URL `json:"avatar,omitempty"`
+
+	Href string `json:"-"` // string representation of Author.URL
 }
 
 func (author *Author) Identifier() any {
@@ -73,4 +75,14 @@ func (author *Author) RowUpdates() [][2]string {
 		{"favicon", "excluded.favicon"},
 		{"email", "excluded.email"},
 	}
+}
+
+func (author *Author) RowTargets() (targets []any) {
+	targets = append(targets, &author.ID)
+	targets = append(targets, &author.Href)
+	targets = append(targets, &author.Name)
+	targets = append(targets, &author.Username)
+	targets = append(targets, &author.Favicon)
+	targets = append(targets, &author.Email)
+	return targets
 }
