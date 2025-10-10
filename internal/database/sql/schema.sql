@@ -1,3 +1,9 @@
+-- Configuration
+PRAGMA journal_mode = WAL;
+PRAGMA wal_autocheckpoint = 1000;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 5000;
+
 -- SubscriptionLists table
 CREATE TABLE IF NOT EXISTS subscriptionlists (
     [id] TEXT,
@@ -124,3 +130,4 @@ CREATE TABLE IF NOT EXISTS item_authors (
 
     PRIMARY KEY(item_id, author_id)
 );
+
