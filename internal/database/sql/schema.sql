@@ -125,9 +125,6 @@ CREATE TABLE IF NOT EXISTS item_authors (
     [item_id] TEXT REFERENCES items(id),
     [author_id] TEXT REFERENCES authors(id),
 
-    -- indexes
-    
-
     PRIMARY KEY(item_id, author_id)
 );
 
