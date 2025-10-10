@@ -5,7 +5,7 @@ The `herdworks/hyperfeed-go/transporter` package manages HTTP interactions on be
 ## Goals
 
 * No external dependencies (only `net/http`, `x/net/html`, and related standard libraries).
-* Always send conditional requests when validators (ETag, Last-Modified, Content-Digest) are available.
+* Always send conditional requests when validators (ETag, Last-Modified) are available.
 * Advertise supported feed types via `Accept` header, including `application/rss+xml`, `application/atom+xml`, and `application/feed+json`.
 * Honor every rate limiting hint (Retry-After, X-RateLimit headers, 429/503 semantics) before issuing new requests.
 * Translate cache headers and feed metadata into actionable persistence updates for the scheduler.
@@ -30,13 +30,13 @@ Scheduler constructs a `transporter.Request` after evaluating an event. The stru
 
 ### Response
 
-`Response` wraps the raw HTTP response, updated conditions, payload digests, and timing information. The scheduler interprets headers such as Retry-After or Cache-Control directly from the exposed metadata.
+`Response` wraps the raw HTTP response, updated conditions, and timing information. The scheduler interprets headers such as Retry-After or Cache-Control directly from the exposed metadata.
 
 Supporting types capture the state that must be persisted between runs:
 
 * `Condition` – the shared vocabulary between scheduler and transporter for conditional requests; some kinds translate into HTTP headers while others provide validation context.
 * `Request` – the immutable request snapshot produced by the scheduler, including a prepared `http.Request`, conditions, and guardrail timestamps.
-* `Response` – the normalized view of the HTTP exchange, including redirects, payload digests, timing data, and surfaced conditions.
+* `Response` – the normalized view of the HTTP exchange, including redirects, timing data, and surfaced conditions.
 
 ## Tests
 
@@ -47,3 +47,9 @@ Supporting types capture the state that must be persisted between runs:
 * `Response` must surface headers and timing metadata so the scheduler can derive rate-limit and cache decisions.
 
 Once the transporter implementation is ready these tests will be turned on.
+
+## Roadmap
+
+* Support custom HTTP transports so operators can swap in shared connection pools, debugging round trippers, or platform-specific dialers without forking the package.
+* The likely integration point is `Transporter.NewClient`, which already clones the base client and could merge an injected `http.RoundTripper` or transport factory onto the shallow copy before returning it.
+* Configuration for those transports will probably live alongside existing `Config` fields so scheduler snapshots remain deterministic across restarts.

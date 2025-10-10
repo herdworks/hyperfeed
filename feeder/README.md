@@ -23,7 +23,7 @@ The scheduler evaluates each tick by constructing events and coordinating with t
 Each feed's persisted `State` must include:
 
 * Last attempt timestamps, status codes, and raw headers.
-* Last successful fetch metadata (entity tags, last-modified, content digests).
+* Last successful fetch metadata (entity tags, last-modified).
 * Rate limiting information (Retry-After, X-RateLimit headers, exponential backoff counters).
 * Cache directives (max-age, expires, age) translated into absolute `NotBefore` timestamps.
 * Feed cadence hints (`skipDays`, `skipHours`, `ttl`) translated into guardrails.

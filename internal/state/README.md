@@ -1,7 +1,7 @@
 # HyperFeed State
 
 The `github.com/herdworks/hyperfeed-go/state` package caches subscriber and scheduler state.
-It is distinct from the `storage` (feed metadata & item content) and `cache` (item assets) packages.
+It is distinct from the `database` (feed metadata & item content) and `cache` (item assets) packages.
 
 ## Goals
 

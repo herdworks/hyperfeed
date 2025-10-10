@@ -14,10 +14,19 @@ import (
 	"path/filepath"
 )
 
+// ============================ Package Variables ============================
+
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrInvalidPath    = errors.New("invalid path")
 )
+
+var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var CleanPathReservedFileNames = []string{
+	"cache.lock",
+}
+
+// ============================ Helper Functions ==============================
 
 // URL returns a canonicalized copy of u:
 // - Lowercases scheme and host
@@ -27,7 +36,7 @@ var (
 // - Removes trailing slash from path (except for root "/")
 func URL(incoming *url.URL) *url.URL {
 	if incoming == nil {
-		return nil
+		return &url.URL{}
 	}
 	normalized := *incoming // shallow copy
 	if normalized.Scheme != "" {
@@ -190,9 +199,4 @@ func CleanPath(p string, reserved ...string) (string, error) {
 		segments = append(segments, segment)
 	}
 	return filepath.Join(segments...), nil
-}
-
-var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
-var CleanPathReservedFileNames = []string{
-	"cache.lock",
 }

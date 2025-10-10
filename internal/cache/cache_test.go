@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -294,11 +295,11 @@ func TestCacheFilePutOperation(t *testing.T) {
 			// setup wanted result
 			var want *url.URL = &url.URL{
 				Path: filepath.Join(
-					cache.URI.Path,                         // cache namespace root
-					tc.item.Published.UTC().Format("2006"), // year shard
-					tc.item.Published.UTC().Format("01"),   // month shard
-					tc.item.Published.UTC().Format("02"),   // day shard
-					tc.item.Identifier(),                   // item.URL hash
+					cache.URI.Path,                          // cache namespace root
+					tc.item.Published.UTC().Format("2006"),  // year shard
+					tc.item.Published.UTC().Format("01"),    // month shard
+					tc.item.Published.UTC().Format("02"),    // day shard
+					fmt.Sprintf("%s", tc.item.Identifier()), // item.URL hash
 					tc.fileName,
 				),
 			}

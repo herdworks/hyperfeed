@@ -1,6 +1,6 @@
 # HyperFeed Types
 
-Core domain and wire types for HyperFeed. This package defines a normalized model used by higher‑level packages (discovery, subscriber, scheduler, storage) and format‑specific shims for RSS/Atom/JSON Feed parsing.
+Core domain and wire types for HyperFeed. This package defines a normalized model used by higher‑level packages (discovery, subscriber, scheduler, database) and format‑specific shims for RSS/Atom/JSON Feed parsing.
 
 * `SubscriptionList`
   * `Owner`
@@ -38,13 +38,13 @@ Represents a single RSS/Atom/JSON feed endpoint.
 - Contents: `Items []*Item`
 - Behavior:
   - `Identify()` populates `Domain` and `ID` using normalization helpers
-  - `CanonicalID() *url.URL` returns a stable host/path for storage and lookup
+  - `CanonicalID() *url.URL` returns a stable host/path
 
 Source: `github.com/herdworks/hyperfeed-go/types/feed.go`
 
 ### `FeedKind`
 
-Enumerates known feed type/version pairs for normalization and storage.
+Enumerates known feed type/version pairs.
 
 - RSS: `rss/0.91`, `rss/0.92`, `rss/2.0`
 - Atom: `atom/0.3`, `atom/1.0`
@@ -103,7 +103,7 @@ Wire model for RSS 0.9x/2.0 parsing with extension preservation.
 
 - Root: `RSS` { `Version`, `Channel` }
 - Channel: standard RSS elements (`title`, `link`, `description`, etc.) plus `Items []RSSItem`
-- Item: core RSS fields plus `Enclosure *RSSEnclosure` and `Extensions []Extension`
+- Item: core RSS fields plus `Enclosures []RSSEnclosure` and `Extensions []Extension`
 - Enclosure: `{ URL, Length, Type }` attributes
 - Helpers: `RSSDetect([]byte) bool`, `ParseRSS([]byte) (*RSS, error)` with `charset.NewReaderLabel` for non‑UTF8 encodings
 
@@ -141,7 +141,7 @@ Source: `github.com/herdworks/hyperfeed-go/types/jsonfeed.go`
 
 ## IDs and Canonicalization
 
-- SubscriptionList/Feed/Item provide stable identifiers suitable for storage keys and deduplication.
+- SubscriptionList/Feed/Item provide stable identifiers suitable for database keys and deduplication.
 - `Feed.Identify()` and `Feed.CanonicalID()` encapsulate domain + hex ID generation.
 - `Item.CanonicalID()` falls back in order: `ID` → `GUID` → `URL`.
 

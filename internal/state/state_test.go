@@ -16,6 +16,7 @@ type Example struct {
 	Name string `json:"name,omitempty"`
 	Age  int    `json:"age,omitempty"`
 }
+
 func (*Example) StateFileName() string {
 	return "example.json"
 }

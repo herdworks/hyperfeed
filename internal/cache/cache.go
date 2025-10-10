@@ -17,11 +17,26 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
-var (
-	ErrConfiguration = errors.New("cache: invalid configuration")
-	ErrReadiness     = errors.New("cache: cache not ready")
-	ErrInvalidFile   = errors.New("cache: invalid file")
-)
+// ============================= Package Types ================================
+
+type Cache struct {
+	FS        CacheFS  // underlying CacheFS implementation
+	Base      *url.URL // base URI for all caches
+	URI       *url.URL // root URI for this cache (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
+	Namespace Namespace
+}
+
+type Namespace struct {
+	Domain string
+	Feed   string
+}
+
+type File struct {
+	Cache *Cache
+	Item  *hyperfeed.Item
+	Name  string
+	URI   *url.URL // cached file URI, if previously computed
+}
 
 type CacheFS interface {
 	// Ready returns true if the CacheFS is properly configured with a root URI.
@@ -42,24 +57,12 @@ type CacheFS interface {
 	Prune(ctx context.Context, dir string, allowlist ...string) error
 }
 
-type Cache struct {
-	FS        CacheFS  // underlying CacheFS implementation
-	Base      *url.URL // base URI for all caches
-	URI       *url.URL // root URI for this cache (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
-	Namespace Namespace
-}
-
-type Namespace struct {
-	Domain string
-	Feed   string
-}
-
-type File struct {
-	Cache *Cache
-	Item  *hyperfeed.Item
-	Name  string
-	URI   *url.URL // cached file URI, if previously computed
-}
+// ============================= Package Variables ============================
+var (
+	ErrConfiguration = errors.New("cache: invalid configuration")
+	ErrReadiness     = errors.New("cache: cache not ready")
+	ErrInvalidFile   = errors.New("cache: invalid file")
+)
 
 // ============================= Cache Methods ================================
 
@@ -88,8 +91,8 @@ func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 		return errors.Join(ErrConfiguration, fmt.Errorf("invalid domain for feed.URL %q", feed.URL.String()))
 	}
 	cache.Base = base
-	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
-	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
+	cache.Namespace = Namespace{Domain: feed.Domain(), Feed: fmt.Sprintf("%s", feed.PathIdentifier())}
+	cache.URI = &url.URL{Path: filepath.Join(cache.Base.Path, "", feed.Domain(), fmt.Sprintf("%s", feed.PathIdentifier()), "")} // the "" element ensures trailing slash
 	cache.FS = &filesystem.FileSystem{}
 	return cache.FS.Configure(cache.URI, cache.Policies()...)
 }
@@ -217,7 +220,7 @@ func (file *File) RelativePath() (p string, err error) {
 	if name, err = normalized.CleanPath(file.Name); err != nil {
 		return "", errors.Join(ErrInvalidFile, fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err))
 	}
-	return filepath.Join(shard, file.Item.Identifier(), name), nil
+	return filepath.Join(shard, fmt.Sprintf("%s", file.Item.Identifier()), name), nil
 }
 
 // Exists() checks if the file exists

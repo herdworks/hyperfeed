@@ -17,6 +17,32 @@ import (
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
+// ============================= Package Types ================================
+
+// State stores state files
+type State struct {
+	FS        StateFS  // underlying StateFS implementation
+	Base      *url.URL // base URI for all state stores
+	URI       *url.URL // root URI for this state store (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
+	Namespace Namespace
+}
+
+type Namespace struct {
+	Domain string
+	Feed   string
+}
+
+type File struct {
+	State *State
+	URI   *url.URL // cached file URI, if previously computed
+
+	Data StateFile
+}
+
+type StateFile interface {
+	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
+}
+
 type StateFS interface {
 	// Ready returns true if the StateFS is properly configured with a root URI.
 	Ready() bool
@@ -35,34 +61,14 @@ type StateFS interface {
 	Prune(ctx context.Context, dir string, allowlist ...string) error
 }
 
-type StateFile interface {
-	StateFileName() string // returns the filename for the state file (e.g. "scheduler.json")
-}
+// ============================= Package Variables ============================
 
+// errors
 var (
 	ErrConfiguration = errors.New("state: invalid configuration")
 	ErrReadiness     = errors.New("state: state not ready")
 	ErrInvalidFile   = errors.New("state: invalid file")
 )
-
-type State struct {
-	FS        StateFS  // underlying StateFS implementation
-	Base      *url.URL // base URI for all state stores
-	URI       *url.URL // root URI for this state store (i.e. filepath.Join(Base.Path, Namespace.Domain, Namespace.Feed))
-	Namespace Namespace
-}
-
-type Namespace struct {
-	Domain string
-	Feed   string
-}
-
-type File struct {
-	State *State
-	URI   *url.URL // cached file URI, if previously computed
-
-	Data  StateFile
-}
 
 // ============================= State Methods ================================
 
@@ -91,8 +97,8 @@ func (state *State) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 		return errors.Join(ErrConfiguration, fmt.Errorf("invalid domain for feed.URL %q", feed.URL.String()))
 	}
 	state.Base = base
-	state.Namespace = Namespace{Domain: feed.Domain(), Feed: feed.Identifier()}
-	state.URI = &url.URL{Path: filepath.Join(state.Base.Path, "", feed.Domain(), feed.Identifier(), "")} // the "" element ensures trailing slash
+	state.Namespace = Namespace{Domain: feed.Domain(), Feed: fmt.Sprintf("%s", feed.PathIdentifier())}
+	state.URI = &url.URL{Path: filepath.Join(state.Base.Path, "", feed.Domain(), fmt.Sprintf("%s", feed.PathIdentifier()), "")} // the "" element ensures trailing slash
 	state.FS = &filesystem.FileSystem{}
 	return state.FS.Configure(state.URI, state.Policies()...)
 }

@@ -8,3 +8,7 @@ repl
 
 ## state files
 .gocache
+
+## wip
+discovery
+internal/errors

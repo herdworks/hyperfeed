@@ -7,6 +7,7 @@ require (
 	github.com/herdworks/hypertemplates-go v0.18.0-1
 	github.com/mattn/go-sqlite3 v1.14.22
 	golang.org/x/net v0.43.0
+	golang.org/x/sync v0.16.0
 )
 
 // local development dependencies (replacements)
