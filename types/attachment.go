@@ -31,7 +31,9 @@ type Attachment struct {
 	ItemID string `json:"-"` // back-reference to parent item
 }
 
-func (attachment *Attachment) Identifier() any {
+// ============================ Attachment Methods ============================
+
+func (attachment *Attachment) Identifier() string {
 	if attachment != nil && attachment.ID != "" {
 		return attachment.ID
 	}

@@ -125,15 +125,42 @@ func (a *Atom) Kind() FeedKind {
 	return FeedKindAtom
 }
 
+// RawFeed.GetURL() compliance
+func (atom *Atom) GetURL() (baseurl *url.URL) {
+	var link string
+	var err error
+	for _, l := range atom.Link {
+		if l.Rel == "alternate" || l.Rel == "" {
+			link = l.Href // use feed link as default author URL
+			break
+		}
+	}
+	if baseurl, err = url.Parse(link); err != nil {
+		return nil
+	}
+	return baseurl
+}
+func (atom *Atom) SetURL(u *url.URL) {
+	if u == nil || u.String() == "" {
+		return
+	}
+	for i, l := range atom.Link {
+		if l.Rel == "self" {
+			atom.Link[i].Href = u.String()
+			return
+		}
+	}
+}
 // RawFeed.ItemCount() compliance
 func (atom *Atom) ItemCount() int {
 	return len(atom.Entry)
 }
 
 // RawFeed.ParseItems() compliance
-func (atom *Atom) ParseItems() (items []*Item, err error) {
+func (atom *Atom) ParseItems(feedID string) (items []*Item, err error) {
 	for _, atomentry := range atom.Entry {
 		if item, err := atom.ParseItem(atomentry); err == nil {
+			item.FeedID = feedID
 			items = append(items, item)
 		} else {
 			return items, err
@@ -181,9 +208,8 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 		return nil, nil
 	}
 	item = &Item{}
-	item.Added = time.Now().UTC()
+	// item.ID = entry.ID
 	item.URL = entry.AlternateURL()
-	item.ID = entry.ID
 	item.Title = entry.Title
 	if published, err = time.Parse(time.RFC3339, entry.Published); err != nil {
 		published = time.Time{}
@@ -191,6 +217,7 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if updated, err = time.Parse(time.RFC3339, entry.Updated); err != nil {
 		updated = time.Time{}
 	}
+	item.Added = time.Now().UTC()
 	item.Published = earliest(published, updated)
 	item.Updated = latest(published, updated)
 	if entry.Summary != nil {
@@ -233,7 +260,13 @@ func (atom *Atom) ParseAuthors(entry *AtomEntry) (authors []Author, err error) {
 	if authorURL, err = atom.EntryAuthorURL(entry); err != nil {
 		return nil, err
 	}
-	if entry.Author != nil {
+	if entry.Author == nil {
+		authors = append(authors, Author{
+			Name: first(atom.Author.Name, atom.Title),
+			Email: atom.Author.Email,
+			URL:   atom.GetURL(),
+		})
+	} else {
 		authors = append(authors, Author{
 			Name:  entry.Author.Name,
 			Email: entry.Author.Email,
@@ -324,3 +357,4 @@ func ParseAtom(doc []byte) (atom *Atom, err error) {
 	err = atom.Unmarshal(doc)
 	return atom, err
 }
+

@@ -19,7 +19,9 @@ type Author struct {
 	Href string `json:"-"` // string representation of Author.URL
 }
 
-func (author *Author) Identifier() any {
+// ============================ Author Methods ================================
+
+func (author *Author) Identifier() string {
 	if author != nil && author.ID != "" {
 		return author.ID
 	}

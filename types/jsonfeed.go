@@ -82,6 +82,25 @@ func (jf JSONFeed) Kind() FeedKind {
 	}
 }
 
+// RawFeed.GetURL() compliance
+func (jf *JSONFeed) GetURL() (baseurl *url.URL) {
+	var err error
+	if baseurl, err = url.Parse(jf.FeedURL); err != nil || baseurl == nil || baseurl.Host == "" {
+		if baseurl, err = url.Parse(jf.HomePageURL); err != nil {
+			return nil
+		}
+	}
+	return baseurl
+}
+func (jf *JSONFeed) SetURL(u *url.URL) {
+	if u == nil {
+		return
+	}
+	if jf.FeedURL == "" {
+		jf.FeedURL = u.String()
+	}
+}
+
 // RawFeed.ItemCount() compliance
 func (jf *JSONFeed) ItemCount() int {
 	return len(jf.Items)
@@ -109,9 +128,10 @@ func (jf *JSONFeed) ParseFeedAuthors() (authors []Author, err error) {
 }
 
 // RawFeed.Items() compliance
-func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
+func (jf *JSONFeed) ParseItems(feedID string) (items []*Item, err error) {
 	for _, i := range jf.Items {
 		if item, err := jf.ParseItem(&i); err == nil {
+			item.FeedID = feedID
 			items = append(items, item)
 		} else {
 			return items, err
@@ -122,8 +142,7 @@ func (jf *JSONFeed) ParseItems() (items []*Item, err error) {
 func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	var published, updated time.Time
 	item = &Item{}
-	item.Added = time.Now().UTC()
-	item.ID = jfitem.ID
+	// item.ID = jfitem.ID
 	item.Title = jfitem.Title
 	item.Summary = jfitem.Summary
 	if jfitem.ContentHTML != "" {
@@ -144,6 +163,7 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	}
 	item.Published = earliest(published, updated)
 	item.Updated = latest(published, updated)
+	item.Added = time.Now().UTC()
 	if u, err := url.Parse(jfitem.ExternalURL); err == nil && u != nil {
 		item.Links = append(item.Links, u)
 	}
@@ -158,7 +178,9 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	return item, nil
 }
 func (jf *JSONFeed) ParseAuthors(jfitem *JSONItem) (authors []Author) {
-	if jfitem.Author != nil {
+	if jfitem.Author == nil {
+		authors = append(authors, *jf.ParseAuthor(&JSONFeedAuthor{}))
+	} else {
 		authors = append(authors, *jf.ParseAuthor(jfitem.Author))
 	}
 	for _, author := range jfitem.Authors {
@@ -167,8 +189,10 @@ func (jf *JSONFeed) ParseAuthors(jfitem *JSONItem) (authors []Author) {
 	return authors
 }
 func (jf *JSONFeed) ParseAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
-	if jfauthor == nil {
-		return nil
+	if jfauthor == nil && jf.Author != nil {
+		author = &Author{Name: jf.Author.Name}
+	} else if jfauthor == nil && jf.Author == nil {
+		author = &Author{Name: jf.Title} // default to feed title
 	} else {
 		author = &Author{Name: jfauthor.Name}
 	}

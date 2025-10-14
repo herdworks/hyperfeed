@@ -67,7 +67,7 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 	}
 	if response, err = feeder.Transporter.Fetch(ctx, request); err != nil {
 		feeder.Log(response, err)
-		return err
+		return nil
 	}
 	return feeder.Apply(ctx, response)
 }
@@ -244,40 +244,41 @@ func (feeder *Feeder) LogErrors(err error) {
 // Save persists the current feed and status to the database
 func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 	if err = feeder.Database.PingContext(ctx); err != nil {
-		return errors.Join(ErrDatabase, err)
+		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
 	if err = feeder.Database.UpsertRowValue(ctx, feeder.Feed); err != nil {
-		return errors.Join(ErrDatabase, err)
+		return errors.Join(ErrDatabase, errors.New("upserting feed"), err)
 	}
 	for _, author := range feeder.Feed.Authors {
 		if err = feeder.Database.UpsertRowValue(ctx, &author); err != nil {
-			return errors.Join(ErrDatabase, err)
+			return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 		}
 		if err = feeder.Database.InsertRelationValue(ctx, feeder.Feed, &author); err != nil {
-			return errors.Join(ErrDatabase, err)
+			return errors.Join(ErrDatabase, errors.New("inserting feed-author relation"), err)
 		}
 	}
 	return nil
 }
 func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 	if err = feeder.Database.PingContext(ctx); err != nil {
-		return errors.Join(ErrDatabase, err)
+		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
 	for _, item := range feeder.Items {
 		if err = feeder.Database.UpsertRowValue(ctx, item); err != nil {
-			return errors.Join(ErrDatabase, err)
+			return errors.Join(ErrDatabase, errors.New("upserting item"), err)
 		}
 		for _, author := range item.Authors {
 			if err = feeder.Database.UpsertRowValue(ctx, &author); err != nil {
-				return errors.Join(ErrDatabase, err)
+				return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 			}
 			if err = feeder.Database.InsertRelationValue(ctx, item, &author); err != nil {
-				return errors.Join(ErrDatabase, err)
+				return errors.Join(ErrDatabase, errors.New("inserting item-author relation"), err)
 			}
 		}
 		for _, attachment := range item.Attachments {
 			if err = feeder.Database.UpsertRowValue(ctx, &attachment); err != nil {
-				return errors.Join(ErrDatabase, err)
+				fmt.Printf("attachment.item_id: %q\n", attachment.ItemID)
+				return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
 			}
 		}
 	}

@@ -104,14 +104,15 @@ type FeedCacheControl struct {
 // FeedKind is a feed type/version pair (e.g., "rss/2.0")
 type FeedKind string
 
-// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed)
-// before normalization. Implementations should report their concrete kind
-// and version via Kind().
+// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed) before normalization. 
+// Implementations should report their concrete kind and version via Kind().
 type RawFeed interface {
 	Kind() FeedKind                      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
+	GetURL() *url.URL                    // returns the feed's base URL (for resolving relative item URLs)
+	SetURL(*url.URL)                     // set the raw feed's base URL (for resolving relative item URLs)
 	ItemCount() int                      // returns the number of items in the feed
 	ParseFeedAuthors() ([]Author, error) // parses and returns the feed's owners
-	ParseItems() ([]*Item, error)        // parses and returns the feed's items
+	ParseItems(feedID string) ([]*Item, error)        // parses and returns the feed's items
 }
 
 // ============================ Package Variables =============================
@@ -140,8 +141,12 @@ func (feed *Feed) Domain() string {
 }
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
-func (feed *Feed) Identifier() any {
-	return normalized.URL(feed.URL).String()
+func (feed *Feed) Identifier() string {
+	if feed.ID == "" {
+		u := normalized.URL(feed.URL)
+		feed.ID = normalized.Identifier(u.String())
+	}
+	return feed.ID
 }
 
 // PathIdentifier returns the stable identifier for the feed, computing it if needed.
@@ -186,10 +191,13 @@ func (feed *Feed) Parse() (err error) {
 		}
 	}
 	if feed.RawFeed != nil {
+		if !feed.RawFeed.GetURL().IsAbs() {
+			feed.RawFeed.SetURL(feed.URL) // ensure base URL is set for relative item URLs
+		}
 		if feed.Authors, err = feed.RawFeed.ParseFeedAuthors(); err != nil {
 			return err
 		}
-		if feed.Items, err = feed.RawFeed.ParseItems(); err != nil {
+		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier()); err != nil {
 			return err
 		} else if len(feed.Items) != feed.RawFeed.ItemCount() {
 			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
@@ -202,7 +210,7 @@ func (feed *Feed) RowTable() string {
 	return "feeds"
 }
 func (feed *Feed) RowIdentifier() string {
-	return "url"
+	return "id"
 }
 func (feed *Feed) RowColumns() []string {
 	return []string{

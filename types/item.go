@@ -38,6 +38,8 @@ type Item struct {
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
 
+	FeedID string `json:"feed_id,omitempty"` // back-reference to parent feed
+
 	Href string `json:"-"` // string representation of Item.URL
 }
 
@@ -61,7 +63,7 @@ func (i *Item) Ready() bool {
 	return true
 }
 
-func (item *Item) Identifier() any {
+func (item *Item) Identifier() string {
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
 		item.ID = normalized.Identifier(u.String())
@@ -85,6 +87,7 @@ func (item *Item) RowColumns() (columns []string) {
 		"published",
 		"updated",
 		"added",
+		"feed_id",
 	}
 }
 func (item *Item) RowArguments() (args []any) {
@@ -100,6 +103,7 @@ func (item *Item) RowArguments() (args []any) {
 	args = append(args, item.Published.UTC().Format(time.RFC3339))
 	args = append(args, item.Updated.UTC().Format(time.RFC3339))
 	args = append(args, item.Added.UTC().Format(time.RFC3339))
+	args = append(args, item.FeedID)
 	return args
 }
 func (item *Item) RowUpdates() [][2]string {
@@ -122,5 +126,6 @@ func (item *Item) RowTargets() (targets []any) {
 	targets = append(targets, &item.Published)
 	targets = append(targets, &item.Updated)
 	targets = append(targets, &item.Added)
+	targets = append(targets, &item.FeedID)
 	return targets
 }

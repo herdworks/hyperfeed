@@ -148,6 +148,21 @@ func (r *RSS) Kind() FeedKind {
 	return FeedKindRSS_2_0
 }
 
+// RawFeed.GetURL() compliance
+func (r *RSS) GetURL() (baseurl *url.URL) {
+	var err error
+	if baseurl, err = url.Parse(r.Channel.Link); err != nil {
+		return nil
+	}
+	return baseurl
+}
+func (r *RSS) SetURL(u *url.URL) {
+	if u == nil || u.String() == "" {
+		return
+	}
+	r.Channel.Link = u.String()
+}
+
 // RawFeed.ItemCount() compliance
 func (r *RSS) ItemCount() int {
 	return len(r.Channel.Items)
@@ -179,9 +194,10 @@ func (r *RSS) ParseFeedAuthors() (authors []Author, err error) {
 }
 
 // RawFeed.ParseItems() compliance
-func (r *RSS) ParseItems() (items []*Item, err error) {
+func (r *RSS) ParseItems(feedID string) (items []*Item, err error) {
 	for _, rssitem := range r.Channel.Items {
 		if item, err := r.ParseItem(&rssitem); err == nil {
+			item.FeedID = feedID
 			items = append(items, item)
 		} else {
 			return items, err
@@ -190,23 +206,30 @@ func (r *RSS) ParseItems() (items []*Item, err error) {
 	return items, nil
 }
 func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
+	var channelURL *url.URL
 	item = &Item{}
 	item.Added = time.Now().UTC()
 	item.Title = rssitem.Title
 	item.Summary = rssitem.Description
-	if item.URL, err = url.Parse(rssitem.Link); err != nil {
+	if channelURL, err = url.Parse(r.Channel.Link); err != nil {
 		return nil, err
 	}
-	if rssitem.GUID != nil {
-		item.ID = rssitem.GUID.Value
+	if item.URL, err = url.Parse(rssitem.Link); err != nil {
+		return nil, err
+	} else if !item.URL.IsAbs() && channelURL != nil {
+		item.URL = channelURL.ResolveReference(item.URL)
 	}
+	// if rssitem.GUID != nil {
+	// 	item.ID = rssitem.GUID.Value
+	// }
 	for _, author := range r.ParseAuthors(rssitem) {
 		item.Authors = append(item.Authors, author)
 	}
 	if item.Comments, err = url.Parse(rssitem.Comments); err != nil {
 		return nil, err
 	}
-	if item.Published, err = r.ParseDate(rssitem.PubDate); err != nil {
+	if item.Published, err = r.ParseDate(rssitem.PubDate, rssitem); err != nil {
+		fmt.Printf("item %q pubDate error: %v\n", item.URL, err)
 		return nil, err
 	}
 	if item.Updated.IsZero() {
@@ -214,7 +237,7 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	}
 	for _, enclosure := range rssitem.Enclosures {
 		var attachment *Attachment
-		if attachment, err = r.ParseAttachment(rssitem, &enclosure); err != nil {
+		if attachment, err = r.ParseAttachment(item, rssitem, &enclosure); err != nil {
 			return nil, err
 		}
 		item.Attachments = append(item.Attachments, *attachment)
@@ -250,10 +273,13 @@ func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []Author) {
 	authors = append(authors, author)
 	return authors
 }
-func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
+func (r *RSS) ParseAttachment(item *Item, rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
 	if attachment.URL, err = url.Parse(enclosure.URL); err != nil {
 		return nil, err
+	}
+	if enclosure.Length == "" {
+		enclosure.Length = "0"
 	}
 	if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
 		return nil, err
@@ -264,13 +290,14 @@ func (r *RSS) ParseAttachment(rssitem *RSSItem, enclosure *RSSEnclosure) (attach
 		}
 	}
 	attachment.Mimetype = enclosure.Type
-	if rssitem.GUID != nil {
-		attachment.ItemID = rssitem.GUID.Value
-	}
+	attachment.ItemID = item.Identifier()
 	return attachment, nil
 }
 
-func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
+func (r *RSS) ParseDate(dateStr string, item *RSSItem) (t time.Time, err error) {
+	if dateStr == "" {
+		return time.Time{}, nil
+	}
 	if t, err = time.Parse(time.RFC1123, dateStr); err == nil {
 		return t.UTC(), nil
 	}
@@ -287,7 +314,26 @@ func (r *RSS) ParseDate(dateStr string) (t time.Time, err error) {
 	if t, err = time.Parse("Mon, 2 Jan 2006 15:04:05 MST", dateStr); err == nil {
 		return t.UTC(), nil
 	}
-	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
+	if t, err = time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	// catch non-standard ISO 8601 dates, tisk tisk
+	if t, err = time.Parse(time.RFC3339, dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse("2006-01-02T15:04:05-0700", dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse("2006-01-02T15:04:05Z0700", dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse("2006-01-02T15:04:05.000Z0700", dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err = time.Parse("2006-01-02T15:04:05.000-0700", dateStr); err == nil {
+		return t.UTC(), nil
+	}
+	return time.Time{}, fmt.Errorf("could not parse %q date: %s", item.Link, dateStr)
 }
 
 // ============================ Extension Methods =============================
