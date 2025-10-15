@@ -4,7 +4,7 @@ hyperfeed-go
 ## test data
 **/testdata/Test*
 repl
-*.db
+*.db*
 
 ## state files
 .gocache

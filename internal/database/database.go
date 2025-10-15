@@ -72,6 +72,7 @@ func Schema() (b []byte, err error) {
 
 func (db *Database) Create() (err error) {
 	var file *os.File
+	fmt.Printf("database %q create\n", db.Path)
 	if len(db.Path) == 0 {
 		return errors.New("Database.Path is required")
 	}

@@ -260,7 +260,7 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 		break
 	case http.StatusTooManyRequests: // treat as error but proceed capture body
 		break
-	case http.StatusNoContent, http.StatusNotModified: // no body, nothing to do
+	case http.StatusNoContent, http.StatusNotModified: // no body, nothing to do (not modified is not an error)
 		return response, nil
 	case http.StatusServiceUnavailable, http.StatusGatewayTimeout: // 5xx errors
 		return response, fmt.Errorf("%w: %s", ErrResponse, response.Response.Status)
@@ -275,7 +275,7 @@ func (t Transporter) Fetch(ctx context.Context, request *Request) (*Response, er
 	if data, err = io.ReadAll(response.Response.Body); err == nil {
 		response.Bytes = data
 	} else {
-		return nil, ErrResponse
+		return response, ErrResponse
 	}
 	return response, nil
 }
@@ -444,6 +444,14 @@ func (tracker *RedirectTracker) Snapshot() []*url.URL {
 }
 
 // ============================= Response Methods =============================
+
+// Attempted reports whether the request was event attempted (i.e. StatusCode >= 100).
+func (response *Response) Attempted() bool {
+	if response == nil || response.Response == nil {
+		return false
+	}
+	return response.Response.StatusCode >= 100
+}
 
 // OK reports whether the response was successful (2xx).
 func (response *Response) OK() bool {

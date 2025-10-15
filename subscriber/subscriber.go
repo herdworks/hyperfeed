@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -48,27 +49,76 @@ type Config struct {
 
 // errors
 var (
-	ErrNotImplemented = errors.New("not implemented")
-	ErrSubscriber     = errors.New("subscriber error")
+	ErrNotImplemented   = errors.New("not implemented")
+	ErrReadiness        = errors.New("subscriber not ready")
+	ErrSubscriber       = errors.New("subscriber error")
+	ErrSubscriptionList = errors.New("subscription list error")
 )
 
 // defaults
 var (
 	DefaultFeederConfig = &Config{
-		DefaultInterval:    1 * time.Minute,
-		MinInterval:        time.Minute,
-		MaxInterval:        12 * time.Hour,
+		DefaultInterval:    IntervalActivityHigh,
+		MinInterval:        IntervalActivityLive,
+		MaxInterval:        IntervalActivityDaily,
 		StartupGracePeriod: 5 * time.Minute,
 	}
+	IntervalActivityLive     = 1 * time.Minute
+	IntervalActivityHigh     = 10 * time.Minute
+	IntervalActivityMedium   = 60 * time.Minute
+	IntervalActivityLow      = 240 * time.Minute // 4 hours
+	IntervalActivityDaily    = 1440 * time.Minute // 24 hours
 )
 
 // ============================ Subscriber Methods ============================
 
-// Load loads the SubscriptionList from its OPML URI and initializes the Subscriber
-func (subscriber *Subscriber) Load() (err error) {
+// Ready checks if the Subscriber is properly initialized
+func (subscriber *Subscriber) Ready(ctx context.Context) (ready bool, err error) {
+	if subscriber.SubscriptionList.Path == "" {
+		return false, errors.Join(ErrReadiness, errors.New("subscription list URI is nil"))
+	}
+	if subscriber.Config == nil {
+		return false, errors.Join(ErrReadiness, errors.New("subscriber configuration is nil"))
+	}
+	if subscriber.Database == nil {
+		return false, errors.Join(ErrReadiness, errors.New("subscriber database is nil"))
+	}
+	if err = subscriber.Database.PingContext(ctx); err != nil {
+		return false, errors.Join(ErrReadiness, fmt.Errorf("subscriber database %q is unreachable", subscriber.Database.Path), err)
+	}
+	return true, nil
+}
+
+// Init initializes the Subscriber database, etc
+func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Config) (err error) {
+	if subscriber.Database == nil {
+		subscriber.Database = &database.Database{} // init empty database
+	}
+	if subscriber.Config == nil {
+		subscriber.Config = config // use provided config
+	}
 	if subscriber.Config == nil {
 		cc := *DefaultFeederConfig // copy of default config
 		subscriber.Config = &cc    // init subscriber.Config with defaults
+	}
+	if uri != nil {
+		subscriber.SubscriptionList.Path = uri.String()
+		subscriber.Database.Path = filepath.Join(filepath.Dir(uri.Path), "hyperfeed.db")
+	} else {
+		return errors.Join(ErrSubscriptionList, errors.New("subscription list URI is nil"))
+	}
+
+	// Open the database, creating it if necessary
+	if err = subscriber.Database.Open(ctx); err != nil {
+		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
+	}
+	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
+}
+
+// Load loads the SubscriptionList from its OPML URI and initializes the Subscriber
+func (subscriber *Subscriber) Load(ctx context.Context) (err error) {
+	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
+		return err
 	}
 	if err = subscriber.SubscriptionList.Load(); err != nil {
 		return err
@@ -101,7 +151,6 @@ func (subscriber *Subscriber) InitFeeds() (err error) {
 // ResolveFeeds loads existing feed state from the database (if any)
 func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 	for _, feed := range subscriber.Feeds {
-		fmt.Printf("feed %q resolving\n", feed.Feed.URL.String())
 		if err := subscriber.Database.SyncRowValues(ctx, feed.Feed); err != nil {
 			return err
 		}
@@ -111,7 +160,6 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 		if err = json.Unmarshal(feed.Feed.StatusJSON, &feed.Feed.Status); err != nil {
 			return err
 		}
-		fmt.Printf("feed %q resolved\n", feed.Feed.URL.String())
 	}
 	return nil
 }
@@ -120,6 +168,10 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	var ticker *errgroup.Group
 	var cancellation context.Context
+	var skipped hyperfeed.Counter
+	var fetched hyperfeed.Counter
+	var duplicates hyperfeed.Counter
+	var added hyperfeed.Counter
 	ticker, cancellation = errgroup.WithContext(ctx)
 	if err = subscriber.Database.Open(ctx); err != nil {
 		return err
@@ -127,13 +179,11 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	for _, feed := range subscriber.Feeds {
 		f := feed // capture range variable
 		ticker.Go(func() (e error) {
-			fmt.Printf("feed %q syncing\n", f.Feed.URL.String())
-			if e = f.Tick(cancellation); errors.Is(e, feeder.ErrReadiness) {
-				// noop
-			} else if e != nil {
-				return errors.Join(ErrSubscriber, e)
-			}
-			if e = f.Parse(); e != nil {
+			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
+			f.Tick(cancellation)
+			if e = f.Parse(); e == nil {
+				fetched.Increment(len(f.Items))
+			} else {
 				return errors.Join(ErrSubscriber, e)
 			}
 			if e = f.SaveFeed(ctx); e != nil {
@@ -142,9 +192,35 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 			if e = f.SaveItems(ctx); e != nil {
 				return errors.Join(ErrSubscriber, e)
 			}
-			fmt.Printf("feed %q synced %d items\n", f.Feed.URL.String(), len(f.Feed.Items))
+			if f.Feed.Status.LastStatusCode == 1 {
+				skipped.Increment(1)
+			}
+			if a, err := f.AddedItems(ctx, f.Feed); err == nil && a > 0 {
+				fmt.Printf("feed %q added %d items\n", f.Feed.URL.String(), a)
+				added.Increment(a)
+			} else if err != nil {
+				return errors.Join(ErrSubscriber, err)
+			}
+			if dups := f.Feed.DuplicateItems(); len(dups) > 0 {
+				duplicates.Increment(len(dups))
+			}
 			return nil
 		})
 	}
-	return ticker.Wait()
+	if err = ticker.Wait(); err != nil {
+		return err
+	}
+	subscriber.SubscriptionList.Status = hyperfeed.SubscriptionStatus{
+		UpdatedAt:      time.Now().UTC(),
+		FeedsSkipped:   skipped.Count,
+		ItemsFetched:   fetched.Count,
+		ItemsDuplicate: duplicates.Count,
+		ItemsAdded:     added.Count,
+	}
+	fmt.Println()
+	fmt.Printf("subscriber %q skipped %d feeds\n", subscriber.Path, subscriber.SubscriptionList.Status.FeedsSkipped)
+	fmt.Printf("subscriber %q fetched %d items\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsFetched)
+	fmt.Printf("subscriber %q found %d duplicates\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsDuplicate)
+	fmt.Printf("subscriber %q added %d items\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsAdded)
+	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
 }

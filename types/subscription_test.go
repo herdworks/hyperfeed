@@ -1,16 +1,13 @@
 package hyperfeed
 
 import (
-	"net/url"
 	"testing"
 )
 
 func TestSubscriptionListLoad(t *testing.T) {
-	var sampleDataFileURL *url.URL
 	var subscriptionList SubscriptionList
 	var err error
-	sampleDataFileURL = &url.URL{Path: "testdata/2025-09-09/nnw_default_subscriptions.opml"}
-	subscriptionList = SubscriptionList{URI: sampleDataFileURL}
+	subscriptionList = SubscriptionList{Path: "testdata/2025-09-09/nnw_default_subscriptions.opml"}
 	if err = subscriptionList.Load(); err != nil {
 		t.Fatalf("Failed to load subscription list: %v", err)
 	}

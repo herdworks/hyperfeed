@@ -52,6 +52,9 @@ type FeedStatus struct {
 	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
 	LastErrorAt time.Time `json:"last_error_at"`
 
+	// LastError stores the last error message encountered during fetch attempts.
+	LastError string `json:"last_error"`
+
 	// PausedUntil stores user-imposed pause windows (manual snooze).
 	PausedUntil time.Time `json:"paused_until"`
 
@@ -112,7 +115,7 @@ type RawFeed interface {
 	SetURL(*url.URL)                     // set the raw feed's base URL (for resolving relative item URLs)
 	ItemCount() int                      // returns the number of items in the feed
 	ParseFeedAuthors() ([]Author, error) // parses and returns the feed's owners
-	ParseItems(feedID string) ([]*Item, error)        // parses and returns the feed's items
+	ParseItems(feedID string, added time.Time) ([]*Item, error)        // parses and returns the feed's items
 }
 
 // ============================ Package Variables =============================
@@ -197,13 +200,34 @@ func (feed *Feed) Parse() (err error) {
 		if feed.Authors, err = feed.RawFeed.ParseFeedAuthors(); err != nil {
 			return err
 		}
-		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier()); err != nil {
+		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.LastSuccessAt); err != nil {
 			return err
 		} else if len(feed.Items) != feed.RawFeed.ItemCount() {
 			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
 		}
 	}
 	return nil
+}
+
+// func (feed *Feed) AddedItems() (added int) {
+// 	for _, item := range feed.Items {
+// 		if item.Added == feed.Status.LastSuccessAt {
+// 			added++
+// 		}
+// 	}
+// 	return added
+// }
+
+func (feed *Feed) DuplicateItems() (duplicates []*Item) {
+	var seen map[string]bool = map[string]bool{}
+	for _, item := range feed.Items {
+		if seen[item.Identifier()] {
+			duplicates = append(duplicates, item)
+		} else {
+			seen[item.Identifier()] = true
+		}
+	}
+	return duplicates
 }
 
 func (feed *Feed) RowTable() string {
@@ -264,14 +288,20 @@ func (feed *Feed) RowTargets() (targets []any) {
 // ============================ Status Methods ================================
 
 // TBD if this is helpful, but it feels like an interesting experiment to optimize refresh workloads.
-func (status *FeedStatus) Cooldown() (cooldown time.Duration) {
+func (status *FeedStatus) Cooldown(interval time.Duration) (cooldown time.Duration) {
+	var intervalUnits time.Duration
 	var notmodifieds int = count(status.LastStatusCodes, 304)
-	var servererrs int = count(status.LastStatusCodes, 500, 502, 503, 504)
+	var requesterrs int = count(status.LastStatusCodes, 400, 401, 403, 404, 410)
+	var servererrs int = count(status.LastStatusCodes, 500, 502, 503, 504, 520)
 	var toomanyreqs int = count(status.LastStatusCodes, 429)
-	cooldown += time.Duration(notmodifieds) * (12 * time.Second) // 1 minute cooldown for every 5 304s
-	cooldown += time.Duration(servererrs) * (30 * time.Second)   // 1 minute cooldown for every 2 5xxs
-	cooldown += time.Duration(toomanyreqs) * (1 * time.Minute)   // 1 minute cooldown for every 429
-	return cooldown
+	switch {
+	case interval < 15 * time.Minute: intervalUnits = 30 * time.Second // +/- 0-15 minutes
+	case interval < 30 * time.Minute: intervalUnits = 1 * time.Minute // +/- 0-30 minutes
+	case interval < 60 * time.Minute: intervalUnits = 6 * time.Minute // +/- 0-180 minutes (0-3 hours)
+	case interval < 240 * time.Minute: intervalUnits = 40 * time.Minute // +/- 0-1200 minutes (0-20 hours)
+	case interval >= 1440 * time.Minute: intervalUnits = 0 * time.Minute // 24 hours is the max
+	}
+	return time.Duration(notmodifieds + requesterrs + servererrs + toomanyreqs) * intervalUnits
 }
 
 // ============================ Helper Functions ==============================

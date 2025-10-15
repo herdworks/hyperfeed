@@ -194,10 +194,11 @@ func (r *RSS) ParseFeedAuthors() (authors []Author, err error) {
 }
 
 // RawFeed.ParseItems() compliance
-func (r *RSS) ParseItems(feedID string) (items []*Item, err error) {
+func (r *RSS) ParseItems(feedID string, added time.Time) (items []*Item, err error) {
 	for _, rssitem := range r.Channel.Items {
 		if item, err := r.ParseItem(&rssitem); err == nil {
 			item.FeedID = feedID
+			item.Added = added
 			items = append(items, item)
 		} else {
 			return items, err

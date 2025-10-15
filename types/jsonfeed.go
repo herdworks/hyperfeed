@@ -128,10 +128,11 @@ func (jf *JSONFeed) ParseFeedAuthors() (authors []Author, err error) {
 }
 
 // RawFeed.Items() compliance
-func (jf *JSONFeed) ParseItems(feedID string) (items []*Item, err error) {
+func (jf *JSONFeed) ParseItems(feedID string, added time.Time) (items []*Item, err error) {
 	for _, i := range jf.Items {
 		if item, err := jf.ParseItem(&i); err == nil {
 			item.FeedID = feedID
+			item.Added = added
 			items = append(items, item)
 		} else {
 			return items, err

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS subscriptionlists (
     [owner_email] TEXT,
     [created_at] TIMESTAMP,
     [updated_at] TIMESTAMP,
+    [status] TEXT, -- SubscriptionList.Status JSON string
 
     PRIMARY KEY (id)
 );

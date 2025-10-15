@@ -157,10 +157,11 @@ func (atom *Atom) ItemCount() int {
 }
 
 // RawFeed.ParseItems() compliance
-func (atom *Atom) ParseItems(feedID string) (items []*Item, err error) {
+func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err error) {
 	for _, atomentry := range atom.Entry {
 		if item, err := atom.ParseItem(atomentry); err == nil {
 			item.FeedID = feedID
+			item.Added = added
 			items = append(items, item)
 		} else {
 			return items, err
