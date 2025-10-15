@@ -17,7 +17,7 @@ func TestSubscriberIntegration(t *testing.T) {
 	}{
 		{
 			name: "Valid OPML file",
-			uri:  &url.URL{Scheme: "file", Path: "testdata/nnw_default_subscriptions.opml"},
+			uri:  &url.URL{Path: "testdata/integration/following.opml"},
 			err:  nil,
 		},
 	}

@@ -11,7 +11,6 @@ import (
 //
 // If Init() is provided with valid configuration, Ready() should return true.
 func TestSubscriberInit(t *testing.T) {
-	t.Skip("Skipping TestSubscriberInit; re-enable when needed")
 	tests := []struct {
 		name   string
 		uri    *url.URL
@@ -20,13 +19,13 @@ func TestSubscriberInit(t *testing.T) {
 	}{
 		{
 			name:   "Valid URI and Config",
-			uri:    &url.URL{Path: "testdata/following.opml"},
+			uri:    &url.URL{Path: "testdata/unit/nnw_default_susbcriptions.opml"},
 			config: &Config{},
 			err:    nil,
 		},
 		{
 			name:   "Valid URI, nil Config",
-			uri:    &url.URL{Path: "testdata/following.opml"},
+			uri:    &url.URL{Path: "testdata/unit/nnw_default_susbcriptions.opml"},
 			config: nil,
 			err:    ErrReadiness,
 		},
