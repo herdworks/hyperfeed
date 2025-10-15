@@ -43,11 +43,11 @@ type Owner struct {
 }
 
 type SubscriptionStatus struct {
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
-	FeedsSkipped   int  `json:"feeds_skipped,omitempty"`
-	ItemsFetched   int  `json:"items_fetched,omitempty"`
-	ItemsDuplicate int  `json:"items_duplicate,omitempty"`
-	ItemsAdded     int  `json:"items_added,omitempty"`
+	UpdatedAt      time.Time `json:"updated_at,omitempty"`
+	FeedsSkipped   int       `json:"feeds_skipped,omitempty"`
+	ItemsFetched   int       `json:"items_fetched,omitempty"`
+	ItemsDuplicate int       `json:"items_duplicate,omitempty"`
+	ItemsAdded     int       `json:"items_added,omitempty"`
 }
 
 // =========================== SubscriptionList Methods =======================

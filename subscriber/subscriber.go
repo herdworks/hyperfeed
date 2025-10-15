@@ -63,11 +63,11 @@ var (
 		MaxInterval:        IntervalActivityDaily,
 		StartupGracePeriod: 5 * time.Minute,
 	}
-	IntervalActivityLive     = 1 * time.Minute
-	IntervalActivityHigh     = 10 * time.Minute
-	IntervalActivityMedium   = 60 * time.Minute
-	IntervalActivityLow      = 240 * time.Minute // 4 hours
-	IntervalActivityDaily    = 1440 * time.Minute // 24 hours
+	IntervalActivityLive   = 1 * time.Minute
+	IntervalActivityHigh   = 10 * time.Minute
+	IntervalActivityMedium = 60 * time.Minute
+	IntervalActivityLow    = 240 * time.Minute  // 4 hours
+	IntervalActivityDaily  = 1440 * time.Minute // 24 hours
 )
 
 // ============================ Subscriber Methods ============================

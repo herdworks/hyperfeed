@@ -34,19 +34,22 @@ type Attachment struct {
 // ============================ Attachment Methods ============================
 
 func (attachment *Attachment) Identifier() string {
-	if attachment != nil && attachment.ID != "" {
-		return attachment.ID
+	if attachment == nil {
+		return ""
 	}
-	var id *url.URL = normalized.URL(attachment.URL)
-	var query url.Values = id.Query()
-	if id == nil {
-		id = &url.URL{}
+	if attachment.ID == "" {
+		var id *url.URL = normalized.URL(attachment.URL)
+		var query url.Values = id.Query()
+		if id == nil {
+			id = &url.URL{}
+		}
+		query.Set("_size", fmt.Sprintf("%d", attachment.Size))
+		query.Set("_duration", fmt.Sprintf("%d", attachment.Duration))
+		query.Set("_mimetype", attachment.Mimetype)
+		id.RawQuery = query.Encode()
+		attachment.ID = normalized.Identifier(normalized.URL(id).String())
 	}
-	query.Set("_size", fmt.Sprintf("%d", attachment.Size))
-	query.Set("_duration", fmt.Sprintf("%d", attachment.Duration))
-	query.Set("_mimetype", attachment.Mimetype)
-	id.RawQuery = query.Encode()
-	return normalized.Identifier(normalized.URL(id).String())
+	return attachment.ID
 }
 func (attachment *Attachment) RowTable() (name string) {
 	return "attachments"

@@ -233,7 +233,7 @@ func (feeder *Feeder) ApplyBody(response *transporter.Response) {
 func (feeder *Feeder) Log(response *transporter.Response, err error) {
 	if response == nil {
 		response = &transporter.Response{
-			Response: &http.Response{StatusCode: 1},
+			Response:   &http.Response{StatusCode: 1},
 			ReceivedAt: time.Now().UTC(),
 		}
 	}
@@ -306,15 +306,19 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 	return nil
 }
 func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (count int, err error) {
+	var expected int = len(feed.Items) - len(feed.DuplicateItems())
+	var query string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added = ?;`
 	if len(feed.Items) == 0 {
 		return 0, nil
 	}
 	if err = feeder.Database.PingContext(ctx); err != nil {
 		return 0, errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
-	query := `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added = ?;`
 	if err = feeder.Database.QueryRowContext(ctx, query, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&count); err != nil {
 		return 0, errors.Join(ErrDatabase, errors.New("counting new items"), err)
+	}
+	if count != expected {
+		fmt.Printf("feed %q expected %d added items, got %d\n", feed.URL.String(), expected, count)
 	}
 	return count, nil
 }

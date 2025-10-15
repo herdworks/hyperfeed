@@ -20,6 +20,7 @@ import (
 type Feed struct {
 	ID          string      `json:"id,omitempty"`  // stable HyperFeed Feed identifier (normalized URL string)
 	URL         *url.URL    `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
+	HTMLURL     *url.URL    `json:"html_url,omitempty"`
 	Updated     time.Time   `json:"updated,omitempty"`
 	Language    string      `json:"language,omitempty"`
 	Title       string      `json:"title,omitempty"`
@@ -107,15 +108,15 @@ type FeedCacheControl struct {
 // FeedKind is a feed type/version pair (e.g., "rss/2.0")
 type FeedKind string
 
-// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed) before normalization. 
+// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed) before normalization.
 // Implementations should report their concrete kind and version via Kind().
 type RawFeed interface {
-	Kind() FeedKind                      // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
-	GetURL() *url.URL                    // returns the feed's base URL (for resolving relative item URLs)
-	SetURL(*url.URL)                     // set the raw feed's base URL (for resolving relative item URLs)
-	ItemCount() int                      // returns the number of items in the feed
-	ParseFeedAuthors() ([]Author, error) // parses and returns the feed's owners
-	ParseItems(feedID string, added time.Time) ([]*Item, error)        // parses and returns the feed's items
+	Kind() FeedKind                                             // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
+	GetURL() *url.URL                                           // returns the feed's base URL (for resolving relative item URLs)
+	SetURL(*url.URL)                                            // set the raw feed's base URL (for resolving relative item URLs)
+	ItemCount() int                                             // returns the number of items in the feed
+	ParseFeedAuthors() []Author                                 // parses and returns the feed's owners
+	ParseItems(feedID string, added time.Time) ([]*Item, error) // parses and returns the feed's items
 }
 
 // ============================ Package Variables =============================
@@ -145,6 +146,9 @@ func (feed *Feed) Domain() string {
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) Identifier() string {
+	if feed == nil {
+		return ""
+	}
 	if feed.ID == "" {
 		u := normalized.URL(feed.URL)
 		feed.ID = normalized.Identifier(u.String())
@@ -194,29 +198,18 @@ func (feed *Feed) Parse() (err error) {
 		}
 	}
 	if feed.RawFeed != nil {
-		if !feed.RawFeed.GetURL().IsAbs() {
-			feed.RawFeed.SetURL(feed.URL) // ensure base URL is set for relative item URLs
+		if feed.RawFeed.GetURL() == nil || !feed.RawFeed.GetURL().IsAbs() {
+			feed.RawFeed.SetURL(feed.GetURL()) // ensure base URL is set for relative item URLs
 		}
-		if feed.Authors, err = feed.RawFeed.ParseFeedAuthors(); err != nil {
-			return err
-		}
+		feed.Authors = feed.RawFeed.ParseFeedAuthors()
 		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.LastSuccessAt); err != nil {
 			return err
-		} else if len(feed.Items) != feed.RawFeed.ItemCount() {
+		} else if feed.RawFeed.ItemCount() != len(feed.Items) {
 			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
 		}
 	}
 	return nil
 }
-
-// func (feed *Feed) AddedItems() (added int) {
-// 	for _, item := range feed.Items {
-// 		if item.Added == feed.Status.LastSuccessAt {
-// 			added++
-// 		}
-// 	}
-// 	return added
-// }
 
 func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 	var seen map[string]bool = map[string]bool{}
@@ -228,6 +221,19 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 		}
 	}
 	return duplicates
+}
+
+func (feed *Feed) GetURL() *url.URL {
+	if feed == nil {
+		return nil
+	}
+	if feed.HTMLURL != nil && feed.HTMLURL.IsAbs() {
+		return feed.HTMLURL
+	}
+	if feed.URL != nil && feed.URL.IsAbs() {
+		return feed.URL
+	}
+	return nil
 }
 
 func (feed *Feed) RowTable() string {
@@ -295,13 +301,18 @@ func (status *FeedStatus) Cooldown(interval time.Duration) (cooldown time.Durati
 	var servererrs int = count(status.LastStatusCodes, 500, 502, 503, 504, 520)
 	var toomanyreqs int = count(status.LastStatusCodes, 429)
 	switch {
-	case interval < 15 * time.Minute: intervalUnits = 30 * time.Second // +/- 0-15 minutes
-	case interval < 30 * time.Minute: intervalUnits = 1 * time.Minute // +/- 0-30 minutes
-	case interval < 60 * time.Minute: intervalUnits = 6 * time.Minute // +/- 0-180 minutes (0-3 hours)
-	case interval < 240 * time.Minute: intervalUnits = 40 * time.Minute // +/- 0-1200 minutes (0-20 hours)
-	case interval >= 1440 * time.Minute: intervalUnits = 0 * time.Minute // 24 hours is the max
+	case interval < 15*time.Minute:
+		intervalUnits = 30 * time.Second // +/- 0-15 minutes
+	case interval < 30*time.Minute:
+		intervalUnits = 1 * time.Minute // +/- 0-30 minutes
+	case interval < 60*time.Minute:
+		intervalUnits = 6 * time.Minute // +/- 0-180 minutes (0-3 hours)
+	case interval < 240*time.Minute:
+		intervalUnits = 40 * time.Minute // +/- 0-1200 minutes (0-20 hours)
+	case interval >= 1440*time.Minute:
+		intervalUnits = 0 * time.Minute // 24 hours is the max
 	}
-	return time.Duration(notmodifieds + requesterrs + servererrs + toomanyreqs) * intervalUnits
+	return time.Duration(notmodifieds+requesterrs+servererrs+toomanyreqs) * intervalUnits
 }
 
 // ============================ Helper Functions ==============================

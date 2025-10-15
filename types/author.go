@@ -21,19 +21,29 @@ type Author struct {
 
 // ============================ Author Methods ================================
 
+func (author *Author) IsEmpty() bool {
+	if author == nil || author.Name == "" {
+		return true
+	}
+	return false
+}
+
 func (author *Author) Identifier() string {
-	if author != nil && author.ID != "" {
-		return author.ID
+	if author == nil {
+		return ""
 	}
-	var id *url.URL = normalized.URL(author.URL)
-	var query url.Values = id.Query()
-	if id == nil {
-		id = &url.URL{}
+	if author.ID == "" {
+		var id *url.URL = normalized.URL(author.URL)
+		var query url.Values = id.Query()
+		if id == nil {
+			id = &url.URL{}
+		}
+		query.Set("_name", author.Name)
+		query.Set("_email", author.Email)
+		id.RawQuery = query.Encode()
+		author.ID = normalized.Identifier(normalized.URL(id).String())
 	}
-	query.Set("_name", author.Name)
-	query.Set("_email", author.Email)
-	id.RawQuery = query.Encode()
-	return normalized.Identifier(normalized.URL(id).String())
+	return author.ID
 }
 
 func (author *Author) RowTable() string {

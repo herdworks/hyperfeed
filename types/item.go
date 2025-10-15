@@ -64,9 +64,12 @@ func (i *Item) Ready() bool {
 }
 
 func (item *Item) Identifier() string {
+	if item == nil {
+		return ""
+	}
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier(u.String())
+		item.ID = normalized.Identifier(item.FeedID + u.String())
 	}
 	return item.ID
 }

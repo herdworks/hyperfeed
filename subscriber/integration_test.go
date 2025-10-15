@@ -12,7 +12,7 @@ import (
 func TestSubscriberIntegration(t *testing.T) {
 	tests := []struct {
 		name string
-		uri *url.URL
+		uri  *url.URL
 		err  error
 	}{
 		{

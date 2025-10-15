@@ -13,7 +13,7 @@ func TestDetectKind(t *testing.T) {
 		t.Fatalf("Failed to read test data directory: %v", err)
 	}
 	for _, f := range files {
-		var feed Feed = Feed{}
+		var feed Feed = Feed{Status: &FeedStatus{}}
 		if f.IsDir() {
 			continue
 		}

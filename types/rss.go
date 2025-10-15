@@ -5,7 +5,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/net/html/charset"
@@ -20,7 +22,7 @@ type RSS struct {
 
 type RSSChannel struct {
 	Title          string        `xml:"title"`
-	Link           string        `xml:"link"`
+	Links          []RSSLink     `xml:"link"`
 	Description    string        `xml:"description"`
 	Language       string        `xml:"language"`
 	PubDate        string        `xml:"pubDate"`
@@ -43,10 +45,10 @@ type RSSChannel struct {
 }
 
 type RSSItem struct {
-	Link        string         `xml:"link"`
+	Links       []RSSLink      `xml:"link"` // some feeds use multiple <link> elements (see NYT <atom:link> namespace elements)
 	Title       string         `xml:"title"`
 	Description string         `xml:"description"`
-	Author      string         `xml:"author"`
+	Authors     []string       `xml:"author"`
 	Comments    string         `xml:"comments"`
 	GUID        *RSSGUID       `xml:"guid"`
 	PubDate     string         `xml:"pubDate"`
@@ -56,6 +58,13 @@ type RSSItem struct {
 
 	// Extensions captures additional namespaced elements under <item>.
 	Extensions []RSSExtension `xml:",any" json:"-"`
+}
+
+type RSSLink struct {
+	Href  string `xml:",chardata"`
+	Rel   string `xml:"rel,attr,omitempty"` // for Atom links
+	Type  string `xml:"type,attr,omitempty"`
+	Space string `xml:"xmlns,attr,omitempty"`
 }
 
 // RSSExtension preserves any XML element outside the core spec during parsing.
@@ -132,9 +141,22 @@ type RSSDays struct {
 
 // ============================ Variables =====================================
 
+// Extension namespaces
 const (
-	ExtensionNamespaceItunesPodcast       string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
-	ExtensionNamespaceYahooMediaRSS       string = "http://search.yahoo.com/mrss/"
+	// iTunes Podcasts: https://podcasters.apple.com/support/823-podcast-requirements
+	ExtensionNamespaceItunesPodcast string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+
+	// Google Play Podcasts
+	// https://www.google.com/schemas/play-podcasts/1.0/play-podcasts.xsd
+	// https://support.google.com/podcast-publishers/answer/9889544?visit_id=638961521969445342-2535738675&rd=1
+	ExtensionNamespaceGooglePlayPodcasts string = "http://www.google.com/schemas/play-podcasts/1.0"
+
+	// Media RSS
+	// https://www.rssboard.org/media-rss
+	ExtensionNamespaceYahooMediaRSS string = "http://search.yahoo.com/mrss/"
+
+	// Other common extension namespaces
+	ExtensionNamespaceAtom                string = "http://www.w3.org/2005/Atom"
 	ExtensionNamespaceRSSContent          string = "http://purl.org/rss/1.0/modules/content/"
 	ExtensionNamespaceDublinCoreTerms     string = "http://purl.org/dc/terms/"
 	ExtensionNamespaceDublicCoreMetadata  string = "http://purl.org/dc/elements/1.1/"
@@ -149,18 +171,22 @@ func (r *RSS) Kind() FeedKind {
 }
 
 // RawFeed.GetURL() compliance
-func (r *RSS) GetURL() (baseurl *url.URL) {
-	var err error
-	if baseurl, err = url.Parse(r.Channel.Link); err != nil {
+func (r *RSS) GetURL() *url.URL {
+	if r == nil || r.Channel.Links == nil || len(r.Channel.Links) == 0 {
 		return nil
 	}
-	return baseurl
+	for _, link := range r.Channel.Links {
+		if link.URL() != nil {
+			return link.URL()
+		}
+	}
+	return nil
 }
 func (r *RSS) SetURL(u *url.URL) {
 	if u == nil || u.String() == "" {
 		return
 	}
-	r.Channel.Link = u.String()
+	r.Channel.Links = append([]RSSLink{{Href: u.String()}}, r.Channel.Links...) // prepend if not already present
 }
 
 // RawFeed.ItemCount() compliance
@@ -169,28 +195,20 @@ func (r *RSS) ItemCount() int {
 }
 
 // RawFeed.ParseFeedAuthors() compliance
-func (r *RSS) ParseFeedAuthors() (authors []Author, err error) {
-	var author Author = Author{}
-	var href string
-	if r.Channel.Link != "" {
-		href = r.Channel.Link
+func (r *RSS) ParseFeedAuthors() (authors []Author) {
+	if editor := r.ParseAuthorString(r.Channel.ManagingEditor); !editor.IsEmpty() {
+		authors = append(authors, editor)
 	}
-	if r.Channel.Title != "" {
-		author.Name = r.Channel.Title
+	if webmaster := r.ParseAuthorString(r.Channel.Webmaster); !webmaster.IsEmpty() {
+		authors = append(authors, webmaster)
 	}
-	if owner := GetItunesMetadata(r.Channel.Extensions, "owner"); owner != nil {
-		if name := GetItunesMetadata(owner.Extensions, "name"); name != nil {
-			author.Name = name.Text
-		}
-		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
-			author.Email = email.Text
+	authors = append(authors, r.ParseChannelExtensionAuthors()...)
+	for i := range authors {
+		if authors[i].URL == nil || authors[i].URL.String() == "" {
+			authors[i].URL = r.GetURL()
 		}
 	}
-	if u, err := url.Parse(href); err == nil && u != nil {
-		author.URL = u
-	}
-	authors = append(authors, author)
-	return authors, nil
+	return authors
 }
 
 // RawFeed.ParseItems() compliance
@@ -207,22 +225,20 @@ func (r *RSS) ParseItems(feedID string, added time.Time) (items []*Item, err err
 	return items, nil
 }
 func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
-	var channelURL *url.URL
 	item = &Item{}
 	item.Added = time.Now().UTC()
 	item.Title = rssitem.Title
 	item.Summary = rssitem.Description
-	if channelURL, err = url.Parse(r.Channel.Link); err != nil {
-		return nil, err
+	for _, link := range rssitem.Links {
+		if link.URL() != nil {
+			item.URL = link.URL()
+		}
 	}
-	if item.URL, err = url.Parse(rssitem.Link); err != nil {
-		return nil, err
-	} else if !item.URL.IsAbs() && channelURL != nil {
-		item.URL = channelURL.ResolveReference(item.URL)
+	if item.URL = rssitem.GetURL(); item.URL == nil {
+		return nil, fmt.Errorf("FEED %q has item with no URL: %q", rssitem.GetURL(), rssitem.Title)
+	} else if !item.URL.IsAbs() && r.GetURL() != nil {
+		item.URL = r.GetURL().ResolveReference(item.URL) // resolve relative URLs against the feed URL
 	}
-	// if rssitem.GUID != nil {
-	// 	item.ID = rssitem.GUID.Value
-	// }
 	for _, author := range r.ParseAuthors(rssitem) {
 		item.Authors = append(item.Authors, author)
 	}
@@ -249,11 +265,61 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	return item, nil
 }
 func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []Author) {
-	var author Author = Author{}
-	var href string
-	if r.Channel.Link != "" {
-		href = r.Channel.Link
+	if len(rssitem.Authors) == 0 {
+		return r.ParseFeedAuthors()
 	}
+	for _, a := range rssitem.Authors {
+		author := r.ParseAuthorString(a)
+		if author.IsEmpty() {
+			continue
+		}
+		author.URL = r.GetURL()
+		authors = append(authors, author)
+	}
+	return authors
+}
+
+// <author> elements are not well-defined in RSS 2.0 and may contain just an email,
+// just a name, or both in various formats.
+func (r *RSS) ParseAuthorString(incoming string) Author {
+	var author Author = Author{}
+	var parts []string = strings.Split(strings.TrimSpace(incoming), " ")
+	var emailAddress *regexp.Regexp = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if emailAddress.MatchString(part) {
+			author.Email = part
+			continue
+		}
+	}
+	for _, part := range parts {
+		if !emailAddress.MatchString(part) {
+			author.Name = strings.Trim(strings.TrimSpace(part), "()<>{}[]")
+			continue
+		}
+	}
+	return author
+}
+func (r *RSS) ParseChannelExtensionAuthors() (authors []Author) {
+	var author Author = Author{}
+	if r.Channel.Title != "" {
+		author.Name = r.Channel.Title // use feed title as default author name
+	}
+	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
+		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
+			author.Name = name.Text
+		}
+		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
+			author.Email = email.Text
+		}
+	}
+	if !author.IsEmpty() {
+		authors = append(authors, author)
+	}
+	return authors
+}
+func (r *RSS) ParseItemExtensionAuthors(rssitem *RSSItem) (authors []Author) {
+	var author Author = Author{}
 	if r.Channel.Title != "" {
 		author.Name = r.Channel.Title
 	}
@@ -265,13 +331,9 @@ func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []Author) {
 			author.Email = email.Text
 		}
 	}
-	if authorMetadata := GetItunesMetadata(rssitem.Extensions, "author"); authorMetadata != nil {
-		author.Name = authorMetadata.Text
+	if !author.IsEmpty() {
+		authors = append(authors, author)
 	}
-	if u, err := url.Parse(href); err == nil && u != nil {
-		author.URL = u
-	}
-	authors = append(authors, author)
 	return authors
 }
 func (r *RSS) ParseAttachment(item *Item, rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
@@ -334,7 +396,59 @@ func (r *RSS) ParseDate(dateStr string, item *RSSItem) (t time.Time, err error) 
 	if t, err = time.Parse("2006-01-02T15:04:05.000-0700", dateStr); err == nil {
 		return t.UTC(), nil
 	}
-	return time.Time{}, fmt.Errorf("could not parse %q date: %s", item.Link, dateStr)
+	return time.Time{}, fmt.Errorf("could not parse %q date: %s", item.GetURL(), dateStr)
+}
+
+// ============================ RSSItem Methods ===============================
+
+func (item *RSSItem) GetURL() *url.URL {
+	if item == nil {
+		return nil
+	}
+	for _, link := range item.Links {
+		if link.URL() != nil {
+			return link.URL()
+		}
+	}
+	return nil
+}
+
+// ============================ RSSLink Methods ===============================
+
+func (rsslink *RSSLink) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
+	var atomLink AtomLink = AtomLink{}
+	if rsslink == nil {
+		rsslink = &RSSLink{}
+	}
+	switch {
+	case start.Name.Local == "link" && start.Name.Space == "http://www.w3.org/2005/Atom":
+		// handle <atom:link> elements
+		if err = d.DecodeElement(&atomLink, &start); err != nil {
+			return err
+		}
+		rsslink.Href = atomLink.Href
+		rsslink.Rel = atomLink.Rel
+		rsslink.Type = atomLink.Type
+		rsslink.Space = start.Name.Space
+	case start.Name.Local == "link":
+		// handle standard <link> elements
+		if err = d.DecodeElement(&rsslink.Href, &start); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (rsslink *RSSLink) String() string {
+	return rsslink.Href
+}
+func (rsslink *RSSLink) URL() *url.URL {
+	if rsslink == nil || rsslink.Href == "" {
+		return nil
+	}
+	if u, _ := url.Parse(rsslink.Href); u != nil {
+		return u
+	}
+	return nil
 }
 
 // ============================ Extension Methods =============================

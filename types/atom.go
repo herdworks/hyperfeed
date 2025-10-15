@@ -2,7 +2,6 @@ package hyperfeed
 
 import (
 	"encoding/xml"
-	"fmt"
 	"net/url"
 	"regexp"
 	"time"
@@ -55,10 +54,10 @@ type Atom struct {
 	XMLNS   string        `xml:"xmlns:hypergraph,attr"`
 	Title   string        `xml:"title"`
 	ID      string        `xml:"id"`
-	Link    []AtomLink    `xml:"link"`
+	Links   []AtomLink    `xml:"link"`
+	Authors []*AtomAuthor `xml:"author,omitempty"`
+	Entries []*AtomEntry  `xml:"entry"`
 	Updated AtomTimeStamp `xml:"updated"`
-	Author  *AtomPerson   `xml:"author,omitempty"`
-	Entry   []*AtomEntry  `xml:"entry"` // TODO: should this be renamed to "Entries"?
 }
 
 func (atom *Atom) Render() (string, error) {
@@ -70,15 +69,15 @@ func (atom *Atom) Render() (string, error) {
 }
 
 type AtomEntry struct {
-	Title       string        `xml:"title"`
-	ID          string        `xml:"id"`
-	Link        []AtomLink    `xml:"link"`
-	Published   AtomTimeStamp `xml:"published"`
-	Updated     AtomTimeStamp `xml:"updated"`
-	Author      *AtomPerson   `xml:"author"`
-	Contributor []*AtomPerson `xml:"contributor"` // extension from golang.org/x/tools/blog/atom
-	Summary     *AtomText     `xml:"summary"`
-	Content     *AtomText     `xml:"content"`
+	Title        string        `xml:"title"`
+	ID           string        `xml:"id"`
+	Link         []AtomLink    `xml:"link"`
+	Published    AtomTimeStamp `xml:"published"`
+	Updated      AtomTimeStamp `xml:"updated"`
+	Authors      []*AtomAuthor `xml:"author"`
+	Contributors []*AtomAuthor `xml:"contributor"` // extension from golang.org/x/tools/blog/atom
+	Summary      *AtomText     `xml:"summary"`
+	Content      *AtomText     `xml:"content"`
 }
 
 type AtomLink struct {
@@ -90,7 +89,7 @@ type AtomLink struct {
 	Length   uint   `xml:"length,attr,omitempty"`
 }
 
-type AtomPerson struct {
+type AtomAuthor struct {
 	Name     string `xml:"name"`
 	URI      string `xml:"uri,omitempty"`
 	Username string `xml:"hypergraph:username,omitempty"`
@@ -129,7 +128,10 @@ func (a *Atom) Kind() FeedKind {
 func (atom *Atom) GetURL() (baseurl *url.URL) {
 	var link string
 	var err error
-	for _, l := range atom.Link {
+	for _, l := range atom.Links {
+		if l.Href == "" {
+			continue
+		}
 		if l.Rel == "alternate" || l.Rel == "" {
 			link = l.Href // use feed link as default author URL
 			break
@@ -140,25 +142,48 @@ func (atom *Atom) GetURL() (baseurl *url.URL) {
 	}
 	return baseurl
 }
+
+// RawFeed.SetURL() compliance
 func (atom *Atom) SetURL(u *url.URL) {
 	if u == nil || u.String() == "" {
 		return
 	}
-	for i, l := range atom.Link {
-		if l.Rel == "self" {
-			atom.Link[i].Href = u.String()
-			return
-		}
-	}
+	atom.Links = append([]AtomLink{{Href: u.String(), Rel: ""}}, atom.Links...)
 }
+
 // RawFeed.ItemCount() compliance
 func (atom *Atom) ItemCount() int {
-	return len(atom.Entry)
+	return len(atom.Entries)
+}
+
+// RawFeed.ParseFeedAuthors() compliance
+func (atom *Atom) ParseFeedAuthors() (authors []Author) {
+	for _, aa := range atom.Authors {
+		var author Author = Author{}
+		if aa == nil {
+			aa = &AtomAuthor{}
+		}
+		if aa.Name != "" {
+			author.Name = aa.Name
+		} else {
+			author.Name = atom.Title
+		}
+		if aa.Email != "" {
+			author.Email = aa.Email
+		}
+		if aa.GetURL() != nil {
+			author.URL = aa.GetURL()
+		} else {
+			author.URL = atom.GetURL()
+		}
+		authors = append(authors, author)
+	}
+	return authors
 }
 
 // RawFeed.ParseItems() compliance
 func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err error) {
-	for _, atomentry := range atom.Entry {
+	for _, atomentry := range atom.Entries {
 		if item, err := atom.ParseItem(atomentry); err == nil {
 			item.FeedID = feedID
 			item.Added = added
@@ -171,46 +196,15 @@ func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err
 	return items, nil
 }
 
-func (atom *Atom) ParseFeedAuthors() (authors []Author, err error) {
-	var author Author = Author{}
-	var href string
-	if atom.Author == nil {
-		atom.Author = &AtomPerson{}
-	}
-	if atom.Author.Name != "" {
-		author.Name = atom.Author.Name
-	} else {
-		author.Name = atom.Title
-	}
-	if atom.Author.Email != "" {
-		author.Email = atom.Author.Email
-	}
-	if atom.Author.URI != "" {
-		href = atom.Author.URI
-	}
-	if href == "" {
-		for _, link := range atom.Link {
-			if link.Rel == "alternate" || link.Rel == "" {
-				href = link.Href
-				break
-			}
-		}
-	}
-	if author.URL, err = url.Parse(href); err != nil {
-		return nil, err
-	}
-	authors = append(authors, author)
-	return authors, nil
-}
-
 func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	var published, updated time.Time
 	if entry == nil {
 		return nil, nil
 	}
 	item = &Item{}
-	// item.ID = entry.ID
-	item.URL = entry.AlternateURL()
+	if item.URL = entry.GetURL(); !item.URL.IsAbs() && atom.GetURL() != nil {
+		item.URL = atom.GetURL().ResolveReference(item.URL) // resolve relative URLs against the feed URL
+	}
 	item.Title = entry.Title
 	if published, err = time.Parse(time.RFC3339, entry.Published); err != nil {
 		published = time.Time{}
@@ -227,9 +221,7 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if entry.Content != nil {
 		item.Content = entry.Content.Body
 	}
-	if item.Authors, err = atom.ParseAuthors(entry); err != nil {
-		return item, err
-	}
+	item.Authors = atom.ParseEntryAuthors(entry)
 	if item.Attachments, err = atom.ParseAttachments(entry); err != nil {
 		return item, err
 	}
@@ -256,37 +248,20 @@ func (atom *Atom) ParseItemURLs(item *Item, entry *AtomEntry) {
 	}
 }
 
-func (atom *Atom) ParseAuthors(entry *AtomEntry) (authors []Author, err error) {
-	var authorURL *url.URL
-	if authorURL, err = atom.EntryAuthorURL(entry); err != nil {
-		return nil, err
-	}
-	if entry.Author == nil {
-		authors = append(authors, Author{
-			Name: first(atom.Author.Name, atom.Title),
-			Email: atom.Author.Email,
-			URL:   atom.GetURL(),
-		})
+func (atom *Atom) ParseEntryAuthors(entry *AtomEntry) (authors []Author) {
+	if len(entry.Authors) == 0 && len(entry.Contributors) == 0 {
+		return atom.ParseFeedAuthors()
 	} else {
-		authors = append(authors, Author{
-			Name:  entry.Author.Name,
-			Email: entry.Author.Email,
-			URL:   authorURL,
-		})
-	}
-	for _, contributor := range entry.Contributor {
-		var contributorURL *url.URL
-		if contributorURL, err = url.Parse(contributor.URI); err != nil {
-			fmt.Printf("warning parsing contributor URI: %v\n", err)
-			contributorURL = &url.URL{}
+		// loop over authors and contributors
+		for _, a := range append(entry.Authors, entry.Contributors...) {
+			var author Author = Author{Name:  a.Name, Email: a.Email}
+			if author.URL = a.GetURL(); author.URL == nil {
+				author.URL = atom.GetURL()
+			}
+			authors = append(authors, author)
 		}
-		authors = append(authors, Author{
-			Name:  contributor.Name,
-			Email: contributor.Email,
-			URL:   contributorURL,
-		})
 	}
-	return authors, nil
+	return authors
 }
 
 func (atom *Atom) ParseAttachments(entry *AtomEntry) (attachments []Attachment, err error) {
@@ -319,18 +294,6 @@ func (atom *Atom) ParseAttachment(entry *AtomEntry, link *AtomLink) (attachment 
 	return attachment, nil
 }
 
-func (atom *Atom) EntryAuthorURL(entry *AtomEntry) (u *url.URL, err error) {
-	if entry.Author != nil && entry.Author.URI != "" {
-		return url.Parse(entry.Author.URI)
-	}
-	for _, link := range atom.Link {
-		if link.Rel == "alternate" || link.Rel == "" {
-			return url.Parse(link.Href) // use feed link as default author URL
-		}
-	}
-	return &url.URL{}, nil
-}
-
 func (atom *Atom) Unmarshal(data []byte) error {
 	return xml.Unmarshal(data, &atom)
 }
@@ -340,7 +303,9 @@ func (atom *Atom) MarshalIndent(prefix string, indent string) ([]byte, error) {
 }
 
 // ============================ AtomEntry Methods =============================
-func (entry *AtomEntry) AlternateURL() *url.URL {
+
+// RawItem.GetURL() compliance
+func (entry *AtomEntry) GetURL() *url.URL {
 	for _, link := range entry.Link {
 		if link.Rel == "alternate" || link.Rel == "" {
 			if u, err := url.Parse(link.Href); err == nil {
@@ -351,6 +316,26 @@ func (entry *AtomEntry) AlternateURL() *url.URL {
 	return &url.URL{}
 }
 
+// ============================ AtomLink Methods ==============================
+
+func (link *AtomLink) URL() (u *url.URL) {
+	if link == nil || link.Href == "" {
+		return u
+	}
+	u, _ = url.Parse(link.Href) // ignore error, return nil on failure
+	return u
+}
+
+// ============================ AtomAuthor Methods ============================
+
+func (author *AtomAuthor) GetURL() *url.URL {
+	if author == nil || author.URI == "" {
+		return nil
+	}
+	u, _ := url.Parse(author.URI)
+	return u
+}
+
 // ============================ Helper Functions ==============================
 
 func ParseAtom(doc []byte) (atom *Atom, err error) {
@@ -358,4 +343,3 @@ func ParseAtom(doc []byte) (atom *Atom, err error) {
 	err = atom.Unmarshal(doc)
 	return atom, err
 }
-

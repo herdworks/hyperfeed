@@ -107,7 +107,7 @@ func (jf *JSONFeed) ItemCount() int {
 }
 
 // RawFeed.ParseFeedAuthors() compliance
-func (jf *JSONFeed) ParseFeedAuthors() (authors []Author, err error) {
+func (jf *JSONFeed) ParseFeedAuthors() (authors []Author) {
 	if jf.Author != nil {
 		authors = append(authors, *jf.ParseAuthor(jf.Author))
 	}
@@ -118,13 +118,13 @@ func (jf *JSONFeed) ParseFeedAuthors() (authors []Author, err error) {
 	// ensure at least one author with URL matching JSONFeed.HomePageURL
 	for _, author := range authors {
 		if author.URL.String() == jf.HomePageURL {
-			return authors, nil // if author URL matches feed home page URL, return
+			return authors // if author URL matches feed home page URL, return
 		}
 	}
 	if u, err := url.Parse(jf.HomePageURL); err == nil && u != nil {
 		authors = append([]Author{{Name: jf.Title, URL: u}}, authors...) // prepend JSONFeed.HomePageURL author
 	}
-	return authors, nil
+	return authors
 }
 
 // RawFeed.Items() compliance
@@ -143,7 +143,6 @@ func (jf *JSONFeed) ParseItems(feedID string, added time.Time) (items []*Item, e
 func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	var published, updated time.Time
 	item = &Item{}
-	// item.ID = jfitem.ID
 	item.Title = jfitem.Title
 	item.Summary = jfitem.Summary
 	if jfitem.ContentHTML != "" {
@@ -151,8 +150,10 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 	} else {
 		item.Content = jfitem.ContentText
 	}
-	if u, err := url.Parse(jfitem.URL); err == nil && u != nil {
-		item.URL = u
+	if item.URL, err = url.Parse(jfitem.URL); err != nil {
+		return nil, err
+	} else if !item.URL.IsAbs() && jf.GetURL() != nil {
+		item.URL = jf.GetURL().ResolveReference(item.URL) // resolve relative URLs against the feed URL
 	}
 	if published, err = time.Parse(time.RFC3339, jfitem.DatePublished); jfitem.DatePublished != "" && err != nil {
 		fmt.Printf("error parsing %q published date %q: %v\n", jfitem.URL, jfitem.DatePublished, err)
