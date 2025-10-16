@@ -187,6 +187,7 @@ func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err
 		if item, err := atom.ParseItem(atomentry); err == nil {
 			item.FeedID = feedID
 			item.Added = added
+			item.Updated = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -197,7 +198,7 @@ func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err
 }
 
 func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
-	var published, updated time.Time
+	var published, modified time.Time
 	if entry == nil {
 		return nil, nil
 	}
@@ -209,12 +210,12 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if published, err = time.Parse(time.RFC3339, entry.Published); err != nil {
 		published = time.Time{}
 	}
-	if updated, err = time.Parse(time.RFC3339, entry.Updated); err != nil {
-		updated = time.Time{}
+	if modified, err = time.Parse(time.RFC3339, entry.Updated); err != nil {
+		modified = time.Time{}
 	}
 	item.Added = time.Now().UTC()
-	item.Published = earliest(published, updated)
-	item.Updated = latest(published, updated)
+	item.Published = earliest(published, modified)
+	item.Modified = latest(published, modified)
 	if entry.Summary != nil {
 		item.Summary = entry.Summary.Body
 	}
@@ -254,7 +255,7 @@ func (atom *Atom) ParseEntryAuthors(entry *AtomEntry) (authors []Author) {
 	} else {
 		// loop over authors and contributors
 		for _, a := range append(entry.Authors, entry.Contributors...) {
-			var author Author = Author{Name:  a.Name, Email: a.Email}
+			var author Author = Author{Name: a.Name, Email: a.Email}
 			if author.URL = a.GetURL(); author.URL == nil {
 				author.URL = atom.GetURL()
 			}

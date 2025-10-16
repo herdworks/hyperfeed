@@ -166,6 +166,7 @@ func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response)
 	if feeder.Status == nil {
 		feeder.Status = &hyperfeed.FeedStatus{LastStatusCodes: []int{}}
 	}
+	feeder.ApplyReset(response)
 	feeder.ApplyTimestamps(response)
 	feeder.ApplyStatusCode(response)
 	feeder.ApplyHeaders(response)
@@ -174,6 +175,7 @@ func (feeder *Feeder) Apply(ctx context.Context, response *transporter.Response)
 	return nil
 }
 func (feeder *Feeder) ApplyTimestamps(response *transporter.Response) {
+	// always updated UpdatedAt
 	feeder.Status.UpdatedAt = response.ReceivedAt.UTC()
 	if feeder.Status.CreatedAt.IsZero() {
 		// create timestamps
@@ -229,37 +231,55 @@ func (feeder *Feeder) ApplyBody(response *transporter.Response) {
 	// TODO: parse feed body and update FeedKind?
 }
 
+func (feeder *Feeder) ApplyReset(response *transporter.Response) {
+	feeder.Status.LastError = ""
+	// reset fetch error counter on successful fetch
+	if response.Response.StatusCode >= 100 {
+		feeder.Status.FetchErrors = 0 // if we received an HTTP status code, fetch was successful
+	}
+}
+
 // Log persists failure information for the current tick.
 func (feeder *Feeder) Log(response *transporter.Response, err error) {
 	if response == nil {
 		response = &transporter.Response{
-			Response:   &http.Response{StatusCode: 1},
+			Response:   &http.Response{},
 			ReceivedAt: time.Now().UTC(),
 		}
 	}
+	feeder.ApplyReset(response)
 	feeder.ApplyTimestamps(response)
 	feeder.ApplyStatusCode(response)
-	feeder.LogErrors(err)
+	feeder.LogErrors(response, err)
 }
-func (feeder *Feeder) LogErrors(err error) {
+func (feeder *Feeder) LogErrors(response *transporter.Response, err error) {
 	var message string = strings.Replace(fmt.Sprintf("%v", err), "\n", ": ", -1)
-	feeder.Feed.Status.LastError = ""
 	switch {
 	case errors.Is(err, ErrPaused):
 		fmt.Printf("feed %q paused %s\n", feeder.Feed.URL.String(), feeder.Status.PausedUntil.Format(time.RFC3339))
+		return
 	case errors.Is(err, ErrTooSoonJunior):
 		fmt.Printf("feed %q skipped\n", feeder.Feed.URL.String())
+		return
 	case errors.Is(err, ErrReadiness), errors.Is(err, ErrRequest):
 		fmt.Printf("feed %q skipped: %v\n", feeder.Feed.URL.String(), message)
+		return
 	case errors.Is(err, ErrRateLimited):
 		fmt.Printf("feed %q rate limited: %v\n", feeder.Feed.URL.String(), message)
+		return
+	case errors.As(err, &transporter.ErrDNS):
+		fmt.Printf("feed %q failed\n", feeder.Feed.URL.String())
+	case errors.As(err, &transporter.ErrTLSHostName), errors.As(err, &transporter.ErrTLSInvalid), errors.As(err, &transporter.ErrTLSUnknownCA):
+		fmt.Printf("feed %q failed\n", feeder.Feed.URL.String())
 	case errors.Is(err, ErrResponse):
-		fmt.Printf("feed %q fetch error: %v\n", feeder.Feed.URL.String(), message)
-		feeder.Feed.Status.LastError = message
+		fmt.Printf("feed %q failed\n", feeder.Feed.URL.String())
 	default:
 		fmt.Printf("feed %q unknown error: %v\n", feeder.Feed.URL.String(), message)
-		feeder.Feed.Status.LastError = message
 	}
+	feeder.Feed.Status.LastAttemptAt = response.ReceivedAt.UTC()
+	feeder.Feed.Status.LastErrorAt = response.ReceivedAt.UTC()
+	feeder.Feed.Status.FetchErrors++
+	feeder.Feed.Status.LastError = message
 }
 
 // Save persists the current feed and status to the database
@@ -305,22 +325,29 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 	}
 	return nil
 }
-func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (count int, err error) {
+func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int, int, error) {
 	var expected int = len(feed.Items) - len(feed.DuplicateItems())
-	var query string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added = ?;`
+	var addedCount int = 0
+	var addedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added = ?;`
+	var updatedCount int = 0
+	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND updated = ? AND added != ?;`
+	var err error
 	if len(feed.Items) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 	if err = feeder.Database.PingContext(ctx); err != nil {
-		return 0, errors.Join(ErrDatabase, errors.New("pinging database"), err)
+		return 0, 0, errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
-	if err = feeder.Database.QueryRowContext(ctx, query, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&count); err != nil {
-		return 0, errors.Join(ErrDatabase, errors.New("counting new items"), err)
+	if err = feeder.Database.QueryRowContext(ctx, addedQuery, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&addedCount); err != nil {
+		return 0, 0, errors.Join(ErrDatabase, errors.New("counting new items"), err)
 	}
-	if count != expected {
-		fmt.Printf("feed %q expected %d added items, got %d\n", feed.URL.String(), expected, count)
+	if err = feeder.Database.QueryRowContext(ctx, updatedQuery, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339), feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&updatedCount); err != nil {
+		return 0, 0, errors.Join(ErrDatabase, errors.New("counting modified items"), err)
 	}
-	return count, nil
+	if addedCount+updatedCount != expected {
+		fmt.Printf("feed %q expected %d added items, got %d\n", feed.URL.String(), expected, addedCount+updatedCount)
+	}
+	return addedCount, updatedCount, nil
 }
 
 // ========================= Helper Functions ===========================

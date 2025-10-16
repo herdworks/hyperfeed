@@ -2,9 +2,11 @@ package transporter
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -142,6 +144,10 @@ var (
 	ErrTooManyRedirects = errors.New("transporter redirects exceeded")
 	ErrResponse         = errors.New("transporter response error")
 	ErrResponseTooLarge = errors.New("transporter response body exceeds limit")
+	ErrDNS              *net.DNSError
+	ErrTLSHostName      x509.HostnameError
+	ErrTLSInvalid       x509.CertificateInvalidError
+	ErrTLSUnknownCA     x509.UnknownAuthorityError
 )
 
 // Transporter defaults

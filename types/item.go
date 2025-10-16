@@ -21,9 +21,10 @@ type Item struct {
 	Title   string   `json:"title,omitempty"`
 	Authors []Author `json:"authors,omitempty"`
 
-	Published time.Time `json:"published,omitempty"` // created timestamp
-	Updated   time.Time `json:"updated,omitempty"`   // modified timestamp
+	Published time.Time `json:"published,omitempty"` // source item created timestamp
+	Modified  time.Time `json:"modified,omitempty"`  // source item last modified timestamp
 	Added     time.Time `json:"added,omitempty"`     // when we first saw the item
+	Updated   time.Time `json:"updated,omitempty"`   // when we last updated the item in our database
 
 	Summary     string       `json:"summary,omitempty"`
 	Content     string       `json:"content,omitempty"`
@@ -88,8 +89,9 @@ func (item *Item) RowColumns() (columns []string) {
 		"summary",
 		"content",
 		"published",
-		"updated",
+		"modified",
 		"added",
+		"updated",
 		"feed_id",
 	}
 }
@@ -104,8 +106,9 @@ func (item *Item) RowArguments() (args []any) {
 	args = append(args, strings.TrimSpace(item.Summary))
 	args = append(args, strings.TrimSpace(item.Content))
 	args = append(args, item.Published.UTC().Format(time.RFC3339))
-	args = append(args, item.Updated.UTC().Format(time.RFC3339))
+	args = append(args, item.Modified.UTC().Format(time.RFC3339))
 	args = append(args, item.Added.UTC().Format(time.RFC3339))
+	args = append(args, item.Updated.UTC().Format(time.RFC3339))
 	args = append(args, item.FeedID)
 	return args
 }
@@ -116,6 +119,7 @@ func (item *Item) RowUpdates() [][2]string {
 		{"summary", "excluded.summary"},
 		{"content", "excluded.content"},
 		{"published", "excluded.published"},
+		{"modified", "excluded.modified"},
 		{"updated", "excluded.updated"},
 	}
 }
@@ -127,8 +131,9 @@ func (item *Item) RowTargets() (targets []any) {
 	targets = append(targets, &item.Summary)
 	targets = append(targets, &item.Content)
 	targets = append(targets, &item.Published)
-	targets = append(targets, &item.Updated)
+	targets = append(targets, &item.Modified)
 	targets = append(targets, &item.Added)
+	targets = append(targets, &item.Updated)
 	targets = append(targets, &item.FeedID)
 	return targets
 }

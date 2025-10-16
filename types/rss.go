@@ -217,6 +217,7 @@ func (r *RSS) ParseItems(feedID string, added time.Time) (items []*Item, err err
 		if item, err := r.ParseItem(&rssitem); err == nil {
 			item.FeedID = feedID
 			item.Added = added
+			item.Updated = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -249,8 +250,8 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 		fmt.Printf("item %q pubDate error: %v\n", item.URL, err)
 		return nil, err
 	}
-	if item.Updated.IsZero() {
-		item.Updated = item.Published
+	if item.Modified.IsZero() {
+		item.Modified = item.Published
 	}
 	for _, enclosure := range rssitem.Enclosures {
 		var attachment *Attachment

@@ -168,12 +168,11 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	var ticker *errgroup.Group
 	var cancellation context.Context
-	var skipped hyperfeed.Counter
-	var fetched hyperfeed.Counter
-	var duplicates hyperfeed.Counter
-	var added hyperfeed.Counter
+	subscriber.SubscriptionList.Status = &hyperfeed.SubscriptionStatus{UpdatedAt: time.Now().UTC()}
 	ticker, cancellation = errgroup.WithContext(ctx)
-	if err = subscriber.Database.Open(ctx); err != nil {
+	if err = subscriber.Database.Open(ctx); err == nil {
+		defer subscriber.Database.Close()
+	} else {
 		return err
 	}
 	for _, feed := range subscriber.Feeds {
@@ -182,7 +181,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
 			f.Tick(cancellation)
 			if e = f.Parse(); e == nil {
-				fetched.Increment(len(f.Items))
+				subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
 			} else {
 				return errors.Join(ErrSubscriber, e)
 			}
@@ -192,17 +191,23 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 			if e = f.SaveItems(ctx); e != nil {
 				return errors.Join(ErrSubscriber, e)
 			}
-			if f.Feed.Status.LastStatusCode == 1 {
-				skipped.Increment(1)
+			if f.Feed.Status.Fetched() {
+				subscriber.SubscriptionList.Status.FeedsFetched.Increment(1)
 			}
-			if a, err := f.AddedItems(ctx, f.Feed); err == nil && a > 0 {
-				fmt.Printf("feed %q added %d items\n", f.Feed.URL.String(), a)
-				added.Increment(a)
-			} else if err != nil {
+			if f.Feed.Status.Skipped() {
+				subscriber.SubscriptionList.Status.FeedsSkipped.Increment(1)
+			}
+			if f.Feed.Status.Failed() {
+				subscriber.SubscriptionList.Status.FeedsFailed.Increment(1)
+			}
+			if a, u, err := f.AddedItems(ctx, f.Feed); err == nil {
+				subscriber.SubscriptionList.Status.ItemsAdded.Increment(a)
+				subscriber.SubscriptionList.Status.ItemsUpdated.Increment(u)
+			} else {
 				return errors.Join(ErrSubscriber, err)
 			}
 			if dups := f.Feed.DuplicateItems(); len(dups) > 0 {
-				duplicates.Increment(len(dups))
+				subscriber.SubscriptionList.Status.ItemsDuplicate.Increment(len(dups))
 			}
 			return nil
 		})
@@ -210,17 +215,6 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	if err = ticker.Wait(); err != nil {
 		return err
 	}
-	subscriber.SubscriptionList.Status = hyperfeed.SubscriptionStatus{
-		UpdatedAt:      time.Now().UTC(),
-		FeedsSkipped:   skipped.Count,
-		ItemsFetched:   fetched.Count,
-		ItemsDuplicate: duplicates.Count,
-		ItemsAdded:     added.Count,
-	}
-	fmt.Println()
-	fmt.Printf("subscriber %q skipped %d feeds\n", subscriber.Path, subscriber.SubscriptionList.Status.FeedsSkipped)
-	fmt.Printf("subscriber %q fetched %d items\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsFetched)
-	fmt.Printf("subscriber %q found %d duplicates\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsDuplicate)
-	fmt.Printf("subscriber %q added %d items\n", subscriber.Path, subscriber.SubscriptionList.Status.ItemsAdded)
+	fmt.Println(subscriber.SubscriptionList.Status.Print())
 	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
 }

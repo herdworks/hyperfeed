@@ -39,22 +39,32 @@ type Feed struct {
 // FeedStatus represents feed state (schedule, rate limiting, etc)
 type FeedStatus struct {
 	// CreatedAt indicates when the feed was first scheduled.
+	// CreatedAt is only set once, when the feed is first added to the database.
 	CreatedAt time.Time `json:"created_at"`
 
-	// UpdatedAt indicates when the state was last modified.
+	// UpdatedAt indicates when the state was last updated.
+	// UpdatedAt is set on every tick.
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// LastAttemptAt is when we most recently attempted a fetch, successful or not.
+	// LastAttemptAt is only set on ticks when a fetch is attempted.
 	LastAttemptAt time.Time `json:"last_attempt_at"`
 
 	// LastSuccessAt is when we most recently fetched new content.
+	// LastSuccessAt is only set on fetches that return 2xx or 304 Not Modified status codes.
 	LastSuccessAt time.Time `json:"last_success_at"`
 
 	// LastErrorAt is when we most recently encountered an HTTP 4xx or 5xx error.
+	// LastErrorAt is only set on fetches that return 4xx or 5xx status codes.
 	LastErrorAt time.Time `json:"last_error_at"`
 
 	// LastError stores the last error message encountered during fetch attempts.
+	// LastError is set on every fetch; if the fetch is successful, LastError is cleared.
 	LastError string `json:"last_error"`
+
+	// FetchErrors counts consecutive request errors (DNS, TLS, network, etc)
+	// FetchErrors is incremented on every request error, and reset to zero on a successful fetch.
+	FetchErrors int `json:"fetch_errors"`
 
 	// PausedUntil stores user-imposed pause windows (manual snooze).
 	PausedUntil time.Time `json:"paused_until"`
@@ -202,7 +212,7 @@ func (feed *Feed) Parse() (err error) {
 			feed.RawFeed.SetURL(feed.GetURL()) // ensure base URL is set for relative item URLs
 		}
 		feed.Authors = feed.RawFeed.ParseFeedAuthors()
-		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.LastSuccessAt); err != nil {
+		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.UpdatedAt); err != nil {
 			return err
 		} else if feed.RawFeed.ItemCount() != len(feed.Items) {
 			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
@@ -312,7 +322,32 @@ func (status *FeedStatus) Cooldown(interval time.Duration) (cooldown time.Durati
 	case interval >= 1440*time.Minute:
 		intervalUnits = 0 * time.Minute // 24 hours is the max
 	}
-	return time.Duration(notmodifieds+requesterrs+servererrs+toomanyreqs) * intervalUnits
+	return time.Duration(
+		notmodifieds+
+			requesterrs+
+			servererrs+
+			toomanyreqs+
+			status.FetchErrors, // also penalize consecutive request errors
+	) * intervalUnits
+}
+
+func (status *FeedStatus) Fetched() bool {
+	return status.UpdatedAt == status.LastSuccessAt
+}
+
+func (status *FeedStatus) Skipped() bool {
+	return status.UpdatedAt != status.LastAttemptAt
+}
+
+func (status *FeedStatus) Failed() bool {
+	switch {
+	case status.UpdatedAt == status.LastAttemptAt && status.FetchErrors > 0:
+		return true
+	case status.UpdatedAt == status.LastAttemptAt && status.UpdatedAt == status.LastErrorAt:
+		return true
+	default:
+		return false
+	}
 }
 
 // ============================ Helper Functions ==============================

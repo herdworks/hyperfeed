@@ -133,6 +133,7 @@ func (jf *JSONFeed) ParseItems(feedID string, added time.Time) (items []*Item, e
 		if item, err := jf.ParseItem(&i); err == nil {
 			item.FeedID = feedID
 			item.Added = added
+			item.Updated = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -141,7 +142,7 @@ func (jf *JSONFeed) ParseItems(feedID string, added time.Time) (items []*Item, e
 	return items, nil
 }
 func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
-	var published, updated time.Time
+	var published, modified time.Time
 	item = &Item{}
 	item.Title = jfitem.Title
 	item.Summary = jfitem.Summary
@@ -159,12 +160,12 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 		fmt.Printf("error parsing %q published date %q: %v\n", jfitem.URL, jfitem.DatePublished, err)
 		published = time.Time{}
 	}
-	if updated, err = time.Parse(time.RFC3339, jfitem.DateModified); jfitem.DateModified != "" && err != nil {
+	if modified, err = time.Parse(time.RFC3339, jfitem.DateModified); jfitem.DateModified != "" && err != nil {
 		fmt.Printf("error parsing %q modified date %q: %v\n", jfitem.URL, jfitem.DateModified, err)
-		updated = time.Time{}
+		modified = time.Time{}
 	}
-	item.Published = earliest(published, updated)
-	item.Updated = latest(published, updated)
+	item.Published = earliest(published, modified)
+	item.Modified = latest(published, modified)
 	item.Added = time.Now().UTC()
 	if u, err := url.Parse(jfitem.ExternalURL); err == nil && u != nil {
 		item.Links = append(item.Links, u)
