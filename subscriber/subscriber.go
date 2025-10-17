@@ -90,6 +90,8 @@ func (subscriber *Subscriber) Ready(ctx context.Context) (ready bool, err error)
 }
 
 // Init initializes the Subscriber database, etc
+//
+// NOTE: Init uses a URI instead of a path string to allow for future flexibility (e.g. reading subscription lists from remote locations).
 func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Config) (err error) {
 	if subscriber.Database == nil {
 		subscriber.Database = &database.Database{} // init empty database
@@ -143,6 +145,9 @@ func (subscriber *Subscriber) InitFeeds() (err error) {
 		if feeder.Feed.URL, err = url.Parse(outline.XMLURL); err != nil {
 			return err
 		}
+		if feeder.Feed.HTMLURL, err = url.Parse(outline.HTMLURL); err != nil {
+			return err
+		}
 		subscriber.Feeds = append(subscriber.Feeds, feeder)
 	}
 	return nil
@@ -168,6 +173,7 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	var ticker *errgroup.Group
 	var cancellation context.Context
+	var start time.Time = time.Now().UTC()
 	subscriber.SubscriptionList.Status = &hyperfeed.SubscriptionStatus{UpdatedAt: time.Now().UTC()}
 	ticker, cancellation = errgroup.WithContext(ctx)
 	if err = subscriber.Database.Open(ctx); err == nil {
@@ -215,6 +221,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	if err = ticker.Wait(); err != nil {
 		return err
 	}
+	subscriber.SubscriptionList.Status.Duration = time.Since(start)
 	fmt.Println(subscriber.SubscriptionList.Status.Print())
 	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
 }

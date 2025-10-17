@@ -87,11 +87,11 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 	if tick.Before(feeder.Status.PausedUntil) {
 		return false, ErrPaused // feed is paused
 	}
-	if tick.Before(feeder.Status.UpdatedAt.Add(cooldown)) {
-		return false, ErrTooSoonJunior // feed is in cooldown period after last update
+	if tick.Before(feeder.Status.LastErrorAt.Add(cooldown)) {
+		return false, ErrTooSoonJunior // feed is in cooldown-only period after last error
 	}
 	if tick.Before(feeder.Status.LastSuccessAt.Add(feeder.Interval + cooldown)) {
-		return false, ErrTooSoonJunior // not enough time has passed since last successful fetch
+		return false, ErrTooSoonJunior // not enough time has passed since last successful fetch (interval+cooldown)
 	}
 	if tick.Before(feeder.Status.RateLimit.WaitUntil) {
 		return false, ErrRateLimited // rate limited
@@ -192,7 +192,7 @@ func (feeder *Feeder) ApplyTimestamps(response *transporter.Response) {
 	} else if response.NotModified() {
 		// not modified is success, but the feed will not be marked as updated
 		feeder.Status.LastSuccessAt = response.ReceivedAt.UTC()
-	} else {
+	} else if response.Attempted() {
 		// failure timestamps
 		feeder.Status.LastErrorAt = response.ReceivedAt.UTC()
 	}

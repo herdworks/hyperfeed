@@ -44,6 +44,7 @@ type Owner struct {
 }
 
 type SubscriptionStatus struct {
+	Duration       time.Duration `json:"duration,omitempty"`
 	UpdatedAt      time.Time `json:"updated_at,omitempty"`
 	FeedsSkipped   Counter   `json:"feeds_skipped,omitempty"`
 	FeedsFailed    Counter   `json:"feeds_failed,omitempty"`
@@ -143,12 +144,14 @@ func (subscription *SubscriptionList) RowTargets() (targets []any) {
 
 func (status *SubscriptionStatus) Print() string {
 	var report string = "\n"
-	report += fmt.Sprintf("Feeds Skipped:   %4d\n", status.FeedsSkipped.Count)
-	report += fmt.Sprintf("Feeds Failed:    %4d\n", status.FeedsFailed.Count)
-	report += fmt.Sprintf("Feeds Fetched:   %4d\n", status.FeedsFetched.Count)
-	report += fmt.Sprintf("Items Fetched:   %4d\n", status.ItemsFetched.Count)
-	report += fmt.Sprintf("Items Duplicate: %4d\n", status.ItemsDuplicate.Count)
-	report += fmt.Sprintf("Items Updated:   %4d\n", status.ItemsUpdated.Count)
-	report += fmt.Sprintf("Items Added:     %4d\n", status.ItemsAdded.Count)
+	report += fmt.Sprintf("Feeds Skipped:   %6d\n", status.FeedsSkipped.Count)
+	report += fmt.Sprintf("Feeds Failed:    %6d\n", status.FeedsFailed.Count)
+	report += fmt.Sprintf("Feeds Fetched:   %6d\n", status.FeedsFetched.Count)
+	report += fmt.Sprintf("Items Fetched:   %6d\n", status.ItemsFetched.Count)
+	report += fmt.Sprintf("Items Duplicate: %6d\n", status.ItemsDuplicate.Count)
+	report += fmt.Sprintf("Items Updated:   %6d\n", status.ItemsUpdated.Count)
+	report += fmt.Sprintf("Items Added:     %6d\n", status.ItemsAdded.Count)
+	report += "-----------------------\n"
+	report += fmt.Sprintf("TOTAL:           %6v\n", status.Duration.Truncate(time.Millisecond))
 	return report
 }
