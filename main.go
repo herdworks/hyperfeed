@@ -9,6 +9,12 @@ import (
 	"github.com/herdworks/hyperfeed-go/subscriber"
 )
 
+// ============================ Package Variables ============================
+const (
+	Version = "0.0.1"
+)
+
+// ============================ Main Entry Point =============================
 func main() {
 	var subscriber *subscriber.Subscriber = &subscriber.Subscriber{}
 	var uri *url.URL
