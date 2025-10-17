@@ -28,7 +28,7 @@ go build -o hyperfeed
 ./hyperfeed path/to/following.opml
 ```
 
-Or embed 
+Or embed HyperFeed into an existing go app:
 
 ```go
 import "github.com/herdworks/hyperfeed-go/subscriber"
