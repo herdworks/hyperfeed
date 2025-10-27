@@ -1,8 +1,18 @@
--- Configuration
+-- HyperFeed Database Configuration
 PRAGMA journal_mode = WAL;
 PRAGMA wal_autocheckpoint = 1000;
 PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
+
+-- HyperFeed table (versioning info)
+CREATE TABLE IF NOT EXISTS hyperfeed (
+    [lib_version] TEXT,
+    [schema_version] INTEGER,
+    [created_at] TIMESTAMP,
+    [added_at] TIMESTAMP,
+
+    PRIMARY KEY (lib_version)
+);
 
 -- SubscriptionLists table
 CREATE TABLE IF NOT EXISTS subscriptionlists (
@@ -22,6 +32,7 @@ CREATE TABLE IF NOT EXISTS subscriptionlists (
 CREATE TABLE IF NOT EXISTS feeds (
     [id] TEXT,
     [url] TEXT UNIQUE,
+    [html_url] TEXT,
     [updated_at] TIMESTAMP,
     [title] TEXT,
     [description] TEXT,

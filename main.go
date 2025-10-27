@@ -7,11 +7,14 @@ import (
 	"os"
 
 	"github.com/herdworks/hyperfeed-go/subscriber"
+	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
 // ============================ Package Variables ============================
 const (
-	Version = "0.0.1"
+	LibVersion    = hyperfeed.LibVersion
+	SchemaVersion = hyperfeed.SchemaVersion
+	ReleaseDate   = hyperfeed.ReleaseDate
 )
 
 // ============================ Main Entry Point =============================
@@ -24,6 +27,7 @@ func main() {
 
 	// Parse command line arguments
 	if len(args) < 1 {
+		fmt.Printf("hyperfeed %s\n", LibVersion)
 		fmt.Println("Usage: hyperfeed <uri>")
 		os.Exit(1)
 	}

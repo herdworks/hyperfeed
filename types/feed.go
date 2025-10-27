@@ -31,6 +31,7 @@ type Feed struct {
 	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
 
 	Href       string  `json:"-"` // string representation of Feed.URL
+	HTMLHref   string  `json:"-"` // string representation of Feed.HTMLURL
 	StatusJSON []byte  `json:"-"` // byte slice representation of Feed.Status (JSON)
 	Bytes      []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
 	RawFeed    RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
@@ -256,6 +257,7 @@ func (feed *Feed) RowColumns() []string {
 	return []string{
 		"id",
 		"url",
+		"html_url",
 		"updated_at",
 		"title",
 		"description",
@@ -269,6 +271,7 @@ func (feed *Feed) RowArguments() (args []any) {
 	}
 	args = append(args, feed.Identifier())                     // id
 	args = append(args, normalized.URL(feed.URL).String())     // url
+	args = append(args, normalized.URL(feed.HTMLURL).String()) // html_url
 	args = append(args, time.Now().UTC().Format(time.RFC3339)) // updated_at
 	args = append(args, feed.Title)                            // title
 	args = append(args, feed.Description)                      // description
@@ -283,6 +286,8 @@ func (feed *Feed) RowArguments() (args []any) {
 func (feed *Feed) RowUpdates() (updates [][2]string) {
 	// ON CONFLICT DO UPDATE SET ...
 	return [][2]string{
+		{"url", "excluded.url"},
+		{"html_url", "excluded.html_url"},
 		{"updated_at", "excluded.updated_at"},
 		{"title", "excluded.title"},
 		{"description", "excluded.description"},
@@ -293,6 +298,7 @@ func (feed *Feed) RowUpdates() (updates [][2]string) {
 func (feed *Feed) RowTargets() (targets []any) {
 	targets = append(targets, &feed.ID)
 	targets = append(targets, &feed.Href)
+	targets = append(targets, &feed.HTMLHref)
 	targets = append(targets, &feed.Updated)
 	targets = append(targets, &feed.Title)
 	targets = append(targets, &feed.Description)

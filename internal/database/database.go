@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	_ "github.com/mattn/go-sqlite3"
@@ -112,6 +113,17 @@ func (db *Database) Initialize(ctx context.Context) (err error) {
 	}
 	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
 		return fmt.Errorf("database: apply schema: %w", err)
+	}
+	if err = db.SchemaVersioning(ctx); err != nil {
+		return fmt.Errorf("database: schema versioning: %w", err)
+	}
+	return nil
+}
+
+func (db *Database) SchemaVersioning(ctx context.Context) (err error) {
+	var versionQuery string = "INSERT OR REPLACE INTO hyperfeed (lib_version, schema_version, created_at, added_at) VALUES (?, ?, ?, ?);"
+	if _, err = db.DB.ExecContext(ctx, versionQuery, hyperfeed.LibVersion, hyperfeed.SchemaVersion, hyperfeed.ReleaseDate, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("database: set version: %w", err)
 	}
 	return nil
 }
