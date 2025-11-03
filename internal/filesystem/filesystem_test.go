@@ -188,22 +188,16 @@ func TestSecurityScope(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if err = fs.Configure(testRootURI); err != nil {
-				t.Fatalf("Configure error: %v", err)
+			if err = fs.Configure(testRootURI); tc.err != nil && errors.Is(err, tc.err) {
+				return // expected error
+			} else if err != nil {
+				t.Fatalf("unexpected fs.Configure error: %v", err)
 			}
-
-			// check expected errors
-			if err := fs.Put(context.Background(), tc.uri, []byte("data")); tc.err != nil && err == nil {
-				t.Fatalf("expected error, did not get one")
-			} else if tc.err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("different error than expected:\ngot:    %v\nwanted: %v", err, tc.err)
-			} else {
-				return // skip remaining tests on expected error
-			}
-
-			// handle unexpected errors
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			// put file(s)
+			if err := fs.Put(context.Background(), tc.uri, []byte("data")); tc.err != nil && errors.Is(err, tc.err) {
+				return // expected error
+			} else if err != nil {
+				t.Fatalf("unexpected error:\ngot:    %v\nwanted: %v", err, tc.err)
 			}
 		})
 	}

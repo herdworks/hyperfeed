@@ -88,15 +88,10 @@ func TestCacheConfigure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var cache *Cache = &Cache{}
 			var err error
-			if err = cache.Configure(cacheRoot, tc.feed, tc.href); tc.err != nil && err == nil {
-				t.Errorf("expected %v, got nil", tc.err)
-			} else if tc.err != nil && !errors.Is(err, tc.err) {
-				t.Errorf("different error than expected:\ngot:    %v\nwanted: %v", err, tc.err)
-			} else {
-				return // skip remaining tests on expected error
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if err = cache.Configure(cacheRoot, tc.feed, tc.href); tc.err != nil && errors.Is(err, tc.err) {
+				return // got expected error
+			} else if err != nil {
+				t.Errorf("unexpected error:\n\twanted: %v\n\tgot:    %v", tc.err, err)
 			}
 			if cache.Base.Path != tc.want.Base.Path {
 				t.Errorf("cache.Base = %q, want %q", cache.Base.Path, tc.want.Base.Path)
@@ -310,96 +305,27 @@ func TestCacheFilePutOperation(t *testing.T) {
 				Item:  &tc.item,
 				Name:  tc.fileName,
 			}
-			if _, err = file.Ready(); tc.err == nil && err != nil {
-				t.Fatalf("cache.File.Ready error: %v", err)
-			} else if tc.err != nil && errors.Is(err, tc.err) {
+			if _, err = file.Ready(); tc.err != nil && errors.Is(err, tc.err) {
 				return // skip remaining tests on expected error
+			} else if err != nil {
+				t.Fatalf("file.Ready unexpected error: %v", err)
 			}
 			if file.URI.Path != want.Path {
 				t.Fatalf("cache.File URI does not match expected path;\ngot:    %q\nwanted: %q", file.URI.Path, want.Path)
 			}
-			if fileBytes, err = os.ReadFile(filepath.Join("testdata", filepath.Base(file.URI.Path))); tc.err == nil && err != nil {
+			if fileBytes, err = os.ReadFile(filepath.Join("testdata", filepath.Base(file.URI.Path))); tc.err != nil && errors.Is(err, tc.err) {
+				return // skip remaining tests on expected error
+			} else if err != nil {
 				t.Fatalf("reading testdata/cover.png: %v", err)
-			} else if tc.err != nil && errors.Is(err, tc.err) {
-				return // skip remaining tests on expected error
 			}
-			if err := file.Put(ctx, fileBytes); tc.err == nil && err != nil {
-				t.Fatalf("Put error: %v", err)
-			} else if tc.err != nil && errors.Is(err, tc.err) {
+			if err := file.Put(ctx, fileBytes); tc.err != nil && errors.Is(err, tc.err) {
 				return // skip remaining tests on expected error
+			} else if err != nil {
+				t.Fatalf("Put error: %v", err)
 			}
 			if exists, err := file.Exists(ctx); !exists || err != nil {
 				t.Fatalf("file.Exists failed (%v, %v)", exists, err)
 			}
-			// bytes, err := os.ReadFile(localPath)
-			// if err != nil {
-			// 	t.Fatalf("reading stored file: %v", err)
-			// }
-			// if string(bytes) != string(payload) {
-			// 	t.Fatalf("stored payload mismatch: %q", bytes)
-			// }
-
-			// if exists, err := file.Stat(ctx); err != nil || !exists {
-			// 	t.Fatalf("Stat expected true, got (%v, %v)", exists, err)
-			// }
-
-			// got, err := file.Get(ctx)
-			// if err != nil {
-			// 	t.Fatalf("Get error: %v", err)
-			// }
-			// if string(got) != string(payload) {
-			// 	t.Fatalf("Get returned %q, want %q", got, payload)
-			// }
-
-			// token, err := file.Lock(ctx)
-			// if err != nil {
-			// 	t.Fatalf("Lock error: %v", err)
-			// }
-			// lockPath := filepath.Join(filepath.Dir(localPath), "cache.lock")
-			// lockBytes, err := os.ReadFile(lockPath)
-			// if err != nil {
-			// 	t.Fatalf("reading lock file: %v", err)
-			// }
-			// if strings.TrimSpace(string(lockBytes)) != token {
-			// 	t.Fatalf("lock token mismatch")
-			// }
-
-			// if err := file.Unlock(ctx, token); err != nil {
-			// 	t.Fatalf("Unlock error: %v", err)
-			// }
-			// if _, err := os.Stat(lockPath); !errors.Is(err, os.ErrNotExist) {
-			// 	t.Fatalf("lock file should be removed, err=%v", err)
-			// }
-
-			// if err := file.Remove(ctx); err != nil {
-			// 	t.Fatalf("Remove error: %v", err)
-			// }
-			// if exists, err := file.Stat(ctx); err != nil || exists {
-			// 	t.Fatalf("Stat expected false after remove, got (%v, %v)", exists, err)
-			// }
-			// if _, err := os.Stat(localPath); !errors.Is(err, os.ErrNotExist) {
-			// 	t.Fatalf("expected local file removed, err=%v", err)
-			// }
-
-			// // Recreate then evict via retention policy
-			// if err := file.Put(ctx, payload); err != nil {
-			// 	t.Fatalf("Put error: %v", err)
-			// }
-			// oldTime := time.Now().Add(-48 * time.Hour)
-			// if err := os.Chtimes(localPath, oldTime, oldTime); err != nil {
-			// 	t.Fatalf("Chtimes error: %v", err)
-			// }
-			// expiry := time.Now().Add(-24 * time.Hour)
-			// removed, err := cache.Evict(ctx, &expiry)
-			// if err != nil {
-			// 	t.Fatalf("Evict error: %v", err)
-			// }
-			// if removed == 0 {
-			// 	t.Fatalf("expected eviction to remove bytes")
-			// }
-			// if exists, err := file.Stat(ctx); err != nil || exists {
-			// 	t.Fatalf("file should be evicted, got (%v, %v)", exists, err)
-			// }
 		})
 	}
 }

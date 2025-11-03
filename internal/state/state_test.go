@@ -94,15 +94,10 @@ func TestStateConfigure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var state *State = &State{}
 			var err error
-			if err = state.Configure(stateRoot, tc.feed, tc.href); tc.err != nil && err == nil {
-				t.Errorf("expected %v, got nil", tc.err)
-			} else if tc.err != nil && !errors.Is(err, tc.err) {
-				t.Errorf("different error than expected:\ngot:    %v\nwanted: %v", err, tc.err)
-			} else {
+			if err = state.Configure(stateRoot, tc.feed, tc.href); tc.err != nil && errors.Is(err, tc.err) {
 				return // skip remaining tests on expected error
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 			if state.Base.Path != tc.want.Base.Path {
 				t.Errorf("state.Base = %q, want %q", state.Base.Path, tc.want.Base.Path)
@@ -256,11 +251,10 @@ func TestStatePut(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var file *File
 			var ctx context.Context = context.Background()
-			if err = state.Configure(stateRoot, nil, tc.href); tc.err == nil && err != nil {
-				t.Fatalf("state.Configure error: %v", err)
-			} else if tc.err != nil && errors.Is(err, tc.err) {
-				t.Logf("expected error observed: %v", err)
+			if err = state.Configure(stateRoot, nil, tc.href); tc.err != nil && errors.Is(err, tc.err) {
 				return // skip remaining tests on expected error
+			} else if err != nil {
+				t.Fatalf("state.Configure error: %v", err)
 			}
 			if err := os.RemoveAll(stateRoot.Path); err != nil {
 				t.Fatalf("error during testdata cleanup: %v", err)

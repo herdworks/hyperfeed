@@ -177,12 +177,10 @@ func TestCleanPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var got string
 			var err error
-			if got, err = CleanPath(tc.in); tc.err == nil && err != nil {
-				t.Fatalf("CleanPath(%q) unexpected error: %v", tc.in, err)
-			} else if tc.err != nil && !errors.Is(err, tc.err) {
+			if got, err = CleanPath(tc.in); tc.err != nil && errors.Is(err, tc.err) {
+				return // expected error
+			} else if err != nil {
 				t.Fatalf("CleanPath(%q) different error than expected:\ngot: %v\nwanted: %v", tc.in, err, tc.err)
-			} else if tc.err != nil {
-				return // skip remaining tests on expected error
 			}
 			if got != tc.want {
 				t.Fatalf("CleanPath(%q) = %q; want %q", tc.in, got, tc.want)

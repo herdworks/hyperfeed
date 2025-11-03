@@ -428,41 +428,6 @@ func (fs *FileSystem) Destroy(ctx context.Context) error {
 	return os.RemoveAll(fs.URI.Path)
 }
 
-// List recurses over a directory tree contents and returns a slice of entries
-// func (fs *FileSystem) List(ctx context.Context, directory *url.URL, filters ...os.FileMode) (entries []os.DirEntry, err error) {
-// 	var secURI *url.URL
-// 	if secURI, err = fs.securityScopedURI(directory); err != nil {
-// 		return nil, fmt.Errorf("filesystem.Unlock: access denied: %w", err)
-// 	}
-// 	if err := ctx.Err(); err != nil {
-// 		return nil, err
-// 	}
-// 	walkErr := filepath.WalkDir(secURI.Path, func(path string, entry iofs.DirEntry, err error) error {
-// 		if err != nil {
-// 			if errors.Is(err, os.ErrNotExist) {
-// 				return nil
-// 			}
-// 			return err
-// 		}
-// 		if path == secURI.Path {
-// 			return nil
-// 		}
-// 		if len(filters) == 0 {
-// 			entries = append(entries, entry)
-// 		} else if slices.Contains(filters, entry.Type()) {
-// 			entries = append(entries, entry)
-// 		}
-// 		return nil
-// 	})
-// 	if walkErr != nil {
-// 		if errors.Is(walkErr, os.ErrNotExist) {
-// 			return nil, nil
-// 		}
-// 		return nil, walkErr
-// 	}
-// 	return entries, nil
-// }
-
 // Evict() removes files older than the given expiry time and prunes empty directories
 func (fs *FileSystem) Evict(ctx context.Context, expiry *time.Time) (int64, error) {
 	var removed int64

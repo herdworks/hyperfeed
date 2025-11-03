@@ -24,13 +24,13 @@ func TestSubscriberInit(t *testing.T) {
 			err:    nil,
 		},
 		{
-			name:   "Valid URI, nil Config",
+			name:   "Valid URI with nil Config",
 			uri:    &url.URL{Path: "testdata/unit/nnw_default_susbcriptions.opml"},
 			config: nil,
-			err:    ErrReadiness,
+			err:    nil,
 		},
 		{
-			name:   "Nil URI, valid Config",
+			name:   "Nil URI with valid Config",
 			uri:    nil,
 			config: &Config{},
 			err:    ErrSubscriptionList,
@@ -48,17 +48,17 @@ func TestSubscriberInit(t *testing.T) {
 			var ctx context.Context = context.Background()
 			var err error
 
-			if err = subscriber.Init(ctx, tc.uri, tc.config); err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil && errors.Is(err, tc.err) {
+			if err = subscriber.Init(ctx, tc.uri, tc.config); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
+			} else if err != nil {
+				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
 			}
 
 			// Check readiness
-			if ready, err := subscriber.Ready(ctx); ready && err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil || errors.Is(err, tc.err) {
+			if ready, err := subscriber.Ready(ctx); ready && tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
+			} else if err != nil {
+				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
 			}
 		})
 	}

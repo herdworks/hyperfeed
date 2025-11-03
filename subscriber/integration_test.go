@@ -28,24 +28,24 @@ func TestSubscriberIntegration(t *testing.T) {
 			var err error
 
 			// Initialize the Subscriber
-			if err = subscriber.Init(ctx, tc.uri, nil); err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil && errors.Is(err, tc.err) {
+			if err = subscriber.Init(ctx, tc.uri, nil); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
+			} else if err != nil {
+				t.Fatalf("Unexpected error\n\twanted: %v\n\t   got: %v", tc.err, err)
 			}
 
 			// Load the OPML file
-			if err = subscriber.Load(ctx); err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil && errors.Is(err, tc.err) {
+			if err = subscriber.Load(ctx); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
+			} else if err != nil {
+				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
 			}
 
 			// Refresh all subscriptions (fetch all feeds once)
-			if err = subscriber.Refresh(ctx); err != nil && !errors.Is(err, tc.err) {
-				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
-			} else if err != nil && errors.Is(err, tc.err) {
+			if err = subscriber.Refresh(ctx); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
+			} else if err != nil {
+				t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)
 			}
 		})
 	}
