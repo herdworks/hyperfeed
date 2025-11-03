@@ -169,6 +169,9 @@ func (db *Database) Open(ctx context.Context) (err error) {
 	if db.Options == nil {
 		db.Options = &Options{ReadOnly: false}
 	}
+	if err := os.MkdirAll(filepath.Dir(db.Path), 0o755); err != nil {
+		return err
+	}
 	db.DB, err = sql.Open("sqlite3", db.DSN())
 	if err != nil {
 		return err
