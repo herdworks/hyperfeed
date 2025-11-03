@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -31,6 +32,32 @@ type Options struct {
 	ReadOnly bool
 }
 
+type DatabaseRecord[T DatabaseRow] struct {
+	Value T
+}
+type DatabaseRow interface {
+	DatabaseReadable
+	DatabaseWritable
+	DatabaseHashable
+
+	Identifier() string
+}
+type DatabaseReadable interface {
+	DatabaseView() string           // VIEW name
+	DatabaseViewIdentifier() string // primary key column selector
+	DatabaseObject() string         // JSON object selector is a json_object(...) expression or a column name that returns JSON
+}
+type DatabaseWritable interface {
+	DatabaseTable() string           // TABLE name
+	DatabaseTableIdentifier() string // primary key column selector
+	DatabaseInsertColumns() []string // columns for INSERT/UPSERT statements
+	DatabaseInsertValues() []any     // values for INSERT/UPSERT statements
+	DatabaseUpdatesSet() []string    // columns and placeholders for UPSERT statements
+}
+type DatabaseHashable interface {
+	Hash() string
+}
+
 // ============================ Package Variables =============================
 
 // errors
@@ -41,7 +68,7 @@ var (
 )
 
 //go:embed sql/*
-var sqlFS embed.FS
+var sqlFS embed.FS // embeds database/sql/* files into the binary
 
 var (
 	schema []byte
@@ -122,7 +149,14 @@ func (db *Database) Initialize(ctx context.Context) (err error) {
 
 func (db *Database) SchemaVersioning(ctx context.Context) (err error) {
 	var versionQuery string = "INSERT OR REPLACE INTO hyperfeed (lib_version, schema_version, created_at, added_at) VALUES (?, ?, ?, ?);"
-	if _, err = db.DB.ExecContext(ctx, versionQuery, hyperfeed.LibVersion, hyperfeed.SchemaVersion, hyperfeed.ReleaseDate, time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if _, err = db.DB.ExecContext(
+		ctx,
+		versionQuery,
+		hyperfeed.LibVersion,
+		hyperfeed.LibSchemaVersion,
+		hyperfeed.LibReleaseDate.UTC().Format(time.RFC3339),
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
 		return fmt.Errorf("database: set version: %w", err)
 	}
 	return nil
@@ -185,65 +219,76 @@ func (db *Database) Vacuum(ctx context.Context) error {
 	return db.Exec(ctx, "VACUUM")
 }
 
-// TODO: should this be ApplyRowValues, since it is directly modifying the row struct via pointers?
-func (db *Database) SyncRowValues(ctx context.Context, row hyperfeed.Row) (err error) {
-	var query string = fmt.Sprintf(
-		"SELECT %s FROM %s WHERE %s = ?;",
-		strings.Join(row.RowColumns(), ", "),
-		row.RowTable(),
-		row.RowIdentifier(),
-	)
+// ============================ Database CRUD methods ==========================
+
+func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
+	var query string = db.SelectStatement(row)
 	var result *sql.Row = db.DB.QueryRowContext(ctx, query, row.Identifier())
-	var values = row.RowTargets()
-	if err = result.Scan(values...); errors.Is(err, sql.ErrNoRows) {
+	var jsonBytes []byte
+	if err = result.Scan(&jsonBytes); errors.Is(err, sql.ErrNoRows) {
 		return nil // no rows found is not an error for this method
 	} else if err != nil {
-		return err
+		return fmt.Errorf("database record read: scan: %w", err)
+	}
+	if err = json.Unmarshal(jsonBytes, &row); err != nil {
+		return fmt.Errorf("database record %T unmarshal error: %w", &row, err)
 	}
 	return nil
 }
-
-func (db *Database) InsertRowValue(ctx context.Context, row hyperfeed.Row) (err error) {
-	_, err = db.DB.ExecContext(ctx, RowInsertStatement(row), row.RowArguments()...)
+func (db *Database) InsertRow(ctx context.Context, row DatabaseRow) (err error) {
+	_, err = db.DB.ExecContext(ctx, db.InsertStatement(row), row.DatabaseInsertValues()...)
 	return err
 }
-func (db *Database) UpsertRowValue(ctx context.Context, row hyperfeed.Row) (err error) {
-	_, err = db.DB.ExecContext(ctx, RowUpsertStatement(row), row.RowArguments()...)
+func (db *Database) UpsertRow(ctx context.Context, row DatabaseRow) (err error) {
+	_, err = db.DB.ExecContext(ctx, db.UpsertStatement(row), row.DatabaseInsertValues()...)
 	return err
 }
-func (db *Database) InsertRelationValue(ctx context.Context, a, b hyperfeed.Row) (err error) {
-	_, err = db.DB.ExecContext(ctx, RelationInsertStatement(a, b), a.Identifier(), b.Identifier())
+func (db *Database) RelateRows(ctx context.Context, a, b DatabaseRow) (err error) {
+	_, err = db.DB.ExecContext(ctx, db.RelationStatement(a, b), a.Identifier(), b.Identifier())
 	return err
 }
 
 // ============================ Helper Methods ===================================
-func RowInsertStatement(row hyperfeed.Row) (query string) {
-	query += fmt.Sprintf("INSERT OR IGNORE INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
-	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
-	return query
+func (Database) SelectStatement(row DatabaseRow) (query string) {
+	return fmt.Sprintf(
+		"SELECT %s FROM %s WHERE %s = ?;",
+		row.DatabaseObject(),
+		row.DatabaseView(),
+		row.DatabaseViewIdentifier(),
+	)
 }
-func RowUpsertStatement(row hyperfeed.Row) (query string) {
-	query += fmt.Sprintf("INSERT INTO %s(%s) ", row.RowTable(), strings.Join(row.RowColumns(), ", "))
-	query += fmt.Sprintf("VALUES(%s) ", strings.Join(RowValues(row), ", "))
-	query += fmt.Sprintf("ON CONFLICT DO UPDATE SET %s ", RowUpdatesSet(row))
-	return query
+
+func (Database) InsertStatement(row DatabaseRow) (query string) {
+	return fmt.Sprintf(
+		"INSERT OR IGNORE INTO %s(%s) VALUES(%s);",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
+	)
 }
-func RowValues(row hyperfeed.Row) (values []string) {
-	for range row.RowColumns() {
-		values = append(values, "?")
+
+func (Database) UpsertStatement(row DatabaseRow) (query string) {
+	return fmt.Sprintf(
+		"INSERT INTO %s(%s) VALUES(%s) ON CONFLICT DO UPDATE SET %s;",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
+		strings.Join(row.DatabaseUpdatesSet(), ", "),
+	)
+}
+
+func (Database) RelationStatement(a, b DatabaseRow) (query string) {
+	var table string = fmt.Sprintf("%s_%s", strings.TrimRight(a.DatabaseTable(), "s"), b.DatabaseTable())
+	return fmt.Sprintf("INSERT OR IGNORE INTO %s VALUES(?, ?)", table)
+}
+
+func (Database) WriteParameters(columns []string) (params []string) {
+	for range columns {
+		params = append(params, "?")
 	}
-	return values
+	return params
 }
-func RowUpdatesSet(row hyperfeed.Row) string {
-	var updates []string = []string{}
-	for _, update := range row.RowUpdates() {
-		key, value := update[0], update[1]
-		updates = append(updates, fmt.Sprintf("%s = %s", key, value))
-	}
-	return strings.Join(updates, ", ")
-}
-func RelationInsertStatement(a, b hyperfeed.Row) (query string) {
-	var table string = fmt.Sprintf("%s_%s", strings.TrimRight(a.RowTable(), "s"), b.RowTable())
-	query += fmt.Sprintf("INSERT OR IGNORE INTO %s VALUES(?, ?)", table)
-	return query
+
+func (Database) RecordsMatch(a, b DatabaseRow) bool {
+	return a.Hash() == b.Hash()
 }

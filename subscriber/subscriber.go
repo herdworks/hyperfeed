@@ -14,6 +14,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/feeder"
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // ============================ Package Types =================================
@@ -114,7 +115,7 @@ func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Co
 	if err = subscriber.Database.Open(ctx); err != nil {
 		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
 	}
-	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
+	return subscriber.Database.UpsertRow(ctx, &subscriber.SubscriptionList)
 }
 
 // Load loads the SubscriptionList from its OPML URI and initializes the Subscriber
@@ -142,10 +143,10 @@ func (subscriber *Subscriber) InitFeeds() (err error) {
 			Interval: subscriber.Config.DefaultInterval,
 			Database: subscriber.Database,
 		}
-		if feeder.Feed.URL, err = url.Parse(outline.XMLURL); err != nil {
+		if feeder.Feed.URL, err = href.Parse(outline.XMLURL); err != nil {
 			return err
 		}
-		if feeder.Feed.HTMLURL, err = url.Parse(outline.HTMLURL); err != nil {
+		if feeder.Feed.HTMLURL, err = href.Parse(outline.HTMLURL); err != nil {
 			return err
 		}
 		subscriber.Feeds = append(subscriber.Feeds, feeder)
@@ -156,7 +157,7 @@ func (subscriber *Subscriber) InitFeeds() (err error) {
 // ResolveFeeds loads existing feed state from the database (if any)
 func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 	for _, feed := range subscriber.Feeds {
-		if err := subscriber.Database.SyncRowValues(ctx, feed.Feed); err != nil {
+		if err := subscriber.Database.ReadRow(ctx, feed.Feed); err != nil {
 			return err
 		}
 		if feed.Feed.StatusJSON == nil {
@@ -185,7 +186,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 		f := feed // capture range variable
 		ticker.Go(func() (e error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
-			f.Tick(cancellation)
+			f.Tick(cancellation) // ignore tick errors; they are recorded in f.Feed.Status
 			if e = f.Parse(); e == nil {
 				subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
 			} else {
@@ -223,5 +224,5 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	}
 	subscriber.SubscriptionList.Status.Duration = time.Since(start)
 	fmt.Println(subscriber.SubscriptionList.Status.Print())
-	return subscriber.Database.UpsertRowValue(ctx, &subscriber.SubscriptionList)
+	return subscriber.Database.UpsertRow(ctx, &subscriber.SubscriptionList)
 }

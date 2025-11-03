@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 	"github.com/herdworks/hypertemplates-go/atom"
 )
 
@@ -19,9 +21,9 @@ import (
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
 	ID          string      `json:"id,omitempty"`  // stable HyperFeed Feed identifier (normalized URL string)
-	URL         *url.URL    `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
-	HTMLURL     *url.URL    `json:"html_url,omitempty"`
-	Updated     time.Time   `json:"updated,omitempty"`
+	URL         *href.Href  `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
+	HTMLURL     *href.Href  `json:"html_url,omitempty"`
+	UpdatedAt   time.Time   `json:"updated_at,omitempty"`
 	Language    string      `json:"language,omitempty"`
 	Title       string      `json:"title,omitempty"`
 	Description string      `json:"description,omitempty"`
@@ -30,8 +32,6 @@ type Feed struct {
 	Items       []*Item     `json:"items,omitempty"`    // the most recent items for this feed
 	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
 
-	Href       string  `json:"-"` // string representation of Feed.URL
-	HTMLHref   string  `json:"-"` // string representation of Feed.HTMLURL
 	StatusJSON []byte  `json:"-"` // byte slice representation of Feed.Status (JSON)
 	Bytes      []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
 	RawFeed    RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
@@ -152,7 +152,7 @@ const (
 
 // Domain returns the feed's domain (host) portion of its URL.
 func (feed *Feed) Domain() string {
-	return normalized.Domain(feed.URL)
+	return normalized.Domain(feed.URL.URL())
 }
 
 // Identifier returns the stable identifier for the feed, computing it if needed.
@@ -161,7 +161,7 @@ func (feed *Feed) Identifier() string {
 		return ""
 	}
 	if feed.ID == "" {
-		u := normalized.URL(feed.URL)
+		u := normalized.URL(feed.URL.URL())
 		feed.ID = normalized.Identifier(u.String())
 	}
 	return feed.ID
@@ -169,7 +169,7 @@ func (feed *Feed) Identifier() string {
 
 // PathIdentifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) PathIdentifier() any {
-	return normalized.Identifier(normalized.Path(feed.URL))
+	return normalized.Identifier(normalized.Path(feed.URL.URL()))
 }
 
 // DetectKind inspects the provided document (JSON or XML) and returns the
@@ -238,22 +238,34 @@ func (feed *Feed) GetURL() *url.URL {
 	if feed == nil {
 		return nil
 	}
-	if feed.HTMLURL != nil && feed.HTMLURL.IsAbs() {
-		return feed.HTMLURL
+	if feed.HTMLURL != nil && feed.HTMLURL.URL().IsAbs() {
+		return feed.HTMLURL.URL()
 	}
-	if feed.URL != nil && feed.URL.IsAbs() {
-		return feed.URL
+	if feed.URL != nil && feed.URL.URL().IsAbs() {
+		return feed.URL.URL()
 	}
 	return nil
 }
 
-func (feed *Feed) RowTable() string {
-	return "feeds"
+// DatabaseReadable interface methods
+func (Feed) DatabaseView() string {
+	return "feeds_view"
 }
-func (feed *Feed) RowIdentifier() string {
+func (Feed) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (feed *Feed) RowColumns() []string {
+func (Feed) DatabaseObject() string {
+	return "feed"
+}
+
+// DatabaseWritable interface methods
+func (Feed) DatabaseTable() string {
+	return "feeds"
+}
+func (Feed) DatabaseTableIdentifier() string {
+	return "id"
+}
+func (Feed) DatabaseInsertColumns() []string {
 	return []string{
 		"id",
 		"url",
@@ -265,52 +277,84 @@ func (feed *Feed) RowColumns() []string {
 		"status",
 	}
 }
-func (feed *Feed) RowArguments() (args []any) {
-	if feed.URL == nil {
-		feed.URL = &url.URL{}
-	}
-	args = append(args, feed.Identifier())                     // id
-	args = append(args, normalized.URL(feed.URL).String())     // url
-	args = append(args, normalized.URL(feed.HTMLURL).String()) // html_url
-	args = append(args, time.Now().UTC().Format(time.RFC3339)) // updated_at
-	args = append(args, feed.Title)                            // title
-	args = append(args, feed.Description)                      // description
-	args = append(args, feed.Language)                         // language
-	if statusBytes, err := json.Marshal(feed.Status); err == nil && statusBytes != nil {
-		args = append(args, string(statusBytes)) // status
-	} else {
-		args = append(args, "{}") // emtpy status
-	}
-	return args
+func (feed *Feed) DatabaseInsertValues() (values []any) {
+	statusBytes, _ := json.Marshal(feed.Status)
+	values = append(values, feed.Identifier())                           // id
+	values = append(values, normalized.URL(feed.URL.URL()).String())     // url
+	values = append(values, normalized.URL(feed.HTMLURL.URL()).String()) // html_url
+	values = append(values, feed.UpdatedAt.UTC().Format(time.RFC3339))   // updated_at
+	values = append(values, feed.Title)                                  // title
+	values = append(values, feed.Description)                            // description
+	values = append(values, feed.Language)                               // language
+	values = append(values, string(statusBytes))                         // status
+	return values
 }
-func (feed *Feed) RowUpdates() (updates [][2]string) {
-	// ON CONFLICT DO UPDATE SET ...
-	return [][2]string{
-		{"url", "excluded.url"},
-		{"html_url", "excluded.html_url"},
-		{"updated_at", "excluded.updated_at"},
-		{"title", "excluded.title"},
-		{"description", "excluded.description"},
-		{"language", "excluded.language"},
-		{"status", "excluded.status"},
+func (feed *Feed) DatabaseUpdatesSet() []string {
+	return []string{
+		"url = excluded.url",
+		"html_url = excluded.html_url",
+		"updated_at = excluded.updated_at",
+		"title = excluded.title",
+		"description = excluded.description",
+		"language = excluded.language",
+		"status = excluded.status",
 	}
 }
-func (feed *Feed) RowTargets() (targets []any) {
-	targets = append(targets, &feed.ID)
-	targets = append(targets, &feed.Href)
-	targets = append(targets, &feed.HTMLHref)
-	targets = append(targets, &feed.Updated)
-	targets = append(targets, &feed.Title)
-	targets = append(targets, &feed.Description)
-	targets = append(targets, &feed.Language)
-	targets = append(targets, &feed.StatusJSON)
-	return targets
+func (Feed) DatabaseWrite() string {
+	columns := []string{}
+	columns = append(columns, "id")
+	columns = append(columns, "url")
+	columns = append(columns, "html_url")
+	columns = append(columns, "updated_at")
+	columns = append(columns, "title")
+	columns = append(columns, "description")
+	columns = append(columns, "language")
+	columns = append(columns, "status")
+	bindings := []string{}
+	for range columns {
+		bindings = append(bindings, "?")
+	}
+	query := fmt.Sprintf("INSERT INTO %s (%s) ", Feed{}.DatabaseTable(), strings.Join(columns, ", "))
+	query += fmt.Sprintf("VALUES (%s) ", strings.Join(bindings, ", "))
+	return query
+}
+func (Feed) DatabaseWriteOrReplace() string {
+	var query string = Feed{}.DatabaseWrite()
+	var columns []string = []string{}
+	query += fmt.Sprintf("ON CONFLICT(%s) DO UPDATE SET ", Feed{}.DatabaseTableIdentifier())
+	columns = append(columns, "url = excluded.url")
+	columns = append(columns, "html_url = excluded.html_url")
+	columns = append(columns, "updated_at = excluded.updated_at")
+	columns = append(columns, "title = excluded.title")
+	columns = append(columns, "description = excluded.description")
+	columns = append(columns, "language = excluded.language")
+	columns = append(columns, "status = excluded.status")
+	query += " " + strings.Join(columns, ", ")
+	return query
+}
+
+// Hash computes a simple hash of the feed's significant fields for change detection.
+// TODO: is this needed for anything other than testing?
+func (feed *Feed) Hash() string {
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s|%s|%s",
+		feed.Identifier(),
+		normalized.URL(feed.URL.URL()).String(),
+		normalized.URL(feed.HTMLURL.URL()).String(),
+		feed.UpdatedAt.UTC().Format(time.RFC3339),
+		feed.Title,
+		feed.Description,
+		feed.Language,
+	)
 }
 
 // ============================ Status Methods ================================
 
 // TBD if this is helpful, but it feels like an interesting experiment to optimize refresh workloads.
 func (status *FeedStatus) Cooldown(interval time.Duration) (cooldown time.Duration) {
+	if status == nil {
+		return 0
+	}
 	var intervalUnits time.Duration
 	var notmodifieds int = count(status.LastStatusCodes, 304)
 	var requesterrs int = count(status.LastStatusCodes, 400, 401, 403, 404, 410)

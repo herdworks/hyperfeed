@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // JSONFeed represents a JSON Feed document as defined by https://jsonfeed.org/version/1.1
@@ -117,12 +119,12 @@ func (jf *JSONFeed) ParseFeedAuthors() (authors []Author) {
 
 	// ensure at least one author with URL matching JSONFeed.HomePageURL
 	for _, author := range authors {
-		if author.URL.String() == jf.HomePageURL {
+		if author.Href.String() == jf.HomePageURL {
 			return authors // if author URL matches feed home page URL, return
 		}
 	}
-	if u, err := url.Parse(jf.HomePageURL); err == nil && u != nil {
-		authors = append([]Author{{Name: jf.Title, URL: u}}, authors...) // prepend JSONFeed.HomePageURL author
+	if h, err := href.Parse(jf.HomePageURL); err == nil && h != nil {
+		authors = append([]Author{{Name: jf.Title, Href: h}}, authors...) // prepend JSONFeed.HomePageURL author
 	}
 	return authors
 }
@@ -132,8 +134,8 @@ func (jf *JSONFeed) ParseItems(feedID string, added time.Time) (items []*Item, e
 	for _, i := range jf.Items {
 		if item, err := jf.ParseItem(&i); err == nil {
 			item.FeedID = feedID
-			item.Added = added
-			item.Updated = added
+			item.AddedAt = added
+			item.UpdatedAt = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -164,9 +166,9 @@ func (jf *JSONFeed) ParseItem(jfitem *JSONItem) (item *Item, err error) {
 		fmt.Printf("error parsing %q modified date %q: %v\n", jfitem.URL, jfitem.DateModified, err)
 		modified = time.Time{}
 	}
-	item.Published = earliest(published, modified)
-	item.Modified = latest(published, modified)
-	item.Added = time.Now().UTC()
+	item.PublishedAt = earliest(published, modified)
+	item.ModifiedAt = latest(published, modified)
+	item.AddedAt = time.Now().UTC()
 	if u, err := url.Parse(jfitem.ExternalURL); err == nil && u != nil {
 		item.Links = append(item.Links, u)
 	}
@@ -199,16 +201,16 @@ func (jf *JSONFeed) ParseAuthor(jfauthor *JSONFeedAuthor) (author *Author) {
 	} else {
 		author = &Author{Name: jfauthor.Name}
 	}
-	if u, err := url.Parse(jf.HomePageURL); err == nil {
-		author.URL = u // default to feed home page URL
+	if h, err := href.Parse(jf.HomePageURL); err == nil {
+		author.Href = h // default to feed home page URL
 	}
-	if u, err := url.Parse(jfauthor.URL); err == nil && u != nil && u.Host != "" && u.Scheme != "mailto" {
-		author.URL = u // overwrite default feed home page URL
-	} else if u.Scheme == "mailto" {
-		author.Email = u.Opaque
+	if h, err := href.Parse(jfauthor.URL); err == nil && h != nil && h.Host != "" && h.Scheme != "mailto" {
+		author.Href = h // overwrite default feed home page URL
+	} else if h.Scheme == "mailto" {
+		author.Email = h.Opaque
 	}
-	if u, err := url.Parse(jfauthor.Avatar); err == nil && u != nil {
-		author.Favicon = u
+	if h, err := href.Parse(jfauthor.Avatar); err == nil && h != nil {
+		author.Favicon = h
 	}
 	return author
 }
@@ -222,7 +224,7 @@ func (jf *JSONFeed) ParseAttachments(jfitem *JSONItem) (attachments []Attachment
 }
 func (jf *JSONFeed) ParseAttachment(jfitem *JSONItem, jfattachment *JSONFeedAttachment) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
-	if attachment.URL, err = url.Parse(jfattachment.URL); err != nil {
+	if attachment.URL, err = href.Parse(jfattachment.URL); err != nil {
 		return nil, err
 	}
 	attachment.Size = jfattachment.SizeInBytes

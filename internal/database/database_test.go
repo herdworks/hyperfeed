@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 func TestOpenAndSchema(t *testing.T) {
@@ -102,4 +103,57 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 	if count != 14 {
 		t.Fatalf("expected 14 feeds; got %d", count)
 	}
+}
+
+func TestDatabaseRecordCRUD(t *testing.T) {
+	var err error
+	var ctx context.Context = context.Background()
+	var db *Database = &Database{Path: filepath.Join("testdata", "crud.db")}
+	tests := []struct {
+		name   string
+		writer DatabaseRow
+		reader DatabaseRow
+		err    error
+	}{
+		{
+			name: "Feed record",
+			writer: &hyperfeed.Feed{
+				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
+				Title:   "Example Feed",
+				Authors: []hyperfeed.Author{},
+				Status:  &hyperfeed.FeedStatus{},
+			},
+			reader: &hyperfeed.Feed{
+				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+			},
+			err: nil,
+		},
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Validate inputs
+			if db.RecordsMatch(tc.writer, tc.reader) {
+				t.Fatalf("pre-test row and reader should differ;\n\trow:    %#v\n\treader: %#v", tc.writer, tc.reader)
+			}
+			// Test upsert
+			if err = db.UpsertRow(ctx, tc.writer); err != nil {
+				t.Fatalf("insert feed: %v", err)
+			}
+			// Test read
+			if err = db.ReadRow(ctx, tc.reader); err != nil {
+				t.Fatalf("read feed: %v", err)
+			}
+			// Validate results
+			if !db.RecordsMatch(tc.writer, tc.reader) {
+				t.Fatalf("mismatched records;\n\twanted: %#v\n\tgot:    %#v", tc.writer, tc.reader)
+			}
+
+		})
+	}
+
 }

@@ -45,14 +45,14 @@ type Owner struct {
 
 type SubscriptionStatus struct {
 	Duration       time.Duration `json:"duration,omitempty"`
-	UpdatedAt      time.Time `json:"updated_at,omitempty"`
-	FeedsSkipped   Counter   `json:"feeds_skipped,omitempty"`
-	FeedsFailed    Counter   `json:"feeds_failed,omitempty"`
-	FeedsFetched   Counter   `json:"feeds_fetched,omitempty"`
-	ItemsFetched   Counter   `json:"items_fetched,omitempty"`
-	ItemsDuplicate Counter   `json:"items_duplicate,omitempty"`
-	ItemsAdded     Counter   `json:"items_added,omitempty"`
-	ItemsUpdated   Counter   `json:"items_updated,omitempty"`
+	UpdatedAt      time.Time     `json:"updated_at,omitempty"`
+	FeedsSkipped   Counter       `json:"feeds_skipped,omitempty"`
+	FeedsFailed    Counter       `json:"feeds_failed,omitempty"`
+	FeedsFetched   Counter       `json:"feeds_fetched,omitempty"`
+	ItemsFetched   Counter       `json:"items_fetched,omitempty"`
+	ItemsDuplicate Counter       `json:"items_duplicate,omitempty"`
+	ItemsAdded     Counter       `json:"items_added,omitempty"`
+	ItemsUpdated   Counter       `json:"items_updated,omitempty"`
 }
 
 // =========================== SubscriptionList Methods =======================
@@ -101,7 +101,35 @@ func (subscription *SubscriptionList) RowColumns() []string {
 		"status",
 	}
 }
-func (subscription *SubscriptionList) RowArguments() (args []any) {
+func (SubscriptionList) DatabaseView() string {
+	return "subscriptionlists_view"
+}
+func (SubscriptionList) DatabaseViewIdentifier() string {
+	return "id"
+}
+func (SubscriptionList) DatabaseObject() string {
+	return "subscriptionlist"
+}
+func (SubscriptionList) DatabaseTable() string {
+	return "subscriptionlists"
+}
+func (SubscriptionList) DatabaseTableIdentifier() string {
+	return "id"
+}
+func (SubscriptionList) DatabaseInsertColumns() []string {
+	return []string{
+		"id",
+		"uri",
+		"title",
+		"owner_name",
+		"owner_email",
+		"created_at",
+		"updated_at",
+		"status",
+	}
+}
+func (subscription *SubscriptionList) DatabaseInsertValues() (args []any) {
+	statusBytes, _ := json.Marshal(subscription.Status)
 	args = append(args, subscription.Identifier())
 	args = append(args, subscription.Path)
 	args = append(args, subscription.Title)
@@ -109,35 +137,31 @@ func (subscription *SubscriptionList) RowArguments() (args []any) {
 	args = append(args, subscription.Owner.Email)
 	args = append(args, subscription.CreatedAt.UTC().Format(time.RFC3339))
 	args = append(args, subscription.UpdatedAt.UTC().Format(time.RFC3339))
-	if statusBytes, err := json.Marshal(subscription.Status); err == nil && statusBytes != nil {
-		args = append(args, string(statusBytes)) // status
-	} else {
-		args = append(args, "{}") // emtpy status
-	}
+	args = append(args, string(statusBytes)) // status
 	return args
 }
-func (subscription *SubscriptionList) RowUpdates() [][2]string {
-	return [][2]string{
-		{"uri", "excluded.uri"},
-		{"title", "excluded.title"},
-		{"owner_name", "excluded.owner_name"},
-		{"owner_email", "excluded.owner_email"},
-		{"created_at", "excluded.created_at"},
-		{"updated_at", "excluded.updated_at"},
-		{"status", "excluded.status"},
+func (subscription *SubscriptionList) DatabaseUpdatesSet() []string {
+	return []string{
+		"uri = excluded.uri",
+		"title = excluded.title",
+		"owner_name = excluded.owner_name",
+		"owner_email = excluded.owner_email",
+		"created_at = excluded.created_at",
+		"updated_at = excluded.updated_at",
+		"status = excluded.status",
 	}
 }
 
-func (subscription *SubscriptionList) RowTargets() (targets []any) {
-	targets = append(targets, &subscription.ID)
-	targets = append(targets, &subscription.Path)
-	targets = append(targets, &subscription.Title)
-	targets = append(targets, &subscription.Owner.Name)
-	targets = append(targets, &subscription.Owner.Email)
-	targets = append(targets, &subscription.CreatedAt)
-	targets = append(targets, &subscription.UpdatedAt)
-	targets = append(targets, &subscription.Status)
-	return targets
+func (subscription *SubscriptionList) Hash() string {
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s|%s",
+		subscription.Identifier(),
+		subscription.Path,
+		subscription.Title,
+		subscription.Owner.Name,
+		subscription.Owner.Email,
+		subscription.CreatedAt.UTC().Format(time.RFC3339),
+	)
 }
 
 // ======================= SubscriptionStatus Methods =========================

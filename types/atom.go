@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"time"
+
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // Type atom defines XML data structures for an Atom feed.
@@ -172,9 +174,11 @@ func (atom *Atom) ParseFeedAuthors() (authors []Author) {
 			author.Email = aa.Email
 		}
 		if aa.GetURL() != nil {
-			author.URL = aa.GetURL()
+			h := href.Href(*aa.GetURL())
+			author.Href = &h
 		} else {
-			author.URL = atom.GetURL()
+			h := href.Href(*atom.GetURL())
+			author.Href = &h
 		}
 		authors = append(authors, author)
 	}
@@ -186,8 +190,8 @@ func (atom *Atom) ParseItems(feedID string, added time.Time) (items []*Item, err
 	for _, atomentry := range atom.Entries {
 		if item, err := atom.ParseItem(atomentry); err == nil {
 			item.FeedID = feedID
-			item.Added = added
-			item.Updated = added
+			item.AddedAt = added
+			item.UpdatedAt = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -213,9 +217,9 @@ func (atom *Atom) ParseItem(entry *AtomEntry) (item *Item, err error) {
 	if modified, err = time.Parse(time.RFC3339, entry.Updated); err != nil {
 		modified = time.Time{}
 	}
-	item.Added = time.Now().UTC()
-	item.Published = earliest(published, modified)
-	item.Modified = latest(published, modified)
+	item.AddedAt = time.Now().UTC()
+	item.PublishedAt = earliest(published, modified)
+	item.ModifiedAt = latest(published, modified)
 	if entry.Summary != nil {
 		item.Summary = entry.Summary.Body
 	}
@@ -256,8 +260,13 @@ func (atom *Atom) ParseEntryAuthors(entry *AtomEntry) (authors []Author) {
 		// loop over authors and contributors
 		for _, a := range append(entry.Authors, entry.Contributors...) {
 			var author Author = Author{Name: a.Name, Email: a.Email}
-			if author.URL = a.GetURL(); author.URL == nil {
-				author.URL = atom.GetURL()
+			var authorHref href.Href
+			if a.GetURL() != nil {
+				authorHref = href.Href(*a.GetURL())
+			}
+			atomHref := href.Href(*atom.GetURL())
+			if author.Href = &authorHref; author.Href == nil {
+				author.Href = &atomHref
 			}
 			authors = append(authors, author)
 		}
@@ -280,7 +289,7 @@ func (atom *Atom) ParseAttachment(entry *AtomEntry, link *AtomLink) (attachment 
 	if link == nil || link.Rel != "enclosure" {
 		return nil, nil // noop
 	}
-	if u, err := url.Parse(link.Href); err == nil && u != nil {
+	if u, err := href.Parse(link.Href); err == nil && u != nil {
 		attachment.URL = u
 	}
 	attachment.Title = link.Title

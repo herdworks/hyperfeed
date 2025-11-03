@@ -36,7 +36,7 @@ defer db.Close()
 rows, err := db.Query(ctx, `
     SELECT items.id, items.title
     FROM items
-    ORDER BY published DESC
+    ORDER BY published_at DESC
     LIMIT ?`, 50)
 if err != nil {
     log.Fatal(err)

@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 var cacheTime = time.Now()
@@ -28,7 +28,7 @@ func TestCacheConfigure(t *testing.T) {
 		{
 			name: "from feed",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/news/"},
+				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/news/"},
 			},
 			href: "",
 			want: &Cache{
@@ -233,20 +233,20 @@ func TestCacheFilePutOperation(t *testing.T) {
 	cacheRoot := &url.URL{Path: filepath.Join("testdata", t.Name()) + "/"}
 	feeds := []*hyperfeed.Feed{
 		{
-			URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
+			URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/"},
 		},
 		{
-			URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/"},
+			URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/blog/"},
 		},
 	}
 	items := []*hyperfeed.Item{
 		{
-			URL:       &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-world/"},
-			Published: cacheTime,
+			URL:         &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-world/"},
+			PublishedAt: cacheTime,
 		},
 		{
-			URL:       &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-again/"},
-			Published: cacheTime,
+			URL:         &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-again/"},
+			PublishedAt: cacheTime,
 		},
 	}
 	tests := []struct {
@@ -295,11 +295,11 @@ func TestCacheFilePutOperation(t *testing.T) {
 			// setup wanted result
 			var want *url.URL = &url.URL{
 				Path: filepath.Join(
-					cache.URI.Path,                          // cache namespace root
-					tc.item.Published.UTC().Format("2006"),  // year shard
-					tc.item.Published.UTC().Format("01"),    // month shard
-					tc.item.Published.UTC().Format("02"),    // day shard
-					fmt.Sprintf("%s", tc.item.Identifier()), // item.URL hash
+					cache.URI.Path,                           // cache namespace root
+					tc.item.PublishedAt.UTC().Format("2006"), // year shard
+					tc.item.PublishedAt.UTC().Format("01"),   // month shard
+					tc.item.PublishedAt.UTC().Format("02"),   // day shard
+					tc.item.Identifier(),                     // item.URL hash
 					tc.fileName,
 				),
 			}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/herdworks/hyperfeed-go/internal/filesystem"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // ============================= Package Types ================================
@@ -85,7 +86,7 @@ func (state *State) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 	}
 	if feed == nil {
 		feed = &hyperfeed.Feed{}
-		feed.URL, err = url.Parse(hrefs[0])
+		feed.URL, err = href.Parse(hrefs[0])
 		if err != nil {
 			return errors.Join(ErrConfiguration, fmt.Errorf("failed to parse feed href; %w", err))
 		}

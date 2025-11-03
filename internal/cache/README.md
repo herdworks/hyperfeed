@@ -47,8 +47,8 @@ Cache file URIs are constructed deterministically using a `Feed`, `Item`, and ca
 * The cache file shard path is generated from an Item timestamp
 
   ```go
-  var ts *time.Time = item.Published // use published date by default
-  if !item.Updated.IsZero() { ts = item.Updated } // use updated date if available
+  var ts *time.Time = item.PublishedAt // use published date by default
+  if !item.UpdatedAt.IsZero() { ts = item.UpdatedAt } // use updated date if available
   yyyy := fmt.Sprintf("%04d", ts.UTC().Year())
   mm := fmt.Sprintf("%02d", ts.UTC().Month())
   dd := fmt.Sprintf("%02d", ts.UTC().Day())

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS subscriptionlists (
     [owner_email] TEXT,
     [created_at] TIMESTAMP,
     [updated_at] TIMESTAMP,
-    [status] TEXT, -- SubscriptionList.Status JSON string
+    [status] TEXT NOT NULL DEFAULT '{}', -- SubscriptionList.Status JSON string
 
     PRIMARY KEY (id)
 );
@@ -38,21 +38,23 @@ CREATE TABLE IF NOT EXISTS feeds (
     [description] TEXT,
     [language] TEXT,
 
-    [status] TEXT, -- Feed.Status JSON string
+    [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
 
     [subscriptionlist_id] TEXT REFERENCES subscriptionlists(id),
 
     PRIMARY KEY (id)
 );
+CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds(id);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
     [id] TEXT,
     [url] TEXT,
-    [published] TIMESTAMP,
-    [modified] TIMESTAMP,
-    [added] TIMESTAMP,
-    [updated] TIMESTAMP,
+    [published_at] TIMESTAMP,
+    [modified_at] TIMESTAMP,
+    [added_at] TIMESTAMP,
+    [updated_at] TIMESTAMP,
+    [feed_at] TIMESTAMP,
     [author] TEXT,
     [title] TEXT,
     [summary] TEXT,
@@ -63,6 +65,7 @@ CREATE TABLE IF NOT EXISTS items (
 
     PRIMARY KEY (id)
 );
+CREATE INDEX IF NOT EXISTS items_id_index ON items(id);
 
 -- Authors table
 CREATE TABLE IF NOT EXISTS authors (
@@ -75,6 +78,7 @@ CREATE TABLE IF NOT EXISTS authors (
 
     PRIMARY KEY (id)
 );
+CREATE INDEX IF NOT EXISTS authors_id_index ON authors(id);
 
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
@@ -124,12 +128,14 @@ CREATE TABLE IF NOT EXISTS feed_authors (
 
     PRIMARY KEY(feed_id, author_id)
 );
+CREATE INDEX IF NOT EXISTS feed_authors_feed_id_index ON feed_authors(feed_id);
+CREATE INDEX IF NOT EXISTS feed_authors_author_id_index ON feed_authors(author_id);
 
 -- Item-Metadata join table
 CREATE TABLE IF NOT EXISTS item_metadata (
     [item_id] TEXT REFERENCES items(id),
     [metadata_id] INTEGER REFERENCES metadata(id),
-    
+
     PRIMARY KEY(item_id, metadata_id)
 );
 
@@ -140,4 +146,135 @@ CREATE TABLE IF NOT EXISTS item_authors (
 
     PRIMARY KEY(item_id, author_id)
 );
+CREATE INDEX IF NOT EXISTS item_authors_item_id_index ON item_authors(item_id);
+CREATE INDEX IF NOT EXISTS item_authors_author_id_index ON item_authors(author_id);
+
+-- SubscriptionListsView
+CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
+SELECT
+    json_object(
+        'id', [id],
+        'uri', [uri],
+        'title', [title],
+        'owner_name', [owner_name],
+        'owner_email', [owner_email],
+        'created_at', [created_at],
+        'updated_at', [updated_at]
+    ) AS 'subscriptionlist',
+    [id],
+    [uri],
+    [created_at],
+    [updated_at]
+FROM
+    subscriptionlists
+;
+
+-- FeedsView
+CREATE VIEW IF NOT EXISTS feeds_view AS
+SELECT
+    json_object(
+        'id', [feeds].[id],
+        'url', [feeds].[url],
+        'html_url', [feeds].[html_url],
+        'updated_at', [feeds].[updated_at],
+        'title', [feeds].[title],
+        'description', [feeds].[description],
+        'authors', COALESCE(json_group_array(json_object(
+            'href', [authors].[href],
+            'name', [authors].[name],
+            'username', [authors].[username],
+            'favicon', [authors].[favicon]
+        )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
+        'language', [feeds].[language],
+        'status', json([feeds].[status]),
+        'subscriptionlist_id', [feeds].[subscriptionlist_id]
+    ) AS 'feed',
+    [feeds].[id],
+    [feeds].[url],
+    [feeds].[updated_at]
+FROM
+    [feeds]
+    LEFT OUTER JOIN [feed_authors] ON [feed_authors].[feed_id] = [feeds].[id]
+    LEFT OUTER JOIN [authors] ON [authors].[id] = [feed_authors].[author_id]
+GROUP BY
+    [feeds].[id]
+;
+
+-- ItemsView
+CREATE VIEW IF NOT EXISTS items_view AS
+SELECT
+    json_object(
+        'id', [items].[id],
+        'url', [items].[url],
+        'published_at', [items].[published_at],
+        'modified_at', [items].[modified_at],
+        'added_at', [items].[added_at],
+        'updated_at', [items].[updated_at],
+        'feed_at', [items].[feed_at],
+        'authors', COALESCE(json_group_array(json_object(
+            'href', [authors].[href],
+            'name', [authors].[name],
+            'username', [authors].[username],
+            'favicon', [authors].[favicon],
+            'email', [authors].[email]
+        )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
+        'title', [items].[title],
+        'summary', [items].[summary],
+        'content', [items].[content],
+        'image_url', [items].[image_url],
+        'feed_id', [items].[feed_id]
+    ) as 'item',
+    [items].[id],
+    [items].[url],
+    [items].[published_at],
+    [items].[modified_at],
+    [items].[added_at],
+    [items].[updated_at],
+    [items].[feed_at]
+FROM
+    [items]
+    JOIN [item_authors] ON [item_authors].[item_id] = [items].[id]
+    JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
+GROUP BY
+    [items].[id]
+;
+-- NOTE: use views for the different item "algorithms" (sort orders)?
+
+-- AuthorsView
+CREATE VIEW IF NOT EXISTS authors_view AS
+SELECT
+    json_object(
+        'href', [authors].[href],
+        'username', [authors].[username],
+        'name', [authors].[name],
+        'favicon', [authors].[favicon],
+        'email', [authors].[email]
+    ) as 'author',
+    [authors].[id],
+    [authors].[href],
+    [authors].[name],
+    [authors].[username]
+FROM
+    [authors]
+;
+
+-- AttachmentsView
+CREATE VIEW IF NOT EXISTS attachments_view AS
+SELECT
+    json_object(
+        'id', [attachments].[id],
+        'url', [attachments].[url],
+        'size', [attachments].[size],
+        'duration', [attachments].[duration],
+        'mimetype', [attachments].[mimetype],
+        'title', [attachments].[title],
+        'labels', [attachments].[labels],
+        'item_id', [attachments].[item_id]
+    ) as 'attachment',
+    [attachments].[id],
+    [attachments].[url],
+    [attachments].[item_id]
+FROM
+    [attachments]
+;
 

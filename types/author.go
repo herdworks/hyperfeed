@@ -1,22 +1,22 @@
 package hyperfeed
 
 import (
+	"fmt"
 	"net/url"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // ============================ Package Types =================================
 
 type Author struct {
-	ID       string   `json:"id,omitempty"` // stable HyperFeed Author identifier (e.g. hash of URL+name+email)
-	URL      *url.URL `json:"url,omitempty"`
-	Username string   `json:"username,omitempty"`
-	Name     string   `json:"name,omitempty"`
-	Email    string   `json:"email,omitempty"`
-	Favicon  *url.URL `json:"avatar,omitempty"`
-
-	Href string `json:"-"` // string representation of Author.URL
+	ID       string     `json:"id,omitempty"` // stable HyperFeed Author identifier (e.g. hash of URL+name+email)
+	Href     *href.Href `json:"href,omitempty"`
+	Username string     `json:"username,omitempty"`
+	Name     string     `json:"name,omitempty"`
+	Email    string     `json:"email,omitempty"`
+	Favicon  *href.Href `json:"avatar,omitempty"`
 }
 
 // ============================ Author Methods ================================
@@ -33,7 +33,7 @@ func (author *Author) Identifier() string {
 		return ""
 	}
 	if author.ID == "" {
-		var id *url.URL = normalized.URL(author.URL)
+		var id *url.URL = normalized.URL(author.Href.URL())
 		var query url.Values = id.Query()
 		if id == nil {
 			id = &url.URL{}
@@ -46,13 +46,22 @@ func (author *Author) Identifier() string {
 	return author.ID
 }
 
-func (author *Author) RowTable() string {
-	return "authors"
+func (Author) DatabaseView() string {
+	return "authors_view"
 }
-func (author *Author) RowIdentifier() string {
+func (Author) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (author *Author) RowColumns() []string {
+func (Author) DatabaseObject() string {
+	return "author"
+}
+func (Author) DatabaseTable() string {
+	return "authors"
+}
+func (Author) DatabaseTableIdentifier() string {
+	return "id"
+}
+func (Author) DatabaseInsertColumns() []string {
 	return []string{
 		"id",
 		"href",
@@ -62,39 +71,32 @@ func (author *Author) RowColumns() []string {
 		"email",
 	}
 }
-func (author *Author) RowArguments() (args []any) {
-	args = append(args, author.Identifier())
-	if author.URL != nil {
-		args = append(args, author.URL.String())
-	} else {
-		args = append(args, "")
-	}
-	args = append(args, author.Name)
-	args = append(args, author.Username)
-	if author.Favicon != nil {
-		args = append(args, author.Favicon.String())
-	} else {
-		args = append(args, "")
-	}
-	args = append(args, author.Email)
-	return args
+func (author *Author) DatabaseInsertValues() (values []any) {
+	values = append(values, author.Identifier())
+	values = append(values, author.Href.String())
+	values = append(values, author.Name)
+	values = append(values, author.Username)
+	values = append(values, author.Favicon.String())
+	values = append(values, author.Email)
+	return values
 }
-func (author *Author) RowUpdates() [][2]string {
-	return [][2]string{
-		{"href", "excluded.href"},
-		{"name", "excluded.name"},
-		{"username", "excluded.username"},
-		{"favicon", "excluded.favicon"},
-		{"email", "excluded.email"},
+func (author *Author) DatabaseUpdatesSet() []string {
+	return []string{
+		"[href] = excluded.href",
+		"[name] = excluded.name",
+		"[username] = excluded.username",
+		"[favicon] = excluded.favicon",
+		"[email] = excluded.email",
 	}
 }
 
-func (author *Author) RowTargets() (targets []any) {
-	targets = append(targets, &author.ID)
-	targets = append(targets, &author.Href)
-	targets = append(targets, &author.Name)
-	targets = append(targets, &author.Username)
-	targets = append(targets, &author.Favicon)
-	targets = append(targets, &author.Email)
-	return targets
+func (author *Author) Hash() string {
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s",
+		author.Href.String(),
+		author.Name,
+		author.Username,
+		author.Favicon.String(),
+		author.Email,
+	)
 }

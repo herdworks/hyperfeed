@@ -10,6 +10,7 @@ import (
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 type Example struct {
@@ -33,7 +34,7 @@ func TestStateConfigure(t *testing.T) {
 		{
 			name: "from feed",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "example.com", Path: "/news/"},
+				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/news/"},
 			},
 			href: "",
 			want: &State{

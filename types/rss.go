@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	href "github.com/herdworks/hyperfeed-go/types/href"
 	"golang.org/x/net/html/charset"
 )
 
@@ -204,8 +205,9 @@ func (r *RSS) ParseFeedAuthors() (authors []Author) {
 	}
 	authors = append(authors, r.ParseChannelExtensionAuthors()...)
 	for i := range authors {
-		if authors[i].URL == nil || authors[i].URL.String() == "" {
-			authors[i].URL = r.GetURL()
+		if authors[i].Href == nil || authors[i].Href.String() == "" {
+			h := href.Href(*r.GetURL())
+			authors[i].Href = &h
 		}
 	}
 	return authors
@@ -216,8 +218,8 @@ func (r *RSS) ParseItems(feedID string, added time.Time) (items []*Item, err err
 	for _, rssitem := range r.Channel.Items {
 		if item, err := r.ParseItem(&rssitem); err == nil {
 			item.FeedID = feedID
-			item.Added = added
-			item.Updated = added
+			item.AddedAt = added
+			item.UpdatedAt = added
 			items = append(items, item)
 		} else {
 			return items, err
@@ -227,7 +229,7 @@ func (r *RSS) ParseItems(feedID string, added time.Time) (items []*Item, err err
 }
 func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	item = &Item{}
-	item.Added = time.Now().UTC()
+	item.AddedAt = time.Now().UTC()
 	item.Title = rssitem.Title
 	item.Summary = rssitem.Description
 	for _, link := range rssitem.Links {
@@ -246,12 +248,12 @@ func (r *RSS) ParseItem(rssitem *RSSItem) (item *Item, err error) {
 	if item.Comments, err = url.Parse(rssitem.Comments); err != nil {
 		return nil, err
 	}
-	if item.Published, err = r.ParseDate(rssitem.PubDate, rssitem); err != nil {
+	if item.PublishedAt, err = r.ParseDate(rssitem.PubDate, rssitem); err != nil {
 		fmt.Printf("item %q pubDate error: %v\n", item.URL, err)
 		return nil, err
 	}
-	if item.Modified.IsZero() {
-		item.Modified = item.Published
+	if item.ModifiedAt.IsZero() {
+		item.ModifiedAt = item.PublishedAt
 	}
 	for _, enclosure := range rssitem.Enclosures {
 		var attachment *Attachment
@@ -274,7 +276,8 @@ func (r *RSS) ParseAuthors(rssitem *RSSItem) (authors []Author) {
 		if author.IsEmpty() {
 			continue
 		}
-		author.URL = r.GetURL()
+		h := href.Href(*r.GetURL())
+		author.Href = &h
 		authors = append(authors, author)
 	}
 	return authors
@@ -339,7 +342,7 @@ func (r *RSS) ParseItemExtensionAuthors(rssitem *RSSItem) (authors []Author) {
 }
 func (r *RSS) ParseAttachment(item *Item, rssitem *RSSItem, enclosure *RSSEnclosure) (attachment *Attachment, err error) {
 	attachment = &Attachment{}
-	if attachment.URL, err = url.Parse(enclosure.URL); err != nil {
+	if attachment.URL, err = href.Parse(enclosure.URL); err != nil {
 		return nil, err
 	}
 	if enclosure.Length == "" {

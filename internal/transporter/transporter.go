@@ -154,7 +154,7 @@ var (
 var (
 	DefaultConfig = &Config{
 		Wait:             1000 * time.Millisecond,
-		Timeout:          10 * time.Second,
+		Timeout:          5 * time.Second,
 		MaxRedirects:     1,
 		MaxContentLength: 4 << 20, // 4 MiB
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/internal/filesystem"
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // ============================= Package Types ================================
@@ -79,8 +80,7 @@ func (cache *Cache) Configure(base *url.URL, feed *hyperfeed.Feed, hrefs ...stri
 	}
 	if feed == nil {
 		feed = &hyperfeed.Feed{}
-		feed.URL, err = url.Parse(hrefs[0])
-		if err != nil {
+		if feed.URL, err = href.Parse(hrefs[0]); err != nil {
 			return errors.Join(ErrConfiguration, fmt.Errorf("failed to parse feed href; %w", err))
 		}
 	}
@@ -220,7 +220,7 @@ func (file *File) RelativePath() (p string, err error) {
 	if name, err = normalized.CleanPath(file.Name); err != nil {
 		return "", errors.Join(ErrInvalidFile, fmt.Errorf("cache.File.RelativePath: invalid filename: %w", err))
 	}
-	return filepath.Join(shard, fmt.Sprintf("%s", file.Item.Identifier()), name), nil
+	return filepath.Join(shard, file.Item.Identifier(), name), nil
 }
 
 // Exists() checks if the file exists
@@ -236,9 +236,9 @@ func (file *File) Shard() (string, error) {
 	if file.Item == nil {
 		return "", errors.New("file.Shard: item is nil")
 	}
-	ts := file.Item.Updated
+	ts := file.Item.UpdatedAt
 	if ts.IsZero() {
-		ts = file.Item.Published
+		ts = file.Item.PublishedAt
 	}
 	yyyy := fmt.Sprintf("%04d", ts.UTC().Year())
 	mm := fmt.Sprintf("%02d", ts.UTC().Month())

@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -21,10 +22,11 @@ type Item struct {
 	Title   string   `json:"title,omitempty"`
 	Authors []Author `json:"authors,omitempty"`
 
-	Published time.Time `json:"published,omitempty"` // source item created timestamp
-	Modified  time.Time `json:"modified,omitempty"`  // source item last modified timestamp
-	Added     time.Time `json:"added,omitempty"`     // when we first saw the item
-	Updated   time.Time `json:"updated,omitempty"`   // when we last updated the item in our database
+	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
+	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
+	AddedAt     time.Time `json:"added_at,omitempty"`     // when we first saw the item
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`   // when we last updated the item in our database
+	FeedAt      time.Time `json:"feed_at,omitempty"`      // default feed order timestamp
 
 	Summary     string       `json:"summary,omitempty"`
 	Content     string       `json:"content,omitempty"`
@@ -75,65 +77,69 @@ func (item *Item) Identifier() string {
 	return item.ID
 }
 
-func (item *Item) RowTable() string {
-	return "items"
+func (Item) DatabaseView() string {
+	return "items_view"
 }
-func (item *Item) RowIdentifier() string {
+func (Item) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (item *Item) RowColumns() (columns []string) {
+func (Item) DatabaseObject() string {
+	return "item"
+}
+func (Item) DatabaseTable() string {
+	return "items"
+}
+func (Item) DatabaseTableIdentifier() string {
+	return "id"
+}
+func (Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
 		"title",
 		"summary",
 		"content",
-		"published",
-		"modified",
-		"added",
-		"updated",
+		"published_at",
+		"modified_at",
+		"added_at",
+		"updated_at",
 		"feed_id",
 	}
 }
-func (item *Item) RowArguments() (args []any) {
+func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.Identifier())
-	if item.URL != nil {
-		args = append(args, item.URL.String())
-	} else {
-		args = append(args, "")
-	}
+	args = append(args, item.URL.String())
 	args = append(args, item.Title)
 	args = append(args, strings.TrimSpace(item.Summary))
 	args = append(args, strings.TrimSpace(item.Content))
-	args = append(args, item.Published.UTC().Format(time.RFC3339))
-	args = append(args, item.Modified.UTC().Format(time.RFC3339))
-	args = append(args, item.Added.UTC().Format(time.RFC3339))
-	args = append(args, item.Updated.UTC().Format(time.RFC3339))
+	args = append(args, item.PublishedAt.UTC().Format(time.RFC3339))
+	args = append(args, item.ModifiedAt.UTC().Format(time.RFC3339))
+	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
+	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.FeedID)
 	return args
 }
-func (item *Item) RowUpdates() [][2]string {
-	return [][2]string{
-		{"url", "excluded.url"},
-		{"title", "excluded.title"},
-		{"summary", "excluded.summary"},
-		{"content", "excluded.content"},
-		{"published", "excluded.published"},
-		{"modified", "excluded.modified"},
-		{"updated", "excluded.updated"},
+func (item *Item) DatabaseUpdatesSet() []string {
+	return []string{
+		"url = excluded.url",
+		"title = excluded.title",
+		"summary = excluded.summary",
+		"content = excluded.content",
+		"published_at = excluded.published_at",
+		"modified_at = excluded.modified_at",
+		"updated_at = excluded.updated_at",
 	}
 }
 
-func (item *Item) RowTargets() (targets []any) {
-	targets = append(targets, &item.ID)
-	targets = append(targets, &item.Href)
-	targets = append(targets, &item.Title)
-	targets = append(targets, &item.Summary)
-	targets = append(targets, &item.Content)
-	targets = append(targets, &item.Published)
-	targets = append(targets, &item.Modified)
-	targets = append(targets, &item.Added)
-	targets = append(targets, &item.Updated)
-	targets = append(targets, &item.FeedID)
-	return targets
+func (item *Item) Hash() string {
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s|%s|%s",
+		item.URL.String(),
+		item.Title,
+		strings.TrimSpace(item.Summary),
+		strings.TrimSpace(item.Content),
+		item.PublishedAt.UTC().Format(time.RFC3339),
+		item.ModifiedAt.UTC().Format(time.RFC3339),
+		item.FeedID,
+	)
 }

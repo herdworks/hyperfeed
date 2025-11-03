@@ -11,10 +11,10 @@ import (
 )
 
 // ============================ Package Variables ============================
-const (
+var (
 	LibVersion    = hyperfeed.LibVersion
-	SchemaVersion = hyperfeed.SchemaVersion
-	ReleaseDate   = hyperfeed.ReleaseDate
+	SchemaVersion = hyperfeed.LibSchemaVersion
+	ReleaseDate   = hyperfeed.LibReleaseDate
 )
 
 // ============================ Main Entry Point =============================

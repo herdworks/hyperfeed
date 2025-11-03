@@ -9,6 +9,7 @@ import (
 	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	"github.com/herdworks/hyperfeed-go/internal/transporter"
@@ -52,51 +53,56 @@ var (
 // Tick computes the feeder's next event. Implementation must load
 // state, honor rate-limit hints, and update persistence optimistically to avoid
 // duplicate work after crashes.
-func (feeder *Feeder) Tick(ctx context.Context) {
+func (feeder *Feeder) Tick(ctx context.Context) error {
 	var request *transporter.Request
 	var response *transporter.Response
+	var ready bool
 	var err error
-	if ready, err := feeder.Ready(); !ready {
+	if ready, err = feeder.Ready(); !ready {
 		feeder.Log(nil, errors.Join(ErrReadiness, err))
-		return
+		return err
 	}
 	if request, err = feeder.Request(); err != nil {
 		feeder.Log(nil, errors.Join(ErrRequest, err))
-		return
+		return err
 	}
 	if feeder.Transporter == nil {
 		feeder.Transporter = &transporter.Transporter{} // init a transporter
 	}
 	if response, err = feeder.Transporter.Fetch(ctx, request); err != nil {
 		feeder.Log(response, errors.Join(ErrResponse, err))
-		return
+		return err
 	}
-	feeder.Apply(ctx, response)
+	return feeder.Apply(ctx, response)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
 func (feeder *Feeder) Ready() (ready bool, err error) {
 	var tick time.Time = time.Now().UTC()
-	var cooldown time.Duration = feeder.Status.Cooldown(feeder.Interval)
+	var cooldown time.Duration
 	if feeder.Feed == nil {
+		feeder.Feed = &hyperfeed.Feed{URL: &href.Href{}, Status: &hyperfeed.FeedStatus{}}
 		return false, ErrFeed // feeder must have a feed
 	}
 	if feeder.Feed.Status == nil {
+		feeder.Feed.Status = &hyperfeed.FeedStatus{}
 		return true, nil // new feed
+	} else {
+		cooldown = feeder.Feed.Status.Cooldown(feeder.Interval)
 	}
-	if tick.Before(feeder.Status.PausedUntil) {
+	if tick.Before(feeder.Feed.Status.PausedUntil) {
 		return false, ErrPaused // feed is paused
 	}
-	if tick.Before(feeder.Status.LastErrorAt.Add(cooldown)) {
+	if tick.Before(feeder.Feed.Status.LastErrorAt.Add(cooldown)) {
 		return false, ErrTooSoonJunior // feed is in cooldown-only period after last error
 	}
-	if tick.Before(feeder.Status.LastSuccessAt.Add(feeder.Interval + cooldown)) {
+	if tick.Before(feeder.Feed.Status.LastSuccessAt.Add(feeder.Interval + cooldown)) {
 		return false, ErrTooSoonJunior // not enough time has passed since last successful fetch (interval+cooldown)
 	}
-	if tick.Before(feeder.Status.RateLimit.WaitUntil) {
+	if tick.Before(feeder.Feed.Status.RateLimit.WaitUntil) {
 		return false, ErrRateLimited // rate limited
 	}
-	if retryAfter := feeder.Status.LastAttemptAt.Add(feeder.Status.RateLimit.RetryAfter + cooldown); tick.Before(retryAfter) {
+	if retryAfter := feeder.Feed.Status.LastAttemptAt.Add(feeder.Feed.Status.RateLimit.RetryAfter + cooldown); tick.Before(retryAfter) {
 		return false, ErrRateLimited // rate limited
 	}
 	return true, nil
@@ -108,7 +114,7 @@ func (feeder *Feeder) Request() (request *transporter.Request, err error) {
 		return nil, errors.Join(ErrRequest, fmt.Errorf("invalid feed"))
 	}
 	request = &transporter.Request{
-		URL:        feeder.Feed.URL,
+		URL:        feeder.Feed.URL.URL(),
 		Conditions: feeder.Conditions(),
 	}
 	return request, nil
@@ -187,7 +193,7 @@ func (feeder *Feeder) ApplyTimestamps(response *transporter.Response) {
 	}
 	if response.OK() {
 		// success timestamps
-		feeder.Feed.Updated = response.ReceivedAt.UTC()
+		feeder.Feed.UpdatedAt = response.ReceivedAt.UTC()
 		feeder.Status.LastSuccessAt = response.ReceivedAt.UTC()
 	} else if response.NotModified() {
 		// not modified is success, but the feed will not be marked as updated
@@ -287,14 +293,14 @@ func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 	if err = feeder.Database.PingContext(ctx); err != nil {
 		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
-	if err = feeder.Database.UpsertRowValue(ctx, feeder.Feed); err != nil {
+	if err = feeder.Database.UpsertRow(ctx, feeder.Feed); err != nil {
 		return errors.Join(ErrDatabase, errors.New("upserting feed"), err)
 	}
 	for _, author := range feeder.Feed.Authors {
-		if err = feeder.Database.UpsertRowValue(ctx, &author); err != nil {
+		if err = feeder.Database.UpsertRow(ctx, &author); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 		}
-		if err = feeder.Database.InsertRelationValue(ctx, feeder.Feed, &author); err != nil {
+		if err = feeder.Database.RelateRows(ctx, feeder.Feed, &author); err != nil {
 			return errors.Join(ErrDatabase, errors.New("inserting feed-author relation"), err)
 		}
 	}
@@ -305,19 +311,19 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
 	for _, item := range feeder.Items {
-		if err = feeder.Database.UpsertRowValue(ctx, item); err != nil {
+		if err = feeder.Database.UpsertRow(ctx, item); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting item"), err)
 		}
 		for _, author := range item.Authors {
-			if err = feeder.Database.UpsertRowValue(ctx, &author); err != nil {
+			if err = feeder.Database.UpsertRow(ctx, &author); err != nil {
 				return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 			}
-			if err = feeder.Database.InsertRelationValue(ctx, item, &author); err != nil {
+			if err = feeder.Database.RelateRows(ctx, item, &author); err != nil {
 				return errors.Join(ErrDatabase, errors.New("inserting item-author relation"), err)
 			}
 		}
 		for _, attachment := range item.Attachments {
-			if err = feeder.Database.UpsertRowValue(ctx, &attachment); err != nil {
+			if err = feeder.Database.UpsertRow(ctx, &attachment); err != nil {
 				fmt.Printf("attachment.item_id: %q\n", attachment.ItemID)
 				return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
 			}
@@ -328,9 +334,9 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int, int, error) {
 	var expected int = len(feed.Items) - len(feed.DuplicateItems())
 	var addedCount int = 0
-	var addedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added = ?;`
+	var addedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added_at = ?;`
 	var updatedCount int = 0
-	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND updated = ? AND added != ?;`
+	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND updated_at = ? AND added_at != ?;`
 	var err error
 	if len(feed.Items) == 0 {
 		return 0, 0, nil

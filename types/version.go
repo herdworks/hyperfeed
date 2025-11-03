@@ -1,8 +1,10 @@
 package hyperfeed
 
+import "time"
+
 // ============================ Package Variables ============================
-const (
-	LibVersion    = "v0.0.2"
-	SchemaVersion = 2
-	ReleaseDate   = "2025-10-27T12:00:00Z"
+var (
+	LibVersion        = "v0.1.0-dev"
+	LibSchemaVersion  = 3
+	LibReleaseDate, _ = time.Parse(time.RFC3339, "2025-11-03T10:00:00-08:00")
 )

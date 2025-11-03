@@ -5,12 +5,12 @@ package feeder
 import (
 	"context"
 	"errors"
-	"net/url"
 	"path/filepath"
 	"testing"
 
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 func TestSchedulerTickIntegration(t *testing.T) {
@@ -22,35 +22,35 @@ func TestSchedulerTickIntegration(t *testing.T) {
 		{
 			name: "valid rss feed",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "http", Host: "scripting.com", Path: "/rss.xml"},
+				URL: &href.Href{Scheme: "http", Host: "scripting.com", Path: "/rss.xml"},
 			},
 			err: nil,
 		},
 		{
 			name: "another valid rss feed",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "www.thisiscolossal.com", Path: "/feed/"},
+				URL: &href.Href{Scheme: "https", Host: "www.thisiscolossal.com", Path: "/feed/"},
 			},
 			err: nil,
 		},
 		{
 			name: "valid atom feeds",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "feeds.kottke.org", Path: "/main"},
+				URL: &href.Href{Scheme: "https", Host: "feeds.kottke.org", Path: "/main"},
 			},
 			err: nil,
 		},
 		{
 			name: "valid jsonfeed feed",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "daringfireball.net", Path: "/feeds/json"},
+				URL: &href.Href{Scheme: "https", Host: "daringfireball.net", Path: "/feeds/json"},
 			},
 			err: nil,
 		},
 		{
 			name: "rss feed with attachments",
 			feed: &hyperfeed.Feed{
-				URL: &url.URL{Scheme: "https", Host: "daringfireball.net", Path: "/thetalkshow/rss"},
+				URL: &href.Href{Scheme: "https", Host: "daringfireball.net", Path: "/thetalkshow/rss"},
 			},
 			err: nil,
 		},
@@ -73,10 +73,8 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			// feeder.Tick()
 			if err = feeder.Tick(ctx); tc.err != nil && errors.Is(err, tc.err) {
 				return // got expected error
-			} else if tc.err != nil && err == nil {
-				t.Fatalf("expected error\nwanted: %v\n   got nil", tc.err)
 			} else if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("unexpected error on tick: %v", err)
 			}
 			if feeder.Status == nil {
 				t.Fatalf("no status on tick")
