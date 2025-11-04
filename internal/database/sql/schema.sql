@@ -2,17 +2,20 @@
 PRAGMA journal_mode = WAL;
 PRAGMA wal_autocheckpoint = 1000;
 PRAGMA synchronous = NORMAL;
-PRAGMA busy_timeout = 5000;
 
 -- HyperFeed table (versioning info)
 CREATE TABLE IF NOT EXISTS hyperfeed (
-    [lib_version] TEXT,
-    [schema_version] INTEGER,
-    [created_at] TIMESTAMP,
-    [added_at] TIMESTAMP,
+    [lib_version] TEXT UNIQUE,
+    [lib_schema_version] INTEGER,
+    [lib_release_date] TIMESTAMP,
+    [added_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (lib_version)
+    PRIMARY KEY ([lib_version])
 );
+
+-- Initial version entry
+-- INSERT OR IGNORE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date)
+-- VALUES ('v0.1.0', 1, datetime('2025-11-03T12:00:00-08:00'));
 
 -- SubscriptionLists table
 CREATE TABLE IF NOT EXISTS subscriptionlists (
@@ -25,7 +28,7 @@ CREATE TABLE IF NOT EXISTS subscriptionlists (
     [updated_at] TIMESTAMP,
     [status] TEXT NOT NULL DEFAULT '{}', -- SubscriptionList.Status JSON string
 
-    PRIMARY KEY (id)
+    PRIMARY KEY ([id])
 );
 
 -- Feeds table
@@ -40,11 +43,22 @@ CREATE TABLE IF NOT EXISTS feeds (
 
     [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
 
-    [subscriptionlist_id] TEXT REFERENCES subscriptionlists(id),
+    -- NOTE:
+    --   [status_code] is an example computed column for indexing [status] JSON subfields.
+    --   To create additional indexed JSON projections, use the same pattern:
+    --     [<column>] [<type>] GENERATED ALWAYS AS (json_extract(status, '$.<json_path>')) VIRTUAL
+    --   This allows efficient filtering/sorting on JSON subfields.
+    --   Use VIRTUAL for unindexed columns or write-heavy workloads, STORED for indexed columns or read-heavy workloads
+    [status_code] INT GENERATED ALWAYS AS (json_extract(status, '$.last_status_code')) VIRTUAL,
 
-    PRIMARY KEY (id)
+    [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
+
+    PRIMARY KEY ([id])
 );
-CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds(id);
+CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds([id]);
+CREATE INDEX IF NOT EXISTS feeds_url_index ON feeds([url]);
+CREATE INDEX IF NOT EXISTS feeds_html_url_index ON feeds([html_url]);
+CREATE INDEX IF NOT EXISTS feeds_status_code_index ON feeds([status_code]);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
@@ -61,11 +75,17 @@ CREATE TABLE IF NOT EXISTS items (
     [content] TEXT,
     [image_url] TEXT,
 
-    [feed_id] TEXT REFERENCES feeds(id),
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
 
-    PRIMARY KEY (id)
+    PRIMARY KEY ([id])
 );
-CREATE INDEX IF NOT EXISTS items_id_index ON items(id);
+CREATE INDEX IF NOT EXISTS items_id_index ON items([id]);
+CREATE INDEX IF NOT EXISTS items_url_index ON items([url]);
+CREATE INDEX IF NOT EXISTS items_published_at_index ON items([published_at] DESC);
+CREATE INDEX IF NOT EXISTS items_modified_at_index ON items([modified_at] DESC);
+CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
+CREATE INDEX IF NOT EXISTS items_updated_at_index ON items([updated_at] DESC);
+CREATE INDEX IF NOT EXISTS items_feed_at_index ON items([feed_at] DESC);
 
 -- Authors table
 CREATE TABLE IF NOT EXISTS authors (
@@ -76,9 +96,9 @@ CREATE TABLE IF NOT EXISTS authors (
     [favicon] TEXT,
     [email] TEXT,
 
-    PRIMARY KEY (id)
+    PRIMARY KEY ([id])
 );
-CREATE INDEX IF NOT EXISTS authors_id_index ON authors(id);
+CREATE INDEX IF NOT EXISTS authors_id_index ON authors([id]);
 
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
@@ -90,10 +110,13 @@ CREATE TABLE IF NOT EXISTS attachments (
     [title] TEXT,
     [labels] TEXT,
 
-    [item_id] TEXT REFERENCES items(id),
+    [item_id] TEXT REFERENCES items([id]),
 
-    PRIMARY KEY (url,item_id) -- Composite PK
+    PRIMARY KEY ([url],[item_id]) -- Composite PK
 );
+CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
+CREATE INDEX IF NOT EXISTS attachments_url_index ON attachments([url]);
+CREATE INDEX IF NOT EXISTS attachments_item_id_index ON attachments([item_id]);
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS metadata (
@@ -102,52 +125,56 @@ CREATE TABLE IF NOT EXISTS metadata (
     [name] TEXT,
     [value] TEXT,
 
-    PRIMARY KEY (id)
+    PRIMARY KEY ([id])
 );
+CREATE INDEX IF NOT EXISTS metadata_id_index ON metadata([id]);
+CREATE INDEX IF NOT EXISTS metadata_namespace_index ON metadata([namespace]);
+CREATE INDEX IF NOT EXISTS metadata_name_index ON metadata([name]);
+CREATE INDEX IF NOT EXISTS metadata_ref_index ON metadata([namespace], [name]);
 
 -- SubscriptionList-Metadata join table
 CREATE TABLE IF NOT EXISTS subscriptionlist_metadata (
-    [subscriptionlist_id] TEXT REFERENCES subscriptionlists(id),
-    [metadata_id] INTEGER REFERENCES metadata(id),
+    [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
+    [metadata_id] INTEGER REFERENCES metadata([id]),
 
-    PRIMARY KEY(subscriptionlist_id, metadata_id)
+    PRIMARY KEY([subscriptionlist_id], [metadata_id])
 );
 
 -- Feed-Metadata join table
 CREATE TABLE IF NOT EXISTS feed_metadata (
-    [feed_id] TEXT REFERENCES feeds(id),
-    [metadata_id] INTEGER REFERENCES metadata(id),
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [metadata_id] INTEGER REFERENCES metadata([id]),
 
-    PRIMARY KEY(feed_id, metadata_id)
+    PRIMARY KEY([feed_id], [metadata_id])
 );
 
 -- Feed-Author join table
 CREATE TABLE IF NOT EXISTS feed_authors (
-    [feed_id] TEXT REFERENCES feeds(id),
-    [author_id] TEXT REFERENCES authors(id),
+    [feed_id] TEXT REFERENCES feeds([id]),
+    [author_id] TEXT REFERENCES authors([id]),
 
-    PRIMARY KEY(feed_id, author_id)
+    PRIMARY KEY([feed_id], [author_id])
 );
-CREATE INDEX IF NOT EXISTS feed_authors_feed_id_index ON feed_authors(feed_id);
-CREATE INDEX IF NOT EXISTS feed_authors_author_id_index ON feed_authors(author_id);
+CREATE INDEX IF NOT EXISTS feed_authors_feed_id_index ON feed_authors([feed_id]);
+CREATE INDEX IF NOT EXISTS feed_authors_author_id_index ON feed_authors([author_id]);
 
 -- Item-Metadata join table
 CREATE TABLE IF NOT EXISTS item_metadata (
-    [item_id] TEXT REFERENCES items(id),
-    [metadata_id] INTEGER REFERENCES metadata(id),
+    [item_id] TEXT REFERENCES items([id]),
+    [metadata_id] INTEGER REFERENCES metadata([id]),
 
-    PRIMARY KEY(item_id, metadata_id)
+    PRIMARY KEY([item_id], [metadata_id])
 );
 
 -- Item-Author join table
 CREATE TABLE IF NOT EXISTS item_authors (
-    [item_id] TEXT REFERENCES items(id),
-    [author_id] TEXT REFERENCES authors(id),
+    [item_id] TEXT REFERENCES items([id]),
+    [author_id] TEXT REFERENCES authors([id]),
 
-    PRIMARY KEY(item_id, author_id)
+    PRIMARY KEY([item_id], [author_id])
 );
-CREATE INDEX IF NOT EXISTS item_authors_item_id_index ON item_authors(item_id);
-CREATE INDEX IF NOT EXISTS item_authors_author_id_index ON item_authors(author_id);
+CREATE INDEX IF NOT EXISTS item_authors_item_id_index ON item_authors([item_id]);
+CREATE INDEX IF NOT EXISTS item_authors_author_id_index ON item_authors([author_id]);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -166,7 +193,7 @@ SELECT
     [created_at],
     [updated_at]
 FROM
-    subscriptionlists
+    [subscriptionlists]
 ;
 
 -- FeedsView

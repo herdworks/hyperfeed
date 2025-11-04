@@ -115,6 +115,9 @@ func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Co
 	if err = subscriber.Database.Open(ctx); err != nil {
 		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
 	}
+	if err = subscriber.Database.Initialize(ctx); err != nil {
+		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q initialize failed", subscriber.Database.Path), err)
+	}
 	return subscriber.Database.UpsertRow(ctx, &subscriber.SubscriptionList)
 }
 

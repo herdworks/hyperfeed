@@ -62,13 +62,23 @@ func TestSchedulerTickIntegration(t *testing.T) {
 	}
 	for _, tc := range tests {
 		var ctx context.Context = context.Background()
-		var db *database.Database = &database.Database{Path: filepath.Join("testdata", "test.db")}
+		var db *database.Database = &database.Database{Path: filepath.Join("testdata", tc.name, "test.db")}
 		// if err := db.Destroy(); err != nil {
 		// 	t.Fatalf("destroy test.db: %v", err)
 		// }
 		t.Run(tc.name, func(t *testing.T) {
 			var feeder Feeder = Feeder{Feed: tc.feed, Database: db}
 			var err error
+
+			// feeder.Database Open() and Initialize()
+			if err = feeder.Database.Open(ctx); err == nil {
+				t.Cleanup(func() { feeder.Database.Close() })
+			} else {
+				t.Fatalf("open test.db: %v", err)
+			}
+			if err = feeder.Database.Initialize(ctx); err != nil {
+				t.Fatalf("initialize test.db: %v", err)
+			}
 
 			// feeder.Tick()
 			if err = feeder.Tick(ctx); tc.err != nil && errors.Is(err, tc.err) {
@@ -96,11 +106,6 @@ func TestSchedulerTickIntegration(t *testing.T) {
 			}
 
 			// Feeder.SaveFeed() and Feeder.SaveItems()
-			if err = feeder.Database.Open(ctx); err == nil {
-				t.Cleanup(func() { feeder.Database.Close() })
-			} else {
-				t.Fatalf("open test.db: %v", err)
-			}
 			if err = feeder.SaveFeed(ctx); err != nil {
 				t.Fatalf("saving feed: %v", err)
 			}

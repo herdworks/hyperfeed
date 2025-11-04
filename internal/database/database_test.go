@@ -20,6 +20,9 @@ func TestOpenAndSchema(t *testing.T) {
 	if err = db.Open(ctx); err != nil {
 		t.Fatalf("open test.db: %v", err)
 	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize test.db: %v", err)
+	}
 	t.Cleanup(func() { db.Close() })
 
 	// Insert a subscription list record to verify tables exist.
@@ -45,6 +48,9 @@ func TestVacuum(t *testing.T) {
 	if err = db.Open(ctx); err != nil {
 		t.Fatalf("open: %v", err)
 	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
 	t.Cleanup(func() { db.Close() })
 	if err = db.Vacuum(ctx); err != nil {
 		t.Fatalf("vacuum: %v", err)
@@ -60,6 +66,9 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 	}
 	if err = db.Open(ctx); err != nil {
 		t.Fatalf("open db: %v", err)
+	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize db: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 
@@ -132,6 +141,9 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	}
 	if err = db.Open(ctx); err != nil {
 		t.Fatalf("open db: %v", err)
+	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize db: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 	for _, tc := range tests {

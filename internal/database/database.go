@@ -70,10 +70,6 @@ var (
 //go:embed sql/*
 var sqlFS embed.FS // embeds database/sql/* files into the binary
 
-var (
-	schema []byte
-)
-
 // ============================ Database Methods =================================
 
 func (db *Database) DSN() (dsn string) {
@@ -84,18 +80,16 @@ func (db *Database) DSN() (dsn string) {
 	return dsn
 }
 
-func Schema() (b []byte, err error) {
+func (Database) Embedded(sqlPath string) (b []byte, err error) {
 	var schemaOnce sync.Once
-	if schema != nil {
-		return schema, nil
-	}
+	var sqlBytes []byte
 	schemaOnce.Do(func() {
-		if schema, err = sqlFS.ReadFile("sql/schema.sql"); err != nil {
-			err = fmt.Errorf("database read sql/schema.sql: %w", err)
+		if sqlBytes, err = sqlFS.ReadFile(sqlPath); err != nil {
+			err = fmt.Errorf("database read %s: %w", sqlPath, err)
 			return
 		}
 	})
-	return schema, err
+	return sqlBytes, err
 }
 
 func (db *Database) Create() (err error) {
@@ -133,10 +127,24 @@ func (db *Database) Destroy() (err error) {
 	return err // this *should* be nil, but could be an error
 }
 
+// Configure applies connection-level configuration (e.g. PRAGMAs) to the database
+func (db *Database) Configure(ctx context.Context) (err error) {
+	var statement string
+	statement += "PRAGMA busy_timeout = 5000;"
+	statement += "PRAGMA foreign_keys = ON;"
+	if err = db.Exec(ctx, statement); err != nil {
+		return errors.Join(ErrConfig, fmt.Errorf("database pragma error: %w", err))
+	}
+	return nil
+}
+
 func (db *Database) Initialize(ctx context.Context) (err error) {
 	var schemaBytes []byte
-	if schemaBytes, err = Schema(); err != nil {
+	if schemaBytes, err = db.Embedded("sql/schema.sql"); err != nil {
 		return fmt.Errorf("database: load schema: %w", err)
+	}
+	if err := db.DB.PingContext(ctx); err != nil {
+		return err
 	}
 	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
 		return fmt.Errorf("database: apply schema: %w", err)
@@ -148,7 +156,7 @@ func (db *Database) Initialize(ctx context.Context) (err error) {
 }
 
 func (db *Database) SchemaVersioning(ctx context.Context) (err error) {
-	var versionQuery string = "INSERT OR REPLACE INTO hyperfeed (lib_version, schema_version, created_at, added_at) VALUES (?, ?, ?, ?);"
+	var versionQuery string = "INSERT OR REPLACE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date, added_at) VALUES (?, ?, ?, ?);"
 	if _, err = db.DB.ExecContext(
 		ctx,
 		versionQuery,
@@ -172,14 +180,13 @@ func (db *Database) Open(ctx context.Context) (err error) {
 	if err := os.MkdirAll(filepath.Dir(db.Path), 0o755); err != nil {
 		return err
 	}
-	db.DB, err = sql.Open("sqlite3", db.DSN())
-	if err != nil {
+	if db.DB, err = sql.Open("sqlite3", db.DSN()); err != nil {
 		return err
 	}
 	if err := db.DB.PingContext(ctx); err != nil {
 		return err
 	}
-	if err = db.Initialize(ctx); err != nil {
+	if err = db.Configure(ctx); err != nil {
 		return err
 	}
 	return nil
