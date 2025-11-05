@@ -366,12 +366,12 @@ func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int
 func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feeder.Feed.HTMLURL.String()}
 	if len(feeder.Feed.Authors) > 0 {
-		return errors.Join(ErrScraper, err)
+		return nil
 	}
 	if err = document.Download(ctx, false, nil); err == nil {
 		return errors.Join(ErrScraper, err)
 	}
-	if _, err = document.Scrape("document", "json", false); err != nil {
+	if err = document.Scrape(ctx, false, nil); err != nil {
 		return errors.Join(ErrScraper, err)
 	}
 	documentHref, _ := href.Parse(document.Href)
