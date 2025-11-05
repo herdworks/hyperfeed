@@ -41,10 +41,12 @@ func main() {
 		fmt.Printf("Error initializing subscriber: %v\n", err)
 		os.Exit(1)
 	}
+	// Refresh subscriber.SubscriptionList from underlying OPML source
 	if err = subscriber.Load(ctx); err != nil {
 		fmt.Printf("Error loading subscriber: %v\n", err)
 		os.Exit(1)
 	}
+	// Refresh all feeds
 	if err = subscriber.Refresh(ctx); err != nil {
 		fmt.Printf("Error refreshing subscriber: %v\n", err)
 		os.Exit(1)

@@ -17,6 +17,7 @@ type Author struct {
 	Name     string     `json:"name,omitempty"`
 	Email    string     `json:"email,omitempty"`
 	Favicon  *href.Href `json:"avatar,omitempty"`
+	Source   string     `json:"source,omitempty"` // source of author information (e.g. feed URL)
 }
 
 // ============================ Author Methods ================================
@@ -69,6 +70,7 @@ func (Author) DatabaseInsertColumns() []string {
 		"username",
 		"favicon",
 		"email",
+		"source",
 	}
 }
 func (author *Author) DatabaseInsertValues() (values []any) {
@@ -78,6 +80,7 @@ func (author *Author) DatabaseInsertValues() (values []any) {
 	values = append(values, author.Username)
 	values = append(values, author.Favicon.String())
 	values = append(values, author.Email)
+	values = append(values, author.Source)
 	return values
 }
 func (author *Author) DatabaseUpdatesSet() []string {
@@ -87,6 +90,7 @@ func (author *Author) DatabaseUpdatesSet() []string {
 		"[username] = excluded.username",
 		"[favicon] = excluded.favicon",
 		"[email] = excluded.email",
+		"[source] = excluded.source",
 	}
 }
 

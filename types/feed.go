@@ -32,9 +32,8 @@ type Feed struct {
 	Items       []*Item     `json:"items,omitempty"`    // the most recent items for this feed
 	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
 
-	StatusJSON []byte  `json:"-"` // byte slice representation of Feed.Status (JSON)
-	Bytes      []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
-	RawFeed    RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
+	Bytes   []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
+	RawFeed RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
 }
 
 // FeedStatus represents feed state (schedule, rate limiting, etc)
@@ -212,7 +211,7 @@ func (feed *Feed) Parse() (err error) {
 		if feed.RawFeed.GetURL() == nil || !feed.RawFeed.GetURL().IsAbs() {
 			feed.RawFeed.SetURL(feed.GetURL()) // ensure base URL is set for relative item URLs
 		}
-		feed.Authors = feed.RawFeed.ParseFeedAuthors()
+		feed.Authors = append(feed.Authors, feed.RawFeed.ParseFeedAuthors()...)
 		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.UpdatedAt); err != nil {
 			return err
 		} else if feed.RawFeed.ItemCount() != len(feed.Items) {

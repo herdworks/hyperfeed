@@ -2,6 +2,7 @@
 PRAGMA journal_mode = WAL;
 PRAGMA wal_autocheckpoint = 1000;
 PRAGMA synchronous = NORMAL;
+PRAGMA foreign_keys = ON;
 
 -- HyperFeed table (versioning info)
 CREATE TABLE IF NOT EXISTS hyperfeed (
@@ -95,10 +96,13 @@ CREATE TABLE IF NOT EXISTS authors (
     [name] TEXT,
     [favicon] TEXT,
     [email] TEXT,
+    [source] TEXT,
 
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS authors_id_index ON authors([id]);
+CREATE INDEX IF NOT EXISTS authors_href_index ON authors([href]);
+CREATE INDEX IF NOT EXISTS authors_source_index ON authors([source]);
 
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
@@ -210,7 +214,9 @@ SELECT
             'href', [authors].[href],
             'name', [authors].[name],
             'username', [authors].[username],
-            'favicon', [authors].[favicon]
+            'favicon', [authors].[favicon],
+            'email', [authors].[email],
+            'source', [authors].[source]
         )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
         'language', [feeds].[language],
         'status', json([feeds].[status]),
@@ -218,7 +224,8 @@ SELECT
     ) AS 'feed',
     [feeds].[id],
     [feeds].[url],
-    [feeds].[updated_at]
+    [feeds].[updated_at],
+    COUNT([authors].[id]) AS [author_count]
 FROM
     [feeds]
     LEFT OUTER JOIN [feed_authors] ON [feed_authors].[feed_id] = [feeds].[id]
@@ -275,12 +282,14 @@ SELECT
         'username', [authors].[username],
         'name', [authors].[name],
         'favicon', [authors].[favicon],
-        'email', [authors].[email]
+        'email', [authors].[email],
+        'source', [authors].[source]
     ) as 'author',
     [authors].[id],
     [authors].[href],
     [authors].[name],
-    [authors].[username]
+    [authors].[username],
+    [authors].[source]
 FROM
     [authors]
 ;

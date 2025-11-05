@@ -130,8 +130,8 @@ func (db *Database) Destroy() (err error) {
 // Configure applies connection-level configuration (e.g. PRAGMAs) to the database
 func (db *Database) Configure(ctx context.Context) (err error) {
 	var statement string
-	statement += "PRAGMA busy_timeout = 5000;"
 	statement += "PRAGMA foreign_keys = ON;"
+	statement += "PRAGMA busy_timeout = 5000;"
 	if err = db.Exec(ctx, statement); err != nil {
 		return errors.Join(ErrConfig, fmt.Errorf("database pragma error: %w", err))
 	}

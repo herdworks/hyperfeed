@@ -2,7 +2,6 @@ package subscriber
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -54,6 +53,7 @@ var (
 	ErrReadiness        = errors.New("subscriber not ready")
 	ErrSubscriber       = errors.New("subscriber error")
 	ErrSubscriptionList = errors.New("subscription list error")
+	ErrScraper          = errors.New("scraper error")
 )
 
 // defaults
@@ -163,12 +163,6 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 		if err := subscriber.Database.ReadRow(ctx, feed.Feed); err != nil {
 			return err
 		}
-		if feed.Feed.StatusJSON == nil {
-			feed.Feed.StatusJSON = []byte("{}")
-		}
-		if err = json.Unmarshal(feed.Feed.StatusJSON, &feed.Feed.Status); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -180,6 +174,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 	var start time.Time = time.Now().UTC()
 	subscriber.SubscriptionList.Status = &hyperfeed.SubscriptionStatus{UpdatedAt: time.Now().UTC()}
 	ticker, cancellation = errgroup.WithContext(ctx)
+	// TODO: do we need to open the database here, or can we just check if it is already open?
 	if err = subscriber.Database.Open(ctx); err == nil {
 		defer subscriber.Database.Close()
 	} else {
@@ -190,6 +185,9 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 		ticker.Go(func() (e error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
 			f.Tick(cancellation) // ignore tick errors; they are recorded in f.Feed.Status
+			if e = f.HyperGraphEntity(ctx); e != nil {
+				// continue
+			}
 			if e = f.Parse(); e == nil {
 				subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
 			} else {

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	"github.com/herdworks/hyperfeed-go/internal/transporter"
+	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	href "github.com/herdworks/hyperfeed-go/types/href"
+	hypergraph "github.com/herdworks/hypergraph-go"
 )
 
 // ============================ Package Types =================================
@@ -46,6 +46,7 @@ var (
 	ErrRequest        = errors.New("request error")
 	ErrResponse       = errors.New("response error")
 	ErrDatabase       = errors.New("database error")
+	ErrScraper        = errors.New("scraper error")
 )
 
 // ========================= Feeder Methods =============================
@@ -116,6 +117,12 @@ func (feeder *Feeder) Request() (request *transporter.Request, err error) {
 	request = &transporter.Request{
 		URL:        feeder.Feed.URL.URL(),
 		Conditions: feeder.Conditions(),
+		Request: &http.Request{
+			Header: http.Header{
+				"User-Agent": hyperfeed.LibUserAgent, // set the versioned user-agent
+			},
+		},
+		Options: transporter.RequestOptions{}, // placeholder for future configuration
 	}
 	return request, nil
 }
@@ -354,6 +361,30 @@ func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int
 		fmt.Printf("feed %q expected %d added items, got %d\n", feed.URL.String(), expected, addedCount+updatedCount)
 	}
 	return addedCount, updatedCount, nil
+}
+
+func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
+	var document *hypergraph.Document = &hypergraph.Document{Href: feeder.Feed.HTMLURL.String()}
+	if len(feeder.Feed.Authors) > 0 {
+		return errors.Join(ErrScraper, err)
+	}
+	if err = document.Download(ctx, false, nil); err == nil {
+		return errors.Join(ErrScraper, err)
+	}
+	if _, err = document.Scrape("document", "json", false); err != nil {
+		return errors.Join(ErrScraper, err)
+	}
+	documentHref, _ := href.Parse(document.Href)
+	faviconHref, _ := href.Parse(document.Metadata.Entity.Favicon)
+	feeder.Feed.Authors = append(feeder.Feed.Authors, hyperfeed.Author{
+		Href:     documentHref,
+		Name:     document.Metadata.Entity.Name,
+		Username: document.Metadata.Entity.Username,
+		Email:    document.Metadata.Entity.Email,
+		Favicon:  faviconHref,
+		Source:   document.Metadata.Entity.Source,
+	})
+	return nil
 }
 
 // ========================= Helper Functions ===========================
