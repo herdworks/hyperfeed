@@ -4,6 +4,10 @@ github.com/herdworks/hypergraph-go v0.17.4-0.20251105211320-cbf0a2166f0b h1:Gtsd
 github.com/herdworks/hypergraph-go v0.17.4-0.20251105211320-cbf0a2166f0b/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
 github.com/herdworks/hypergraph-go v0.17.4-0.20251105234809-a30335ba4c69 h1:7g9FNpzGH8T+QYBlqkeDVXrg6Zyb6TVxrMwAohP8O0M=
 github.com/herdworks/hypergraph-go v0.17.4-0.20251105234809-a30335ba4c69/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251106000806-2437b11c82e6 h1:puUW8pniRRhzHN2gg/AtkQIYC+abQL6mf9+P3Rw3XdE=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251106000806-2437b11c82e6/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251106001504-7b3ffe11d015 h1:FHFZmJCRW8/EUaGE7aImx4yl+jFz+xyeUkQKe62aq/I=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251106001504-7b3ffe11d015/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
 github.com/herdworks/hypertemplates-go v0.18.0-1 h1:MnhXC46aGWX/eLBtOr7eqhYo/ipca78da7E0kMU5oxA=
 github.com/herdworks/hypertemplates-go v0.18.0-1/go.mod h1:zPmp/nHNQjloKczhVeFOADwdzHdQgm5/vL9isdAE1B8=
 github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o4kU=
