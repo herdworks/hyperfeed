@@ -368,10 +368,10 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	if len(feeder.Feed.Authors) > 0 {
 		return nil
 	}
-	if err = document.Download(ctx, false, nil); err == nil {
+	if err = document.Download(ctx, true, nil); err == nil {
 		return errors.Join(ErrScraper, err)
 	}
-	if err = document.Scrape(ctx, false, nil); err != nil {
+	if err = document.Scrape(ctx, true, nil); err != nil {
 		return errors.Join(ErrScraper, err)
 	}
 	documentHref, _ := href.Parse(document.Href)
