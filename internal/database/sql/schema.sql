@@ -211,6 +211,7 @@ SELECT
         'title', [feeds].[title],
         'description', [feeds].[description],
         'authors', COALESCE(json_group_array(json_object(
+            'id', [authors].[id],
             'href', [authors].[href],
             'name', [authors].[name],
             'username', [authors].[username],
@@ -246,6 +247,7 @@ SELECT
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
         'authors', COALESCE(json_group_array(json_object(
+            'id', [authors].[id],
             'href', [authors].[href],
             'name', [authors].[name],
             'username', [authors].[username],
