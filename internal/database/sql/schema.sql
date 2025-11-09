@@ -278,6 +278,7 @@ GROUP BY
 CREATE VIEW IF NOT EXISTS authors_view AS
 SELECT
     json_object(
+        'id', [authors].[id],
         'href', [authors].[href],
         'username', [authors].[username],
         'name', [authors].[name],
