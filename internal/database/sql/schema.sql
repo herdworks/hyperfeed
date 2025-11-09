@@ -235,7 +235,7 @@ SELECT
             'name', [authors].[name],
             'username', [authors].[username],
             'favicon', [authors].[favicon],
-            'verified', CASE WHEN authors.verified = 0 THEN json('true') ELSE json('false') END,
+            'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
             'email', [authors].[email],
             'source', [authors].[source]
         )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
@@ -272,7 +272,7 @@ SELECT
             'name', [authors].[name],
             'username', [authors].[username],
             'favicon', [authors].[favicon],
-            'verified', CASE WHEN authors.verified = 0 THEN json('true') ELSE json('false') END,
+            'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
             'email', [authors].[email]
         )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
         'title', [items].[title],
@@ -306,7 +306,7 @@ SELECT
         'username', [authors].[username],
         'name', [authors].[name],
         'favicon', [authors].[favicon],
-        'verified', CASE WHEN authors.verified = 0 THEN json('true') ELSE json('false') END,
+        'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
         'email', [authors].[email],
         'source', [authors].[source]
     ) as 'author',
