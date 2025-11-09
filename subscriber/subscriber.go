@@ -186,6 +186,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
 			f.Tick(cancellation) // ignore tick errors; they are recorded in f.Feed.Status
 			if e = f.HyperGraphEntity(ctx); e != nil {
+				fmt.Printf("graph %q entity error: %v\n", f.Feed.URL.String(), e)
 				// continue
 			}
 			if e = f.Parse(); e == nil {

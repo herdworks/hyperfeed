@@ -368,13 +368,13 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	if len(feeder.Feed.Authors) > 0 {
 		return nil
 	}
-	if err = document.Download(ctx, true, nil); err == nil {
-		return errors.Join(ErrScraper, err)
+	if err = document.Download(ctx, true, nil); err != nil {
+		return errors.Join(ErrScraper, fmt.Errorf("downloading document"), err)
 	}
 	if err = document.Scrape(ctx, true, nil); err != nil {
-		return errors.Join(ErrScraper, err)
+		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
-	documentHref, _ := href.Parse(document.Href)
+	documentHref, _ := href.Parse(document.Metadata.Entity.Href)
 	faviconHref, _ := href.Parse(document.Metadata.Entity.Favicon)
 	feeder.Feed.Authors = append(feeder.Feed.Authors, hyperfeed.Author{
 		Href:     documentHref,
