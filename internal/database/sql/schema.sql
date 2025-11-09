@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS authors (
     [username] TEXT,
     [name] TEXT,
     [favicon] TEXT,
+    [verified] INTEGER DEFAULT 0 CHECK ([verified] IN (0, 1)),
     [email] TEXT,
     [source] TEXT,
 
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS authors (
 );
 CREATE INDEX IF NOT EXISTS authors_id_index ON authors([id]);
 CREATE INDEX IF NOT EXISTS authors_href_index ON authors([href]);
+CREATE INDEX IF NOT EXISTS authors_verified_index ON authors([verified]);
 CREATE INDEX IF NOT EXISTS authors_source_index ON authors([source]);
 
 -- Attachments table
@@ -121,6 +123,23 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
 CREATE INDEX IF NOT EXISTS attachments_url_index ON attachments([url]);
 CREATE INDEX IF NOT EXISTS attachments_item_id_index ON attachments([item_id]);
+
+-- Cache table
+CREATE TABLE IF NOT EXISTS cache (
+    [url] TEXT PRIMARY KEY, -- source url
+    [uri] TEXT, -- cache file uri
+    [type] TEXT, -- mimetype
+    [updated_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- last update time
+    [fetched_at] TIMESTAMP, -- last fetch time
+    [http_etag] TEXT, -- HTTP ETag
+    [http_last_modified] TEXT, -- HTTP Last-Modified
+    [http_expires_at] TIMESTAMP, -- HTTP Expires
+    [http_status_code] INTEGER, -- HTTP status code of last fetch
+    [bytes] BLOB -- cached data
+);
+CREATE INDEX IF NOT EXISTS cache_url_index ON cache ([url]);
+CREATE INDEX IF NOT EXISTS cache_type_index ON cache ([type]);
+CREATE INDEX IF NOT EXISTS cache_http_expires_at_index ON cache ([http_expires_at]);
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS metadata (
@@ -317,3 +336,23 @@ FROM
     [attachments]
 ;
 
+-- CacheView
+CREATE VIEW IF NOT EXISTS cache_view AS
+SELECT
+    json_object(
+        'url', [url],
+        'uri', [uri],
+        'type', [type],
+        'updated_at', [updated_at],
+        'fetched_at', [fetched_at],
+        'http_etag', [http_etag],
+        'http_last_modified', [http_last_modified],
+        'http_expires_at', [http_expires_at],
+        'http_status_code', [http_status_code]
+    ) as 'file',
+    [url],
+    [type],
+    [http_expires_at]
+FROM
+    [cache]
+;

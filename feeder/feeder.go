@@ -119,7 +119,7 @@ func (feeder *Feeder) Request() (request *transporter.Request, err error) {
 		Conditions: feeder.Conditions(),
 		Request: &http.Request{
 			Header: http.Header{
-				"User-Agent": hyperfeed.LibUserAgent, // set the versioned user-agent
+				"User-Agent": []string{hyperfeed.LibUserAgent}, // set the versioned user-agent header
 			},
 		},
 		Options: transporter.RequestOptions{}, // placeholder for future configuration
@@ -382,6 +382,7 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 		Username: document.Metadata.Entity.Username,
 		Email:    document.Metadata.Entity.Email,
 		Favicon:  faviconHref,
+		Verified: document.Metadata.Entity.Verified,
 		Source:   document.Metadata.Entity.Source,
 	})
 	return nil

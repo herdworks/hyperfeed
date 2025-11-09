@@ -92,7 +92,7 @@ func (subscriber *Subscriber) Ready(ctx context.Context) (ready bool, err error)
 
 // Init initializes the Subscriber database, etc
 //
-// NOTE: Init uses a URI instead of a path string to allow for future flexibility (e.g. reading subscription lists from remote locations).
+// NOTE: Init uses a URL instead of a path string to allow for future flexibility (e.g. reading subscription lists from remote locations).
 func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Config) (err error) {
 	if subscriber.Database == nil {
 		subscriber.Database = &database.Database{} // init empty database
@@ -106,7 +106,7 @@ func (subscriber *Subscriber) Init(ctx context.Context, uri *url.URL, config *Co
 	}
 	if uri != nil {
 		subscriber.SubscriptionList.Path = uri.String()
-		subscriber.Database.Path = filepath.Join(filepath.Dir(uri.Path), "hyperfeed.db")
+		subscriber.Database.Path = filepath.Join(filepath.Dir(uri.Path), "hyperfeed.db") // default database path
 	} else {
 		return errors.Join(ErrSubscriptionList, errors.New("subscription list URI is nil"))
 	}
