@@ -281,7 +281,6 @@ SELECT
         'title', [items].[title],
         'summary', [items].[summary],
         'content', [items].[content],
-        'image_url', [items].[image_url],
         'feed_id', [items].[feed_id]
     ) as 'item',
     [items].[id],
