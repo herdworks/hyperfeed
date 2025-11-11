@@ -92,11 +92,11 @@ func (parser *RSSFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.RSS, err = rss.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	if parser.Feed.HTMLURL, err = href.Parse(parser.RSS.Link()); err != nil {
-		return nil, err
+	if parser.Feed.HTMLURL == nil {
+		parser.Feed.HTMLURL, _ = href.Parse(parser.RSS.Link())
 	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
-		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative HTML URLs against the feed URL
+		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.RSS.Channel.Title
 	parser.Feed.Description = parser.RSS.Channel.Description
@@ -151,7 +151,7 @@ func (parser *RSSFeedParser) Items(added time.Time) (items []*hyperfeed.Item, er
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
 		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.HTMLURL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed HTML URL
+			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
 		item.FeedID = parser.Feed.Identifier()
 		item.Title = rssitem.Title
@@ -211,11 +211,11 @@ func (parser *AtomFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.Atom, err = atom.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	if link := parser.Atom.Link("alternate"); link != nil {
+	if link := parser.Atom.Link("alternate"); parser.Feed.HTMLURL == nil && link != nil {
 		parser.Feed.HTMLURL, _ = href.Parse(link.Href)
 	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
-		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative HTML URLs against the feed URL
+		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.Atom.Title
 	parser.Feed.Description = ""
@@ -262,7 +262,7 @@ func (parser *AtomFeedParser) Items(added time.Time) (items []*hyperfeed.Item, e
 			item.URL, _ = url.Parse(link.Href)
 		}
 		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.HTMLURL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed HTML URL
+			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
 		item.FeedID = parser.Feed.Identifier()
 		item.Title = entry.Title
@@ -315,9 +315,11 @@ func (parser *JSONFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.JSON, err = jsonfeed.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	parser.Feed.HTMLURL, _ = href.Parse(parser.JSON.HomePageURL)
+	if parser.Feed.HTMLURL == nil {
+		parser.Feed.HTMLURL, _ = href.Parse(parser.JSON.HomePageURL)
+	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
-		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative HTML URLs against the feed URL
+		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.JSON.Title
 	parser.Feed.Description = parser.JSON.Description
@@ -365,7 +367,7 @@ func (parser *JSONFeedParser) Items(added time.Time) (items []*hyperfeed.Item, e
 		item := &hyperfeed.Item{}
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.HTMLURL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed HTML URL
+			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
 		item.FeedID = parser.Feed.Identifier()
 		item.Title = jsonitem.Title
