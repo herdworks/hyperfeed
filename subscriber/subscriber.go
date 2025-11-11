@@ -152,6 +152,9 @@ func (subscriber *Subscriber) InitFeeds() (err error) {
 		if feeder.Feed.HTMLURL, err = href.Parse(outline.HTMLURL); err != nil {
 			return err
 		}
+		if feeder.Feed.FaviconURL, err = href.Parse(outline.FaviconURL); err != nil {
+			return err
+		}
 		subscriber.Feeds = append(subscriber.Feeds, feeder)
 	}
 	return nil

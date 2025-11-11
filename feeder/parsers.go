@@ -124,6 +124,7 @@ func (parser *RSSFeedParser) Authors(incoming []string) (authors []hyperfeed.Aut
 			Href:     parser.Feed.HTMLURL,
 			Name:     parser.Feed.Title,
 			Username: hypergraph.Username(parser.Feed.HTMLURL.String()),
+			Favicon:  parser.Feed.FaviconURL,
 			Source:   "rss",
 		}
 		name, email := rss.ParseAuthor(a)
@@ -237,6 +238,7 @@ func (parser *AtomFeedParser) Authors(incoming ...*atom.Author) (authors []hyper
 			Href:     parser.Feed.HTMLURL,
 			Name:     parser.Feed.Title,
 			Username: hypergraph.Username(parser.Feed.HTMLURL.String()),
+			Favicon:  parser.Feed.FaviconURL,
 			Source:   "atom",
 		}
 		if a.URI != "" {
@@ -343,7 +345,7 @@ func (parser *JSONFeedParser) Authors(incoming []jsonfeed.Author) (authors []hyp
 			Href:     parser.Feed.HTMLURL,
 			Name:     parser.Feed.Title,
 			Username: hypergraph.Username(parser.Feed.HTMLURL.String()),
-			Favicon:  nil,
+			Favicon:  parser.Feed.FaviconURL,
 			Source:   "jsonfeed",
 		}
 		if a.URL != "" {

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [id] TEXT,
     [url] TEXT UNIQUE,
     [html_url] TEXT,
+    [favicon_url] TEXT,
     [updated_at] TIMESTAMP,
     [title] TEXT,
     [description] TEXT,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS feeds (
 CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds([id]);
 CREATE INDEX IF NOT EXISTS feeds_url_index ON feeds([url]);
 CREATE INDEX IF NOT EXISTS feeds_html_url_index ON feeds([html_url]);
+CREATE INDEX IF NOT EXISTS feeds_favicon_url_index ON feeds([favicon_url]);
 CREATE INDEX IF NOT EXISTS feeds_status_code_index ON feeds([status_code]);
 
 -- Items table
@@ -225,6 +227,7 @@ SELECT
         'id', [feeds].[id],
         'url', [feeds].[url],
         'html_url', [feeds].[html_url],
+        'favicon_url', [feeds].[favicon_url],
         'updated_at', [feeds].[updated_at],
         'title', [feeds].[title],
         'description', [feeds].[description],

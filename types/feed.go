@@ -20,6 +20,7 @@ type Feed struct {
 	ID          string      `json:"id,omitempty"`  // stable HyperFeed Feed identifier (normalized URL string)
 	URL         *href.Href  `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
 	HTMLURL     *href.Href  `json:"html_url,omitempty"`
+	FaviconURL  *href.Href  `json:"favicon_url,omitempty"`
 	UpdatedAt   time.Time   `json:"updated_at,omitempty"`
 	Language    string      `json:"language,omitempty"`
 	Title       string      `json:"title,omitempty"`
