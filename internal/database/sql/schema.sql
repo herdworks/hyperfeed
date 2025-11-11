@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS items (
     [title] TEXT,
     [summary] TEXT,
     [content] TEXT,
-    [image_url] TEXT,
 
     [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
 
@@ -130,6 +129,7 @@ CREATE TABLE IF NOT EXISTS cache (
     [url] TEXT PRIMARY KEY, -- source url
     [uri] TEXT, -- cache file uri
     [type] TEXT, -- mimetype
+    [size_in_bytes] INTEGER, -- size of cached data
     [updated_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- last update time
     [fetched_at] TIMESTAMP, -- last fetch time
     [http_etag] TEXT, -- HTTP ETag
@@ -275,7 +275,8 @@ SELECT
             'username', [authors].[username],
             'favicon', [authors].[favicon],
             'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
-            'email', [authors].[email]
+            'email', [authors].[email],
+            'source', [authors].[source]
         )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
         'title', [items].[title],
         'summary', [items].[summary],
@@ -348,6 +349,7 @@ SELECT
         'url', [url],
         'uri', [uri],
         'type', [type],
+        'size_in_bytes', [size_in_bytes],
         'updated_at', [updated_at],
         'fetched_at', [fetched_at],
         'http_etag', [http_etag],
