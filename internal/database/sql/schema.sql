@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS items (
     [added_at] TIMESTAMP,
     [updated_at] TIMESTAMP,
     [feed_at] TIMESTAMP,
-    [author] TEXT,
     [title] TEXT,
     [summary] TEXT,
     [content] TEXT,

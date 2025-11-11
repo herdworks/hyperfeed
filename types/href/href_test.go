@@ -1,4 +1,4 @@
-package hyperfeed
+package href
 
 import (
 	"encoding/json"

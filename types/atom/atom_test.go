@@ -1,4 +1,4 @@
-package hyperfeed
+package atom
 
 // TODO: test Atom feed with multiple top-level <author> elements
 

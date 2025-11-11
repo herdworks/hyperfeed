@@ -1,4 +1,4 @@
-package hyperfeed
+package href
 
 import (
 	"encoding/json"
@@ -84,6 +84,23 @@ func (href *Href) URL() *url.URL {
 	}
 	u := url.URL(*href)
 	return &u
+}
+
+// IsAbs reports whether the Href is absolute
+func (href *Href) IsAbs() bool {
+	if href == nil {
+		return false
+	}
+	return href.URL().IsAbs()
+}
+
+// ResolveReference resolves a reference URL against this Href
+func (href *Href) ResolveReference(ref *url.URL) *Href {
+	if href == nil {
+		return (*Href)(ref)
+	}
+	base := href.URL()
+	return (*Href)(base.ResolveReference(ref))
 }
 
 // String returns the string representation of the Href

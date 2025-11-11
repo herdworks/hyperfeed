@@ -185,14 +185,10 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 		ticker.Go(func() (e error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
 			f.Tick(cancellation) // ignore tick errors; they are recorded in f.Feed.Status
+			subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
 			if e = f.HyperGraphEntity(ctx); e != nil {
 				fmt.Printf("graph %q entity error: %v\n", f.Feed.URL.String(), e)
 				// continue
-			}
-			if e = f.Parse(); e == nil {
-				subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
-			} else {
-				return errors.Join(ErrSubscriber, e)
 			}
 			if e = f.SaveFeed(ctx); e != nil {
 				return errors.Join(ErrSubscriber, e)

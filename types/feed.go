@@ -1,9 +1,7 @@
 package hyperfeed
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,7 +11,6 @@ import (
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	href "github.com/herdworks/hyperfeed-go/types/href"
-	"github.com/herdworks/hypertemplates-go/atom"
 )
 
 // ============================ Package Types =================================
@@ -32,8 +29,7 @@ type Feed struct {
 	Items       []*Item     `json:"items,omitempty"`    // the most recent items for this feed
 	Status      *FeedStatus `json:"status,omitempty"`   // fetch/status metadata
 
-	Bytes   []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
-	RawFeed RawFeed `json:"-"` // RSS, Atom, or JSON Feed representation of the feed
+	Bytes []byte `json:"-"` // the most recent contents (raw bytes) for this feed
 }
 
 // FeedStatus represents feed state (schedule, rate limiting, etc)
@@ -115,37 +111,7 @@ type FeedCacheControl struct {
 	ETagMismatch bool          `json:"etag_mismatch"`
 }
 
-// FeedKind is a feed type/version pair (e.g., "rss/2.0")
-type FeedKind string
-
-// RawFeed represents a format-specific parsed feed (RSS/Atom/JSON Feed) before normalization.
-// Implementations should report their concrete kind and version via Kind().
-type RawFeed interface {
-	Kind() FeedKind                                             // returns the concrete feed kind/version (e.g., rss/2.0, jsonfeed/1.1)
-	GetURL() *url.URL                                           // returns the feed's base URL (for resolving relative item URLs)
-	SetURL(*url.URL)                                            // set the raw feed's base URL (for resolving relative item URLs)
-	ItemCount() int                                             // returns the number of items in the feed
-	ParseFeedAuthors() []Author                                 // parses and returns the feed's owners
-	ParseItems(feedID string, added time.Time) ([]*Item, error) // parses and returns the feed's items
-}
-
 // ============================ Package Variables =============================
-
-// FeedKind enumeration
-const (
-	// Unknown or unspecified
-	FeedKindUnknown      FeedKind = ""
-	FeedKindRSS          FeedKind = "rss"
-	FeedKindRSS_0_9_1    FeedKind = "rss/0.91"
-	FeedKindRSS_0_9_2    FeedKind = "rss/0.92"
-	FeedKindRSS_2_0      FeedKind = "rss/2.0"
-	FeedKindAtom         FeedKind = "atom"
-	FeedKindAtom_0_3     FeedKind = "atom/0.3"
-	FeedKindAtom_1_0     FeedKind = "atom/1.0"
-	FeedKindJSONFeed     FeedKind = "jsonfeed"
-	FeedKindJSONFeed_1_0 FeedKind = "jsonfeed/1.0"
-	FeedKindJSONFeed_1_1 FeedKind = "jsonfeed/1.1"
-)
 
 // ============================ Feed Methods ==================================
 
@@ -169,56 +135,6 @@ func (feed *Feed) Identifier() string {
 // PathIdentifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) PathIdentifier() any {
 	return normalized.Identifier(normalized.Path(feed.URL.URL()))
-}
-
-// DetectKind inspects the provided document (JSON or XML) and returns the
-// detected feed kind/version. Accepts either []byte or string input.
-func (f *Feed) DetectKind() FeedKind {
-	if f.Bytes == nil {
-		return FeedKindUnknown
-	}
-	if len(bytes.TrimSpace(f.Bytes)) == 0 {
-		return FeedKindUnknown // empty document
-	}
-	if JSONFeedDetected(f.Bytes) {
-		return FeedKindJSONFeed
-	}
-	if RSSDetected(f.Bytes) {
-		return FeedKindRSS
-	}
-	if atom.AtomDetected(f.Bytes) {
-		return FeedKindAtom
-	}
-	return FeedKindUnknown
-}
-
-func (feed *Feed) Parse() (err error) {
-	switch feed.DetectKind() {
-	case FeedKindRSS, FeedKindRSS_0_9_1, FeedKindRSS_0_9_2, FeedKindRSS_2_0:
-		if feed.RawFeed, err = ParseRSS(feed.Bytes); err != nil {
-			return err
-		}
-	case FeedKindAtom, FeedKindAtom_0_3, FeedKindAtom_1_0:
-		if feed.RawFeed, err = ParseAtom(feed.Bytes); err != nil {
-			return err
-		}
-	case FeedKindJSONFeed, FeedKindJSONFeed_1_0, FeedKindJSONFeed_1_1:
-		if feed.RawFeed, err = ParseJSONFeed(feed.Bytes); err != nil {
-			return err
-		}
-	}
-	if feed.RawFeed != nil {
-		if feed.RawFeed.GetURL() == nil || !feed.RawFeed.GetURL().IsAbs() {
-			feed.RawFeed.SetURL(feed.GetURL()) // ensure base URL is set for relative item URLs
-		}
-		feed.Authors = append(feed.Authors, feed.RawFeed.ParseFeedAuthors()...)
-		if feed.Items, err = feed.RawFeed.ParseItems(feed.Identifier(), feed.Status.UpdatedAt); err != nil {
-			return err
-		} else if feed.RawFeed.ItemCount() != len(feed.Items) {
-			return errors.Join(ErrFeed, fmt.Errorf("item count mismatch: expected %d, got %d", feed.RawFeed.ItemCount(), len(feed.Items)))
-		}
-	}
-	return nil
 }
 
 func (feed *Feed) DuplicateItems() (duplicates []*Item) {

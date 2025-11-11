@@ -1,0 +1,277 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" media="screen" href="/~files/atom-premium.xsl"?>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:feedpress="https://feed.press/xmlns" xmlns:media="http://search.yahoo.com/mrss/" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <feedpress:locale>en</feedpress:locale>
+  <link rel="hub" href="https://feedpress.superfeedr.com/"/>
+  <title>Allen Pike</title>
+  <link href="https://www.allenpike.com/"/>
+  <link type="application/atom+xml" rel="self" href="https://feeds.allenpike.com/feed/"/>
+  <updated>2025-09-01T06:35:32+00:00</updated>
+  <id>https://allenpike.com/</id>
+  <author>
+    <name>Allen Pike</name>
+  </author>
+  <entry>
+    <id>https://allenpike.com/2025/building-something-big</id>
+    <link type="text/html" rel="alternate" href="https://www.allenpike.com/2025/building-something-big"/>
+    <title>Building Something Big</title>
+    <updated>2025-08-31T23:45:30+00:00</updated>
+    <author>
+      <name>Allen Pike</name>
+      <uri>https://allenpike.com/</uri>
+    </author>
+    <content type="html"><![CDATA[<p>When I talk about building <a href="https://forestwalk.ai/">Forestwalk</a>, people who’ve long known me are sometimes surprised that I’ve been using terms like “runway”, “venture-scale”, and other jargon more associated with the VC world than indie or lifestyle businesses. And indeed, I do have a secret to come clean about.</p>
+
+<p>You see, for most founders, most of the time, it’s logical to build a “lifestyle business” rather than a venture-track one. The good lifestyle is right in the name.</p>
+
+<p>Unluckily for me, working for a lifestyle was never that motivating. I love building software and teams and companies – if I earned enough to retire, I would just keep doing that. So instead of centring <a href="https://steamclock.com/">my first business</a> around my lifestyle, it was focused on building great products and being a great place to work. Still, our ambitions were generally sized to ensure we didn’t need to make tradeoffs like working late nights, bringing on investors, or taking big risks.</p>
+
+<p>This <em>mostly</em> achieved my goals. For a while.</p>
+
+<p>Yet a standard human foible is that, as we achieve our dreams, we generate larger ones. A decade in, I didn’t just want to build great apps with a small team of good people. I wanted to build great products that had a positive impact on a <em>lot of people</em>, and I wanted to do that with <em>a highly ambitious team</em>.</p>
+
+<p>Over the years I’ve had the chance to work with some really incredible folks – driven, passionate, smart, and ambitious. People who are unhappy with the status quo, and who rally their peers to do better work and set their sights higher.</p>
+
+<p>As I was working last year towards founding <a href="https://forestwalk.ai/">Forestwalk</a>, I realized that a core motivator for us was building with these kinds of people. But how the heck could we afford to do that?</p>
+
+<p>Alex MacCaw highlighted this dynamic in his generally excellent <a href="https://blog.alexmaccaw.com/lifestyle-vs-venture/">Lifestyle business FAQ</a>:</p>
+
+<blockquote>
+  <p>Pros of lifestyle businesses:</p>
+  <ul>
+    <li>Fairly straightforward way to get rich</li>
+    <li>Earn while you sleep; escape the 9 to 5 rat race</li>
+    <li>Focus on other pursuits, like writing, traveling, family, etc</li>
+  </ul>
+
+  <p>Cons of lifestyle businesses:</p>
+  <ul>
+    <li>Unreliable source of income (at least initially)</li>
+    <li>Does not force ones self-growth (unlike venture-backed companies)</li>
+    <li>Most likely you won’t work closely with incredible people (can get boring/lonely)</li>
+  </ul>
+</blockquote>
+
+<p>There it is. If you want to constantly be learning, and attract and retain a team full of world-class people who are driven to push you to do so – the sort of people you dream of working with – the best way to do that is to build a venture-scale business. So if you’re a weirdo who cares more about that than you do about your own stress levels, you should swing big.</p>
+
+<p>So that’s what we’ve been doing.</p>
+
+<p>That’s why, earlier this year, when we concluded the LLM evals product we’d been working on could make a meaningful business but not a venture-scale one, we pivoted to something new (using what we’d learned as kindling). And why we’ll keep adjusting our plan until something clicks that we could plausibly build into something big. Not because building a huge company is inherently good, but because building toward something big is the best way to attract incredible people.</p>
+
+<p>Of course, it might not work. Things are still very early. But I thought it was worth being straight: that’s the goal. We’re going to build something big, or die tryin’.</p>
+
+<p>Wish us luck.</p>
+]]></content>
+  </entry>
+  <entry>
+    <id>https://allenpike.com/2025/getting-tied-up-knots</id>
+    <link type="text/html" rel="alternate" href="https://www.allenpike.com/2025/getting-tied-up-knots"/>
+    <title>Getting Tied Up</title>
+    <updated>2025-07-31T23:45:30+00:00</updated>
+    <author>
+      <name>Allen Pike</name>
+      <uri>https://allenpike.com/</uri>
+    </author>
+    <content type="html"><![CDATA[<p>I never was a Boy Scout. As a kid, I leaned heavily toward papers, screens, and other indoor pursuits.</p>
+
+<p>Despite this, I was always drawn to camping. Setting up in the forests of British Columbia for a few days, surrounded by trees and fresh air, always felt good. Worthwhile. Right.</p>
+
+<p>While camping was always joyful, there is one aspect I long struggled with: I was bad at knots.</p>
+
+<p>Okay, that is too charitable. I was incompetent at knots. All I could really do is tie the basic learn-it-when-you’re-five knot, repeated twice for good measure. Knot connoisseurs call this a “granny knot,” and it is <a href="https://en.wikipedia.org/wiki/Granny_knot">an objectively bad knot</a>.</p>
+
+<p>These bad knots got me through most of life – they tie a garbage bag until it’s out of sight and out of mind – but when it comes to camping, they are not very helpful. They don’t stay tight, but they’re <em>also</em> hard to untie. They’re not adjustable for tarp lines, and they’re not useful when you only have one end of a rope to work with. They’re just generally bad, and they should feel bad.</p>
+
+<p>I kind of knew this. I had camped every year for decades, and my knots were always a source of frustration. But I was never a Boy Scout. I missed the knot-tying part of life! And my dad moved out when I was a kid. And… I dunno. I’m a computer guy, don’t make me learn knots.</p>
+
+<p>I mean, obviously I <em>could</em> learn knots. I <a href="https://allenpike.com/2014/being-bad-at-things">learned long ago</a> that we can learn anything at any age! Being bad at something is just the first step to getting pretty good at it.</p>
+
+<p>But if you try to get started with knots, it’s… a lot. The Ashley Book of Knots documents 3857 of them. I downloaded the <a href="https://apps.apple.com/us/app/knots-3d/id453571750?platform=iphone">Knots 3D</a> app, hoping it would give me some guidance. It explains 201 knots, but specifically calls out the “essential” knots: the mere <strong>18 knots</strong> one must learn how to execute in order to survive.</p>
+
+<p>You see, there are knots for binding an object down, hitching a rope to an object, adding a loop to a rope, joining two ropes together, stopping a rope from going through a hole, and making an adjustable tie. The ideal knot can vary depending on the direction of tension, the kind of rope, and the relative size of the ropes you’re using. Plus, many knots can easily be done incorrectly, resulting in a problematic bad version – like our cursed double-tied shoelaces.</p>
+
+<p>But… I just wanna quickly tie tarps. And do basic camping stuff. There are a lot of things I’d rather spend my time mastering than knots! So I went back to ignoring them.</p>
+
+<p>A couple years ago, after one particularly frustrating battle with a large tarp in the rain, I finally realized I’d played myself. By avoiding knot practice for so long, I’d let it become a gremlin in my mind. A thing I was bad at, not as a transitional phase towards being good, or even because I was happy to be bad at it, but because I’d let being bad at it become part of my character.</p>
+
+<p>So, when I got home, I set myself down and learned one single knot. Something that would help with tarping. I spent a couple hours and learned the adjustable <a href="https://knots3d.com/en/tarbuck-knot">Tarbuck Knot</a>.</p>
+
+<div class="centered">
+<img style='max-width: 100%' src="https://www.allenpike.com/images/2025/tarbuck.jpg" alt="The Tarbuck knot." />
+The Tarbuck Knot. There are many others, but this knot is mine.
+</div>
+
+<p>The Tarbuck Knot isn’t an ideal knot in any sense. But it’s adjustable, it’s reasonable, and I like it.  And by going from knowing nothing – other than “I am bad at this” – to knowing literally anything levelled up my vacation every year. I now have nice little adjustable tarp lines everywhere.</p>
+
+<p>Sure, I sometimes have things tied together with adjustable knots that don’t strictly need to be adjustable. But it’s quick and useful.</p>
+
+<p>I guess the thing I learned – other than how to tie a knot – is that there is nothing so outside your wheelhouse that you can’t go 0 to 1 with it. It’s too easy to dismiss a topic or discipline as not your domain and let your ignorance slowly hinder you. One of the miracles of being human is that we can learn a little bit about everything.</p>
+
+<p>I suppose there’s one other thing I learned. When it comes to the plain knot – the “I’m gonna tie my shoelaces” right over left knot – you should never double-tie it. Instead, tie the second one in reverse, left over right. That upgrades the bad knot into a <a href="https://en.wikipedia.org/wiki/Granny_knot">Square Knot</a>: stronger <em>and</em> easier to untie.</p>
+
+<p>Little things can make big differences.</p>
+]]></content>
+  </entry>
+  <entry>
+    <id>https://allenpike.com/2025/coding-agents</id>
+    <link type="text/html" rel="alternate" href="https://www.allenpike.com/2025/coding-agents"/>
+    <title>Spending Too Much Money on a Coding Agent</title>
+    <updated>2025-06-30T23:45:30+00:00</updated>
+    <author>
+      <name>Allen Pike</name>
+      <uri>https://allenpike.com/</uri>
+    </author>
+    <content type="html"><![CDATA[<p>For a year, I’d been coding almost every day with Cursor and Claude Sonnet. Anthropic’s 3.5 and 3.7 Sonnet each rightly earned their dominant place on the <a href="https://openrouter.ai/rankings/programming">programming model charts</a>: they were the least-bad coding models yet.</p>
+
+<p>In the earliest days of LLMs, there was tremendous interest in ever-larger model releases. Hype around bigger, slower models has since waned, as Claude 3 Opus, GPT 4.5, and OpenAI o1 – all large and technically impressive model releases, each useful for some niche purposes – were ultimately too expensive and slow to be worth the squeeze for day-to-day coding.</p>
+
+<p>But then, this spring, something interesting happened.</p>
+
+<h2 id="full-speed-ahead">Full speed ahead</h2>
+
+<p>Last month, my co-founder Jenn and I were rapidly sprinting to hit a self-imposed deadline (demoing our latest experiment at Web Summit Vancouver). Luckily, Claude Sonnet is truly helpful when coding – especially in TypeScript. Still, under time pressure, I started to get annoyed with its LLM-isms: overcomplicating changes, proposing unnecessary dependencies, and just <a href="https://www.lesswrong.com/posts/rKC4xJFkxm6cNq4i9/reward-hacking-is-becoming-more-sophisticated-and-deliberate">literally changing failing tests into skipped tests</a> to resolve “the tests are failing.” Like, what the crap?</p>
+
+<p>Frustrated, I tried switching from Claude Sonnet to the new o3 thinking model. I knew o3 was painfully slow, so I took the time to write out exactly what I knew, and what I wanted the solution to look like, and gave it some time to work. To my surprise, the response was… great?</p>
+
+<p>The more I tried it, the more I found o3’s improved ability to use tools, assess progress, and self-correct led to results that were actually worth the wait. I found myself expanding what terminal commands I allowed the agent to run, helping it get further than ever before. When I completed a hard “o3-grade” task and moved on to something simpler, I was increasingly tempted to leave it on o3 instead of switching back. Sonnet was faster in theory. But o3 was faster in practice.</p>
+
+<p>The only problem was, it was costing a fortune.</p>
+
+<p>Depending on the task, my o3 conversations were averaging roughly $5 of Cursor requests each, or about $50 a day. That… is a lot of money.</p>
+
+<p>Still, we were in a hurry. And what is a startup if not a series of experiments? So I turned to my co-founder.</p>
+
+<blockquote class="speaker-2 top">
+  <p>Jenn, I have a proposal. You’re going to hate it.</p>
+</blockquote>
+
+<blockquote>
+  <p>I’m listening?</p>
+</blockquote>
+
+<blockquote class="speaker-2">
+  <p>So you know I’ve been getting really good results from o3. I propose we try just defaulting to o3 for the next 3 weeks until our demo, and increase our Cursor spending cap to $1000/mo.</p>
+</blockquote>
+
+<blockquote>
+  <p>That’s a <em>lot</em> of money.</p>
+</blockquote>
+
+<blockquote class="speaker-2">
+  <p>I know. It’s ridiculous. This is ridiculous. But also, when we hire a Founding Engineer, they will cost a lot more than that. Like, 10x more.</p>
+</blockquote>
+
+<blockquote class="bottom">
+  <p>…Okay. Let’s try it. If it’s not worth the cost, we’ll go back.</p>
+</blockquote>
+
+<p>So we tried it. And, to both of our horror, it was worth the cost.</p>
+
+<p>We’ve found that compared to Claude 4 Sonnet and GPT-4.1, large thinking models like Claude 4 Opus and especially OpenAI o3 will:</p>
+
+<ul>
+  <li>More successfully use tools like MCPs and CLIs to troubleshoot issues</li>
+  <li>Less often propose overlarge patches that add risk or tech debt</li>
+  <li>More often find relevant code, instead of duplicating things</li>
+  <li>Less often “reward hack” by commenting out tests or otherwise being a dolt</li>
+  <li>Be a more effective research partner when weighing potential tech approaches</li>
+  <li>Follow our Cursor rules more diligently, including the rule not to try adding npm dependencies that don’t even flippin’ exist, you complete dingbat</li>
+</ul>
+
+<p>Still. $1000/mo is insane. So I’ve been keeping an eye out for somebody to convince me we’re crazy.</p>
+
+<p>Instead, in early June <a href="https://x.com/karpathy/status/1929597620969951434">Andrej Karpathy claimed</a>:</p>
+
+<blockquote>
+  <p>o3 is the obvious best [model] for important/hard things.</p>
+</blockquote>
+
+<p>At a software company, coding counts as important. A couple days later, the Head of Engineering at Shopify <a href="https://x.com/fnthawar/status/1930367595670274058?s=61">cited a coding model budget of $1k/month/dev</a> as being “cheap”.</p>
+
+<p>Emboldened, I decided to test the water by mentioning to one of our investors – a co-founder at a relatively large tech company – that we were trialling spending $1000/mo on o3 inference.</p>
+
+<blockquote class="top">
+  <p>$1000/mo! What are you doing with o3 that’s costing that much? I’m averaging $50/day on Claude Opus 4</p>
+</blockquote>
+
+<blockquote class="speaker-2">
+  <p>$50/day is $1000/mo?</p>
+</blockquote>
+
+<blockquote class="bottom">
+  <p>Oh lol right, yeah you’re good</p>
+</blockquote>
+
+<p>So I guess it really is a thing. You can get $1000/mo of value from coding agents now.</p>
+
+<h2 id="how-to-get-1000mo-of-value-from-coding-agents">How to get $1000/mo of value from coding agents</h2>
+
+<p>Obviously, simply spending $1000 does not guarantee you a positive return! Here are some practices that we’ve found get more value out of large thinking models like o3 and Claude Opus:</p>
+
+<ul>
+  <li><strong>Shift errors earlier</strong>: The faster you can detect a coding error, the cheaper it is to fix. This is doubly true for LLMs. Shifting errors from runtime → test-time → build-time makes everybody more productive. Even better, fix issues deterministically with a linter or formatter. Let your expensive LLMs and humans focus on the squishy parts.</li>
+  <li><strong>Use boring technology</strong>: LLMs do much better with well-documented and well-understood dependencies than obscure, novel, or magical ones. Now is not the time to let Steve load in a Haskell-to-WebAssembly pipeline.</li>
+  <li><strong>Refine your Cursor rules</strong>: Whether they’re literal <a href="https://docs.cursor.com/context/rules">.cursor/rules</a> or your IDE’s equivalent, collect and iterate useful prompts and docs for LLMs in your repo. This compounds across a team: if Jenn uses a Cursor rule to tamp down the LLM from idiotically coding a “fallback” path around code that never worked in the first place, I get that same benefit next time I pull.</li>
+  <li><strong>Improve your dev scripts</strong>: If checking your CI for error logs is convoluted, add an <code class="language-plaintext highlighter-rouge">npm run get:ci-errors</code> script. If your console logs are a noisy firehose, change it so you can launch with <code class="language-plaintext highlighter-rouge">DEBUG=myapp:namespace</code> to surface only the relevant logs.</li>
+  <li><strong>Invest in readable code</strong>: Your ratio of reading code to writing code has now gone way up. Pursue small files, clean type hints, and clear naming conventions.</li>
+  <li><strong>Have empathy for the model</strong>: It can only do so much before it <a href="https://machinelearning.apple.com/research/illusion-of-thinking">collapses into incompetence</a>. Observe what the model is struggling with, and improve its environment to make both of your jobs easier. How you <a href="https://blog.nilenso.com/blog/2025/05/29/ai-assisted-coding/">manage the model’s context and attention</a> makes a big difference.</li>
+</ul>
+
+<p>If you have a big codebase that isn’t Python or TypeScript, you might still be skeptical that you can get $1000/mo of value from these tools. Well, you’re in luck: working with large agentic models is much more affordable than it was way back 4 weeks ago when we did our experiment.</p>
+
+<ol>
+  <li>On June 10 OpenAI dropped the price of o3 by 80%.</li>
+  <li>On June 16 Cursor debuted <a href="https://www.cursor.com/blog/new-tier">a new Ultra plan</a> at $200/mo.</li>
+</ol>
+
+<p>Together, these give you more than enough requests to use o3 or Claude Opus full-time. Or maybe the move is to pay $200/mo for <a href="https://www.anthropic.com/news/max-plan">Claude Code Max</a>, then pay-as-you go for o3 in Cursor.</p>
+
+<p>Either way, the question is becoming less “how can we justify the cost of coding with large thinking agents” and more “how can we have more agents going at once?” New paths are popping up all the time:</p>
+
+<ul>
+  <li>You can now spin up Cursor background agents from <a href="https://www.cursor.com/blog/agent-web">Slack or the web</a>.</li>
+  <li>You can use Claude Code to script refactors or other big jobs.</li>
+  <li>You can have one agent draft a PR, and another agent (with clean context) sanity check or critique it before human review.</li>
+  <li>You can configure Cursor to pick up each Linear issue in your current sprint and prep it with an initial PR. It can draft a proposed fix, or at least give you a starting point, e.g. identify relevant files, do architectural analysis, write a failing test, or figure out which commit caused the bug.</li>
+  <li>You can now have <a href="https://help.openai.com/en/articles/9624314-model-release-notes">o3-pro</a> run 10 copies of o3 at once on each problem, and automatically pick the best output.</li>
+  <li>Or heck, you can simply have two checkouts of a repo, one on each monitor, and work with a second agent while you wait for the first.<sup id="fnref:1" role="doc-noteref"><a href="https://www.allenpike.com#fn:1" class="footnote" rel="footnote">1</a></sup></li>
+</ul>
+
+<div class="centered">
+<img style='max-width: 100%' src="https://www.allenpike.com/images/2025/cursor-agent.jpg" alt="Two cursor agents working on tasks." />
+Coding agents can be assigned a variety of tasks.
+</div>
+
+<p>As the tools improve and we get better at using them, the state of the art moves from “wow, this LLM lets me vibe code so much unmaintainable slop for my demo” but towards “wow, these 3 agents can work at once to help me make clear, maintainable improvements to existing code.” It’s a pretty big accelerator.</p>
+
+<p>I think Thomas Ptacek <a href="https://fly.io/blog/youre-all-nuts/">put it well</a>:</p>
+
+<blockquote>
+  <p>Even the most Claude-poisoned serious developers in the world still own curation, judgement, guidance, and direction. … [Coding models] devour schlep, and clear a path to the important stuff – where your judgement and values really matter.</p>
+</blockquote>
+
+<p>Less time typing code and debugging typos, more time thinking about systems and how they come together to make useful stuff for customers.</p>
+
+<p>I think that’s pretty cool.</p>
+
+<hr />
+
+<p><em>Update, Jul 16</em>: A lot of folks have written in with their observations on using large thinking models for coding – thank  you! Some quick further observations from readers and our team on Claude specifically:</p>
+
+<ul>
+  <li>Claude 4 Opus is better than o3 on many tasks, especially in Claude Code (e.g. writing tests) even while it’s worse than Cursor + o3 at others (e.g. stopping to ask questions when it should, or make it trivial to jumping back to a certain step in the chain).</li>
+  <li>You can use Claude Code within Cursor, to get some of the benefits of each.</li>
+  <li>Claude Code has a smaller $100 Max plan, though if you’re coding all day you’ll likely need the $200/mo one.</li>
+</ul>
+
+<div class="footnotes" role="doc-endnotes">
+  <ol>
+    <li id="fn:1" role="doc-endnote">
+      <p>This seemed objectively bonkers, but especially on days where o3 is slow and you’re churning out easy fixes and polish items, it can be effective. Jenn tried three at once, but it was a bit much. <a href="https://www.allenpike.com#fnref:1" class="reversefootnote" role="doc-backlink">&#8617;</a></p>
+    </li>
+  </ol>
+</div>
+]]></content>
+  </entry>
+</feed>

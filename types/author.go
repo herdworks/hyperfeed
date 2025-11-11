@@ -17,7 +17,7 @@ type Author struct {
 	Name     string     `json:"name,omitempty"`
 	Email    string     `json:"email,omitempty"`
 	Favicon  *href.Href `json:"avatar,omitempty"`
-	Verified bool 	    `json:"verified,omitempty"`
+	Verified bool       `json:"verified,omitempty"`
 	Source   string     `json:"source,omitempty"` // source of author information (e.g. feed URL)
 }
 

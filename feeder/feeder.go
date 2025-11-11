@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ var (
 	ErrTooSoonJunior  = errors.New("too soon, junior")
 	ErrRateLimited    = errors.New("rate limited")
 	ErrFeed           = errors.New("invalid feed")
+	ErrFeedParser     = errors.New("feed parser error")
 	ErrRequest        = errors.New("request error")
 	ErrResponse       = errors.New("response error")
 	ErrDatabase       = errors.New("database error")
@@ -55,9 +57,9 @@ var (
 // state, honor rate-limit hints, and update persistence optimistically to avoid
 // duplicate work after crashes.
 func (feeder *Feeder) Tick(ctx context.Context) error {
+	var ready bool
 	var request *transporter.Request
 	var response *transporter.Response
-	var ready bool
 	var err error
 	if ready, err = feeder.Ready(); !ready {
 		feeder.Log(nil, errors.Join(ErrReadiness, err))
@@ -74,7 +76,10 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 		feeder.Log(response, errors.Join(ErrResponse, err))
 		return err
 	}
-	return feeder.Apply(ctx, response)
+	if err = feeder.Apply(ctx, response); err != nil {
+		return err
+	}
+	return feeder.Parse(ctx, request.URL, response.Bytes)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
@@ -295,6 +300,20 @@ func (feeder *Feeder) LogErrors(response *transporter.Response, err error) {
 	feeder.Feed.Status.LastError = message
 }
 
+func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte) (err error) {
+	var parser FeedParser
+	if bytes == nil {
+		return nil // nothing to parse
+	}
+	if parser = NewFeedParser(u, bytes, feeder.Feed); parser == nil {
+		return err
+	}
+	if feeder.Feed, err = parser.Parse(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Save persists the current feed and status to the database
 func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 	if err = feeder.Database.PingContext(ctx); err != nil {
@@ -365,8 +384,10 @@ func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int
 
 func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feeder.Feed.HTMLURL.String()}
-	if len(feeder.Feed.Authors) > 0 {
-		return nil
+	for _, author := range feeder.Feed.Authors {
+		if author.Source == "hypergraph" {
+			return nil // already have hypergraph entity
+		}
 	}
 	if err = document.Download(ctx, true, nil); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("downloading document"), err)

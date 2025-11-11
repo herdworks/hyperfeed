@@ -1,4 +1,4 @@
-package hyperfeed
+package rss
 
 import (
 	"os"
@@ -21,13 +21,13 @@ const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
 </rss>`
 
 func TestRSSDetected(t *testing.T) {
-	if !RSSDetected([]byte(sampleRSS)) {
+	if !Detected([]byte(sampleRSS)) {
 		t.Fatalf("RSSDetect returned false")
 	}
 }
 
 func TestRSSParse(t *testing.T) {
-	rss, err := ParseRSS([]byte(sampleRSS))
+	rss, err := Parse([]byte(sampleRSS))
 	if err != nil {
 		t.Fatalf("ParseRSS returned error: %v", err)
 	}
@@ -43,13 +43,13 @@ func TestRSSParse(t *testing.T) {
 }
 
 func TestRSSParseTheTalkShow(t *testing.T) {
-	body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.thetalkshow.rss.xml")
+	body, err := os.ReadFile("testdata/daringfireball.net.thetalkshow.rss.xml")
 	if err != nil {
 		t.Fatalf("Fetch error: %v", err)
 	}
-	rss, err := ParseRSS(body)
+	rss, err := Parse(body)
 	if err != nil {
-		t.Fatalf("ParseRSS returned error: %v", err)
+		t.Fatalf("Parse returned error: %v", err)
 	}
 	if rss.Channel.Title == "" {
 		t.Fatalf("Channel title is empty")

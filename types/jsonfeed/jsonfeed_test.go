@@ -1,4 +1,4 @@
-package hyperfeed
+package jsonfeed
 
 import (
 	"os"
@@ -35,23 +35,23 @@ const sampleJSONFeed = `{
   ]
 }`
 
-func TestJSONFeedDetected_Valid(t *testing.T) {
-	if !JSONFeedDetected([]byte(sampleJSONFeed)) {
+// TestJSONFeedDetection tests the jsonfeed.Detected() function
+func TestJSONFeedDetection(t *testing.T) {
+	if !Detected([]byte(sampleJSONFeed)) {
 		t.Fatalf("expected JSONFeedDetect to return true for valid JSON Feed")
 	}
 }
 
-// TestJSONFeedIntegration_DaringFireball fetches and parses a live JSON Feed.
-// Marked as integration via env gate to avoid network during default test runs.
-func TestJSONFeedIntegration_DaringFireball(t *testing.T) {
-	body, err := os.ReadFile("testdata/2025-09-09/feeds/daringfireball.net.jsonfeed.json")
+// TestJSONFeedParser tests the jsonfeed.Parse() function
+func TestJSONFeedParser(t *testing.T) {
+	body, err := os.ReadFile("testdata/daringfireball.net.jsonfeed.json")
 	if err != nil {
 		t.Fatalf("failed to read testdata: %v", err)
 	}
-	if !JSONFeedDetected(body) {
+	if !Detected(body) {
 		t.Fatalf("expected JSONFeedDetect true for DF feed")
 	}
-	jf, err := ParseJSONFeed(body)
+	jf, err := Parse(body)
 	if err != nil {
 		t.Fatalf("parse feed: %v", err)
 	}
