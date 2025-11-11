@@ -59,3 +59,89 @@ func TestRSSParseTheTalkShow(t *testing.T) {
 		t.Fatalf("Expected items; got 0")
 	}
 }
+
+func TestRSSAuthorNameParser(t *testing.T) {
+	authorTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "name only",
+			input: "John Doe", 
+			expected: "John Doe",
+		},
+		{
+			name: "name and email",
+			input: "Jane Smith <jane@example.com>",
+			expected: "Jane Smith",
+		},
+		{
+			name: "email first",
+			input: "jane@example.com <Jane Smith>",
+			expected: "Jane Smith",
+		},
+		{
+			name: "name with parentheses email",
+			input: "John Doe (john@example.com)",
+			expected: "John Doe",
+		},
+		{
+			name: "email only",
+			input: "jane@example.com",
+			expected: "",
+		},
+	}
+	for _, tc := range authorTests {
+		t.Run(tc.name, func(t *testing.T) {
+			name, _ := ParseAuthor(tc.input)
+			if name != tc.expected {
+				t.Errorf("ParseAuthorName(%q) = %q; want %q", tc.input, name, tc.expected)
+			}
+
+		})
+	}
+}
+
+func TestRSSAuthorEmailParser(t *testing.T) {
+	authorTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "name only",
+			input: "John Doe", 
+			expected: "",
+		},
+		{
+			name: "name and email",
+			input: "Jane Smith <jane@example.com>",
+			expected: "jane@example.com",
+		},
+		{
+			name: "email first",
+			input: "jane@example.com <Jane Smith>",
+			expected: "jane@example.com",
+		},
+		{
+			name: "name with parentheses email",
+			input: "John Doe (john@example.com)",
+			expected: "john@example.com",
+		},
+		{
+			name: "email only",
+			input: "jane@example.com",
+			expected: "jane@example.com",
+		},
+	}
+	for _, tc := range authorTests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, email := ParseAuthor(tc.input)
+			if email != tc.expected {
+				t.Errorf("ParseAuthorEmail(%q) = %q; want %q", tc.input, email, tc.expected)
+			}
+
+		})
+	}
+}

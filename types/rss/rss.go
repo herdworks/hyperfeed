@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -141,6 +142,8 @@ type Days struct {
 // =============================================================================
 var (
 	ErrDateParser = fmt.Errorf("date parser error")
+
+	emailAddressPattern *regexp.Regexp = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
 )
 
 // Methods
@@ -279,18 +282,17 @@ func (r *RSS) SetURL(u *url.URL) {
 // * "name [email]"
 // * "name {email}"
 func ParseAuthor(incoming string) (name, email string) {
-	var parts []string = strings.Split(strings.TrimSpace(incoming), " ")
-	var emailAddress *regexp.Regexp = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		part = strings.Trim(part, "()<>{}[]")
-		if emailAddress.MatchString(part) {
-			email = part
-			continue
-		} else {
-			name = part
+	var parts []string = strings.Fields(strings.TrimSpace(incoming))
+	for i, part := range parts {
+		if emailAddressPattern.MatchString(part) {
+			email = strings.TrimSpace(part)
+			email = strings.Trim(email, "<>(){}[]")
+			parts = slices.Delete(parts, i, i+1)
+			break
 		}
 	}
+	name = strings.TrimSpace(strings.Join(parts, " "))
+	name = strings.Trim(name, "<>(){}[]")
 	return name, email
 }
 
