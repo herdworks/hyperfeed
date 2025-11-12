@@ -292,10 +292,13 @@ SELECT
     [items].[feed_at]
 FROM
     [items]
-    JOIN [item_authors] ON [item_authors].[item_id] = [items].[id]
-    JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
+    LEFT OUTER JOIN [item_authors] ON [item_authors].[item_id] = [items].[id]
+    LEFT OUTER JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
 GROUP BY
     [items].[id]
+ORDER BY
+    [items].[published_at] DESC,
+    [items].[added_at] DESC
 ;
 -- NOTE: use views for the different item "algorithms" (sort orders)?
 
