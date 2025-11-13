@@ -253,8 +253,11 @@ func (db *Database) UpsertRow(ctx context.Context, row DatabaseRow) (err error) 
 	_, err = db.DB.ExecContext(ctx, db.UpsertStatement(row), row.DatabaseInsertValues()...)
 	return err
 }
-func (db *Database) RelateRows(ctx context.Context, a, b DatabaseRow) (err error) {
-	_, err = db.DB.ExecContext(ctx, db.RelationStatement(a, b), a.Identifier(), b.Identifier())
+func (db *Database) RelateRows(ctx context.Context, table string, columns []string, values []any) (err error) {
+	if len(columns) != len(values) {
+		return fmt.Errorf("relation mismatch (%d values for %d columns)", len(values), len(columns))
+	}
+	_, err = db.DB.ExecContext(ctx, db.RelationStatement(table, columns), values...)
 	return err
 }
 
@@ -287,9 +290,10 @@ func (Database) UpsertStatement(row DatabaseRow) (query string) {
 	)
 }
 
-func (Database) RelationStatement(a, b DatabaseRow) (query string) {
-	var table string = fmt.Sprintf("%s_%s", strings.TrimRight(a.DatabaseTable(), "s"), b.DatabaseTable())
-	return fmt.Sprintf("INSERT OR IGNORE INTO %s VALUES(?, ?)", table)
+func (Database) RelationStatement(table string, columns []string) (string) {
+	var params []string
+	for range columns { params = append(params, "?") }
+	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
 }
 
 func (Database) WriteParameters(columns []string) (params []string) {

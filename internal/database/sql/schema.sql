@@ -156,49 +156,45 @@ CREATE INDEX IF NOT EXISTS metadata_namespace_index ON metadata([namespace]);
 CREATE INDEX IF NOT EXISTS metadata_name_index ON metadata([name]);
 CREATE INDEX IF NOT EXISTS metadata_ref_index ON metadata([namespace], [name]);
 
--- SubscriptionList-Metadata join table
-CREATE TABLE IF NOT EXISTS subscriptionlist_metadata (
-    [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
-    [metadata_id] INTEGER REFERENCES metadata([id]),
-
-    PRIMARY KEY([subscriptionlist_id], [metadata_id])
-);
-
--- Feed-Metadata join table
-CREATE TABLE IF NOT EXISTS feed_metadata (
-    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
-    [metadata_id] INTEGER REFERENCES metadata([id]),
-
-    PRIMARY KEY([feed_id], [metadata_id])
-);
-
--- Feed-Author join table
-CREATE TABLE IF NOT EXISTS feed_authors (
+-- Metadata-Relation join table
+CREATE TABLE IF NOT EXISTS metadata_relation (
+    [subscription_id] TEXT REFERENCES subscriptionlists([id]),
     [feed_id] TEXT REFERENCES feeds([id]),
-    [author_id] TEXT REFERENCES authors([id]),
-
-    PRIMARY KEY([feed_id], [author_id])
-);
-CREATE INDEX IF NOT EXISTS feed_authors_feed_id_index ON feed_authors([feed_id]);
-CREATE INDEX IF NOT EXISTS feed_authors_author_id_index ON feed_authors([author_id]);
-
--- Item-Metadata join table
-CREATE TABLE IF NOT EXISTS item_metadata (
-    [item_id] TEXT REFERENCES items([id]),
-    [metadata_id] INTEGER REFERENCES metadata([id]),
-
-    PRIMARY KEY([item_id], [metadata_id])
-);
-
--- Item-Author join table
-CREATE TABLE IF NOT EXISTS item_authors (
     [item_id] TEXT REFERENCES items([id]),
     [author_id] TEXT REFERENCES authors([id]),
+    [metadata_id] INTEGER NOT NULL REFERENCES metadata([id]),
 
-    PRIMARY KEY([item_id], [author_id])
+    CHECK((subscription_id IS NOT NULL) OR (feed_id IS NOT NULL) OR (item_id IS NOT NULL) OR (author_id IS NOT NULL)),
+
+    UNIQUE (subscription_id, metadata_id),
+    UNIQUE (feed_id, metadata_id),
+    UNIQUE (item_id, metadata_id),
+    UNIQUE (author_id, metadata_id),
+
+    PRIMARY KEY([subscription_id], [feed_id], [item_id], [author_id])
 );
-CREATE INDEX IF NOT EXISTS item_authors_item_id_index ON item_authors([item_id]);
-CREATE INDEX IF NOT EXISTS item_authors_author_id_index ON item_authors([author_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_subscription_id_index ON metadata_relation([subscription_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_feed_id_index ON metadata_relation([feed_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_item_id_index ON metadata_relation([item_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_author_id_index ON metadata_relation([author_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relation([metadata_id]);
+
+-- Author-Relation join table
+CREATE TABLE IF NOT EXISTS author_relation (
+    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+    [item_id] TEXT REFERENCES items([id]),
+    [author_id] TEXT NOT NULL REFERENCES authors([id]),
+
+    CHECK((feed_id IS NOT NULL) OR (item_id IS NOT NULL)),
+
+    UNIQUE (feed_id, author_id),
+    UNIQUE (item_id, author_id),
+
+    PRIMARY KEY([feed_id], [item_id], [author_id])
+);
+CREATE INDEX IF NOT EXISTS author_relation_feed_id_index ON author_relation([feed_id]);
+CREATE INDEX IF NOT EXISTS author_relation_item_id_index ON author_relation([item_id]);
+CREATE INDEX IF NOT EXISTS author_relation_author_id_index ON author_relation([author_id]);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -251,8 +247,8 @@ SELECT
     COUNT([authors].[id]) AS [author_count]
 FROM
     [feeds]
-    LEFT OUTER JOIN [feed_authors] ON [feed_authors].[feed_id] = [feeds].[id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [feed_authors].[author_id]
+    LEFT OUTER JOIN [author_relation] ON [author_relation].[feed_id] = [feeds].[id]
+    LEFT OUTER JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
 GROUP BY
     [feeds].[id]
 ;
@@ -292,8 +288,8 @@ SELECT
     [items].[feed_at]
 FROM
     [items]
-    LEFT OUTER JOIN [item_authors] ON [item_authors].[item_id] = [items].[id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
+    LEFT OUTER JOIN [author_relation] ON [author_relation].[feed_id] = [items].[feed_id]
+    LEFT OUTER JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
 GROUP BY
     [items].[id]
 ORDER BY

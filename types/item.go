@@ -42,6 +42,7 @@ type Item struct {
 	Metadata Metadata `json:"metadata,omitempty"`
 
 	FeedID string `json:"feed_id,omitempty"` // back-reference to parent feed
+	Feed   *Feed  `json:"-"`                 // parent feed (not serialized)
 }
 
 // Image represents an image associated with a feed or item.
