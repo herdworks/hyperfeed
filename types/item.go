@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -42,6 +43,7 @@ type Item struct {
 	Metadata Metadata `json:"metadata,omitempty"`
 
 	FeedID string `json:"feed_id,omitempty"` // back-reference to parent feed
+	Feed   *Feed  `json:"-"`                 // parent feed (not serialized)
 }
 
 // Image represents an image associated with a feed or item.
@@ -75,6 +77,22 @@ func (item *Item) Identifier() string {
 	return item.ID
 }
 
+func (item *Item) AuthorIDs() (value string) {
+	var authors []Author
+	var jsonArray []byte
+	var err error
+	for _, author := range item.Authors {
+		authors = append(authors, Author{ID: author.Identifier()})
+	}
+	for _, author := range item.Feed.Authors {
+		authors = append(authors, Author{ID: author.Identifier()})
+	}
+	if jsonArray, err = json.Marshal(&authors); err != nil {
+		return "[]"
+	}
+	return string(jsonArray)
+}
+
 func (Item) DatabaseView() string {
 	return "items_view"
 }
@@ -102,6 +120,7 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 		"added_at",
 		"updated_at",
 		"feed_id",
+		"author_ids",
 	}
 }
 func (item *Item) DatabaseInsertValues() (args []any) {
@@ -115,6 +134,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.FeedID)
+	args = append(args, item.AuthorIDs())
 	return args
 }
 func (item *Item) DatabaseUpdatesSet() []string {
@@ -126,6 +146,7 @@ func (item *Item) DatabaseUpdatesSet() []string {
 		"published_at = excluded.published_at",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
+		"author_ids = excluded.author_ids",
 	}
 }
 

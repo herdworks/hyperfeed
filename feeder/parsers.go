@@ -147,14 +147,14 @@ func (parser *RSSFeedParser) Authors(incoming []string) (authors []hyperfeed.Aut
 // RSSFeedParser.Items()
 func (parser *RSSFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
 	for _, rssitem := range parser.RSS.Channel.Items {
-		item := &hyperfeed.Item{}
+		item := &hyperfeed.Item{ Feed: parser.Feed }
 		if item.URL = rss.LinkURL(rssitem.Links); item.URL != nil && !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
-		item.FeedID = parser.Feed.Identifier()
+		item.FeedID = item.Feed.Identifier()
 		item.Title = rssitem.Title
 		item.Summary = rssitem.Description
 		item.Content = rssitem.ContentEncoded
@@ -259,14 +259,14 @@ func (parser *AtomFeedParser) Authors(incoming ...*atom.Author) (authors []hyper
 // AtomFeedParser.Items()
 func (parser *AtomFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
 	for _, entry := range parser.Atom.Entries {
-		item := &hyperfeed.Item{}
+		item := &hyperfeed.Item{ Feed: parser.Feed }
 		if link := entry.Link("alternate"); link != nil {
 			item.URL, _ = url.Parse(link.Href)
 		}
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
-		item.FeedID = parser.Feed.Identifier()
+		item.FeedID = item.Feed.Identifier()
 		item.Title = entry.Title
 		item.Summary = atom.FirstTextBody(entry.Summary, entry.Content) // prefer summary, fallback to content
 		item.Content = atom.FirstTextBody(entry.Content, entry.Summary) // prefer content, fallback to summary
@@ -366,12 +366,12 @@ func (parser *JSONFeedParser) Authors(incoming []jsonfeed.Author) (authors []hyp
 // JSONFeedParser.Items()
 func (parser *JSONFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
 	for _, jsonitem := range parser.JSON.Items {
-		item := &hyperfeed.Item{}
+		item := &hyperfeed.Item{ Feed: parser.Feed }
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
-		item.FeedID = parser.Feed.Identifier()
+		item.FeedID = item.Feed.Identifier()
 		item.Title = jsonitem.Title
 		item.Summary = hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText) // prefer summary, fallback to content
 		item.Content = hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary) // prefer content, fallback to summary

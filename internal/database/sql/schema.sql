@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS items (
     [content] TEXT,
 
     [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [author_ids] TEXT DEFAULT '[]', -- JSON array of item & feed author objects
 
     PRIMARY KEY ([id])
 );
@@ -268,16 +269,7 @@ SELECT
         'added_at', [items].[added_at],
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
-        'authors', COALESCE(json_group_array(json_object(
-            'id', [authors].[id],
-            'href', [authors].[href],
-            'name', [authors].[name],
-            'username', [authors].[username],
-            'favicon', [authors].[favicon],
-            'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
-            'email', [authors].[email],
-            'source', [authors].[source]
-        )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
+        'authors', json([items].[author_ids]),
         'title', [items].[title],
         'summary', [items].[summary],
         'content', [items].[content],
@@ -292,8 +284,6 @@ SELECT
     [items].[feed_at]
 FROM
     [items]
-    LEFT OUTER JOIN [item_authors] ON [item_authors].[item_id] = [items].[id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
 GROUP BY
     [items].[id]
 ORDER BY
