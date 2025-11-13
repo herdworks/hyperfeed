@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS authors (
     [username] TEXT,
     [name] TEXT,
     [favicon] TEXT,
+    [cover] TEXT,
     [verified] INTEGER DEFAULT 0 CHECK ([verified] IN (0, 1)),
     [email] TEXT,
     [source] TEXT,
@@ -233,6 +234,7 @@ SELECT
             'name', [authors].[name],
             'username', [authors].[username],
             'favicon', [authors].[favicon],
+            'cover', [authors].[cover],
             'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
             'email', [authors].[email],
             'source', [authors].[source]
@@ -270,6 +272,7 @@ SELECT
             'name', [authors].[name],
             'username', [authors].[username],
             'favicon', [authors].[favicon],
+            'cover', [authors].[cover],
             'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
             'email', [authors].[email],
             'source', [authors].[source]
@@ -307,6 +310,7 @@ SELECT
         'username', [authors].[username],
         'name', [authors].[name],
         'favicon', [authors].[favicon],
+        'cover', [authors].[cover],
         'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
         'email', [authors].[email],
         'source', [authors].[source]

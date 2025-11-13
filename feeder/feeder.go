@@ -326,10 +326,9 @@ func (feeder *Feeder) SaveFeed(ctx context.Context) (err error) {
 		if err = feeder.Database.UpsertRow(ctx, &author); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 		}
-		table := "author_relation"
 		columns := []string{"feed_id", "author_id"}
 		values := []any{feeder.Feed.Identifier(), author.Identifier()}
-		if err = feeder.Database.RelateRows(ctx, table, columns, values); err != nil {
+		if err = feeder.Database.RelateRows(ctx, "author_relation", columns, values); err != nil {
 			return errors.Join(ErrDatabase, errors.New("inserting feed-author relation"), err)
 		}
 	}
@@ -347,10 +346,9 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 			if err = feeder.Database.UpsertRow(ctx, &author); err != nil {
 				return errors.Join(ErrDatabase, errors.New("upserting author"), err)
 			}
-			table := "author_relation"
 			columns := []string{"feed_id", "item_id", "author_id"}
 			values := []any{item.Feed.Identifier(), item.Identifier(), author.Identifier()}
-			if err = feeder.Database.RelateRows(ctx, table, columns, values); err != nil {
+			if err = feeder.Database.RelateRows(ctx, "author_relation", columns, values); err != nil {
 				return errors.Join(ErrDatabase, errors.New("inserting item-author relation"), err)
 			}
 		}
@@ -403,12 +401,14 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	}
 	documentHref, _ := href.Parse(document.Metadata.Entity.Href)
 	faviconHref, _ := href.Parse(document.Metadata.Entity.Favicon)
+	coverHref, _ := href.Parse(document.Metadata.Entity.Cover)
 	feeder.Feed.Authors = append(feeder.Feed.Authors, hyperfeed.Author{
 		Href:     documentHref,
 		Name:     document.Metadata.Entity.Name,
 		Username: document.Metadata.Entity.Username,
 		Email:    document.Metadata.Entity.Email,
 		Favicon:  faviconHref,
+		Cover:    coverHref,
 		Verified: document.Metadata.Entity.Verified,
 		Source:   document.Metadata.Entity.Source,
 	})

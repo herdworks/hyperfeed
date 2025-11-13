@@ -17,6 +17,7 @@ type Author struct {
 	Name     string     `json:"name,omitempty"`
 	Email    string     `json:"email,omitempty"`
 	Favicon  *href.Href `json:"avatar,omitempty"`
+	Cover    *href.Href `json:"cover,omitempty"`
 	Verified bool       `json:"verified,omitempty"`
 	Source   string     `json:"source,omitempty"` // source of author information (e.g. feed URL)
 }
@@ -70,6 +71,7 @@ func (Author) DatabaseInsertColumns() []string {
 		"name",
 		"username",
 		"favicon",
+		"cover",
 		"verified",
 		"email",
 		"source",
@@ -81,6 +83,7 @@ func (author *Author) DatabaseInsertValues() (values []any) {
 	values = append(values, author.Name)
 	values = append(values, author.Username)
 	values = append(values, author.Favicon.String())
+	values = append(values, author.Cover.String())
 	values = append(values, author.Verified)
 	values = append(values, author.Email)
 	values = append(values, author.Source)
@@ -92,6 +95,7 @@ func (author *Author) DatabaseUpdatesSet() []string {
 		"[name] = excluded.name",
 		"[username] = excluded.username",
 		"[favicon] = excluded.favicon",
+		"[cover] = excluded.cover",
 		"[verified] = excluded.verified",
 		"[email] = excluded.email",
 		"[source] = excluded.source",
@@ -100,11 +104,12 @@ func (author *Author) DatabaseUpdatesSet() []string {
 
 func (author *Author) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%v|%s",
+		"%s|%s|%s|%s|%s|%v|%s",
 		author.Href.String(),
 		author.Name,
 		author.Username,
 		author.Favicon.String(),
+		author.Cover.String(),
 		author.Verified,
 		author.Email,
 	)
