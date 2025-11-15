@@ -67,28 +67,28 @@ func TestRSSAuthorNameParser(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "name only",
-			input: "John Doe", 
+			name:     "name only",
+			input:    "John Doe",
 			expected: "John Doe",
 		},
 		{
-			name: "name and email",
-			input: "Jane Smith <jane@example.com>",
+			name:     "name and email",
+			input:    "Jane Smith <jane@example.com>",
 			expected: "Jane Smith",
 		},
 		{
-			name: "email first",
-			input: "jane@example.com <Jane Smith>",
+			name:     "email first",
+			input:    "jane@example.com <Jane Smith>",
 			expected: "Jane Smith",
 		},
 		{
-			name: "name with parentheses email",
-			input: "John Doe (john@example.com)",
+			name:     "name with parentheses email",
+			input:    "John Doe (john@example.com)",
 			expected: "John Doe",
 		},
 		{
-			name: "email only",
-			input: "jane@example.com",
+			name:     "email only",
+			input:    "jane@example.com",
 			expected: "",
 		},
 	}
@@ -110,28 +110,28 @@ func TestRSSAuthorEmailParser(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "name only",
-			input: "John Doe", 
+			name:     "name only",
+			input:    "John Doe",
 			expected: "",
 		},
 		{
-			name: "name and email",
-			input: "Jane Smith <jane@example.com>",
+			name:     "name and email",
+			input:    "Jane Smith <jane@example.com>",
 			expected: "jane@example.com",
 		},
 		{
-			name: "email first",
-			input: "jane@example.com <Jane Smith>",
+			name:     "email first",
+			input:    "jane@example.com <Jane Smith>",
 			expected: "jane@example.com",
 		},
 		{
-			name: "name with parentheses email",
-			input: "John Doe (john@example.com)",
+			name:     "name with parentheses email",
+			input:    "John Doe (john@example.com)",
 			expected: "john@example.com",
 		},
 		{
-			name: "email only",
-			input: "jane@example.com",
+			name:     "email only",
+			input:    "jane@example.com",
 			expected: "jane@example.com",
 		},
 	}

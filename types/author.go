@@ -11,15 +11,16 @@ import (
 // ============================ Package Types =================================
 
 type Author struct {
-	ID       string     `json:"id,omitempty"` // stable HyperFeed Author identifier (e.g. hash of URL+name+email)
-	Href     *href.Href `json:"href,omitempty"`
-	Username string     `json:"username,omitempty"`
-	Name     string     `json:"name,omitempty"`
-	Email    string     `json:"email,omitempty"`
-	Favicon  *href.Href `json:"avatar,omitempty"`
-	Cover    *href.Href `json:"cover,omitempty"`
-	Verified bool       `json:"verified,omitempty"`
-	Source   string     `json:"source,omitempty"` // source of author information (e.g. feed URL)
+	ID          string     `json:"id,omitempty"` // stable HyperFeed Author identifier (e.g. hash of URL+name+email)
+	Href        *href.Href `json:"href,omitempty"`
+	Username    string     `json:"username,omitempty"`
+	Name        string     `json:"name,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Email       string     `json:"email,omitempty"`
+	Favicon     *href.Href `json:"avatar,omitempty"`
+	Cover       *href.Href `json:"cover,omitempty"`
+	Verified    bool       `json:"verified,omitempty"`
+	Source      string     `json:"source,omitempty"` // source of author information (e.g. feed URL)
 }
 
 // ============================ Author Methods ================================
@@ -68,8 +69,9 @@ func (Author) DatabaseInsertColumns() []string {
 	return []string{
 		"id",
 		"href",
-		"name",
 		"username",
+		"name",
+		"description",
 		"favicon",
 		"cover",
 		"verified",
@@ -80,8 +82,9 @@ func (Author) DatabaseInsertColumns() []string {
 func (author *Author) DatabaseInsertValues() (values []any) {
 	values = append(values, author.Identifier())
 	values = append(values, author.Href.String())
-	values = append(values, author.Name)
 	values = append(values, author.Username)
+	values = append(values, author.Name)
+	values = append(values, author.Description)
 	values = append(values, author.Favicon.String())
 	values = append(values, author.Cover.String())
 	values = append(values, author.Verified)
@@ -92,8 +95,9 @@ func (author *Author) DatabaseInsertValues() (values []any) {
 func (author *Author) DatabaseUpdatesSet() []string {
 	return []string{
 		"[href] = excluded.href",
-		"[name] = excluded.name",
 		"[username] = excluded.username",
+		"[name] = excluded.name",
+		"[description] = excluded.description",
 		"[favicon] = excluded.favicon",
 		"[cover] = excluded.cover",
 		"[verified] = excluded.verified",
@@ -104,10 +108,11 @@ func (author *Author) DatabaseUpdatesSet() []string {
 
 func (author *Author) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%v|%s",
+		"%s|%s|%s|%s|%s|%s|%v|%s",
 		author.Href.String(),
-		author.Name,
 		author.Username,
+		author.Name,
+		author.Description,
 		author.Favicon.String(),
 		author.Cover.String(),
 		author.Verified,

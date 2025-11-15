@@ -403,14 +403,15 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	faviconHref, _ := href.Parse(document.Metadata.Entity.Favicon)
 	coverHref, _ := href.Parse(document.Metadata.Entity.Cover)
 	feeder.Feed.Authors = append(feeder.Feed.Authors, hyperfeed.Author{
-		Href:     documentHref,
-		Name:     document.Metadata.Entity.Name,
-		Username: document.Metadata.Entity.Username,
-		Email:    document.Metadata.Entity.Email,
-		Favicon:  faviconHref,
-		Cover:    coverHref,
-		Verified: document.Metadata.Entity.Verified,
-		Source:   document.Metadata.Entity.Source,
+		Href:        documentHref,
+		Username:    document.Metadata.Entity.Username,
+		Name:        document.Metadata.Entity.Name,
+		Description: document.Metadata.Entity.Description,
+		Email:       document.Metadata.Entity.Email,
+		Favicon:     faviconHref,
+		Cover:       coverHref,
+		Verified:    document.Metadata.Entity.Verified,
+		Source:      document.Metadata.Entity.Source,
 	})
 	return nil
 }

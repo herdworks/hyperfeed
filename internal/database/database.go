@@ -290,9 +290,11 @@ func (Database) UpsertStatement(row DatabaseRow) (query string) {
 	)
 }
 
-func (Database) RelationStatement(table string, columns []string) (string) {
+func (Database) RelationStatement(table string, columns []string) string {
 	var params []string
-	for range columns { params = append(params, "?") }
+	for range columns {
+		params = append(params, "?")
+	}
 	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
 }
 
