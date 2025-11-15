@@ -346,8 +346,8 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 			if err = feeder.Database.UpsertRow(ctx, &byline); err != nil {
 				return errors.Join(ErrDatabase, errors.New("upserting byline"), err)
 			}
-			columns := []string{"feed_id", "item_id", "author_id"}
-			values := []any{item.Feed.Identifier(), item.Identifier(), byline.Identifier()}
+			columns := []string{"item_id", "author_id"}
+			values := []any{item.Identifier(), byline.Identifier()}
 			if err = feeder.Database.RelateRows(ctx, "author_relation", columns, values); err != nil {
 				return errors.Join(ErrDatabase, errors.New("inserting item-author relation"), err)
 			}

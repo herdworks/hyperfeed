@@ -183,7 +183,7 @@ CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relat
 
 -- Author-Relation join table
 CREATE TABLE IF NOT EXISTS author_relation (
-    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+    [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
     [author_id] TEXT NOT NULL REFERENCES authors([id]),
 
@@ -269,7 +269,7 @@ SELECT
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
         'title', [items].[title],
-        'bylines', COALESCE(json_group_array(json_object(
+        'authors', COALESCE(json_group_array(json_object(
             'id', [authors].[id],
             'href', [authors].[href],
             'username', [authors].[username],
@@ -294,8 +294,21 @@ SELECT
     [items].[feed_at]
 FROM
     [items]
-    LEFT OUTER JOIN [author_relation] ON [author_relation].[feed_id] = [items].[feed_id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
+    LEFT JOIN (
+        -- feed authors
+        SELECT [items].[id] AS [item_id], [author_relation].[author_id]
+        FROM [items]
+        JOIN [author_relation]
+        ON [author_relation].[feed_id] = [items].[feed_id]
+
+        UNION
+
+        -- item authors (bylines)
+        SELECT [item_id], [author_id]
+        FROM [author_relation]
+        WHERE [item_id] IS NOT NULL
+    ) AS [item_authors] ON [item_authors].[item_id] = [items].[id]
+    LEFT OUTER JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
 GROUP BY
     [items].[id]
 ORDER BY
