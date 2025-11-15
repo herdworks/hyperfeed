@@ -13,14 +13,8 @@ import (
 
 // Item represents an entry within a feed.
 type Item struct {
-	// ID is the canonical Item identifier (if provided).
-	ID string `json:"id,omitempty"`
-
-	// URL is the canonical link for the item (permalink).
-	URL *url.URL `json:"url,omitempty"`
-
-	Title   string   `json:"title,omitempty"`
-	Authors []Author `json:"authors,omitempty"`
+	ID  string   `json:"id,omitempty"`
+	URL *url.URL `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
 
 	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
 	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
@@ -28,6 +22,8 @@ type Item struct {
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`   // when we last updated the item in our database
 	FeedAt      time.Time `json:"feed_at,omitempty"`      // default feed order timestamp
 
+	Title       string       `json:"title,omitempty"`
+	Bylines     []Author     `json:"bylines,omitempty"`
 	Summary     string       `json:"summary,omitempty"`
 	Content     string       `json:"content,omitempty"`
 	Images      []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)

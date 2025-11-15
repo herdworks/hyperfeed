@@ -268,7 +268,8 @@ SELECT
         'added_at', [items].[added_at],
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
-        'authors', COALESCE(json_group_array(json_object(
+        'title', [items].[title],
+        'bylines', COALESCE(json_group_array(json_object(
             'id', [authors].[id],
             'href', [authors].[href],
             'username', [authors].[username],
@@ -280,7 +281,6 @@ SELECT
             'email', [authors].[email],
             'source', [authors].[source]
         )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
-        'title', [items].[title],
         'summary', [items].[summary],
         'content', [items].[content],
         'feed_id', [items].[feed_id]

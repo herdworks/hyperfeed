@@ -163,8 +163,10 @@ func (parser *RSSFeedParser) Items(added time.Time) (items []*hyperfeed.Item, er
 		item.ModifiedAt = item.PublishedAt // rss items don't have a modified date
 		item.AddedAt = added
 		item.UpdatedAt = added
-		authors := append(rssitem.Authors, rss.GetDublinCoreCreator(rssitem.Extensions))
-		item.Authors = parser.Authors(authors)
+		if byline := rss.GetDublinCoreCreator(rssitem.Extensions); byline != "" {
+			name, email := rss.ParseAuthor(byline)
+			item.Bylines = append(item.Bylines, hyperfeed.Author{Name: name, Email: email, Source: "rss/byline"})
+		}
 		if item.Attachments, err = parser.Attachments(&rssitem, item.Identifier()); err != nil {
 			return nil, err
 		}
@@ -275,7 +277,10 @@ func (parser *AtomFeedParser) Items(added time.Time) (items []*hyperfeed.Item, e
 		item.ModifiedAt, _ = time.Parse(time.RFC3339, entry.Updated)
 		item.AddedAt = added
 		item.UpdatedAt = added
-		item.Authors = parser.Authors(entry.Authors...)
+		for _, byline := range append(entry.Authors, entry.Contributors...) {
+			href, _ := href.Parse(byline.URI)
+			item.Bylines = append(item.Bylines, hyperfeed.Author{Href: href, Name: byline.Name, Email: byline.Email, Source: "atom/byline"})
+		}
 		if item.Attachments, err = parser.Attachments(entry, item.Identifier()); err != nil {
 			return nil, err
 		}
@@ -380,7 +385,11 @@ func (parser *JSONFeedParser) Items(added time.Time) (items []*hyperfeed.Item, e
 		item.ModifiedAt, _ = time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.AddedAt = added
 		item.UpdatedAt = added
-		item.Authors = parser.Authors(jsonitem.Authors)
+		for _, byline := range jsonitem.Authors {
+			url, _ := href.Parse(byline.URL)
+			favicon, _ := href.Parse(byline.Avatar)
+			item.Bylines = append(item.Bylines, hyperfeed.Author{Href: url, Name: byline.Name, Favicon: favicon, Source: "jsonfeed/byline"})
+		}
 		if item.Attachments, err = parser.Attachments(&jsonitem, item.Identifier()); err != nil {
 			return nil, err
 		}
