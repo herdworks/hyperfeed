@@ -43,6 +43,8 @@ func (author *Author) Identifier() string {
 			id = &url.URL{}
 		}
 		query.Set("_username", author.Username)
+		query.Set("_name", author.Name)
+		query.Set("_favicon", author.Favicon.String())
 		query.Set("_email", author.Email)
 		query.Set("_verified", fmt.Sprintf("%v", author.Verified))
 		query.Set("_source", author.Source)
