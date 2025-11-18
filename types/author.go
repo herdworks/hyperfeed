@@ -42,8 +42,10 @@ func (author *Author) Identifier() string {
 		if id == nil {
 			id = &url.URL{}
 		}
-		query.Set("_name", author.Name)
+		query.Set("_username", author.Username)
 		query.Set("_email", author.Email)
+		query.Set("_verified", fmt.Sprintf("%v", author.Verified))
+		query.Set("_source", author.Source)
 		id.RawQuery = query.Encode()
 		author.ID = normalized.Identifier(normalized.URL(id).String())
 	}
