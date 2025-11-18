@@ -92,7 +92,7 @@ func (parser *RSSFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.RSS, err = rss.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	if parser.Feed.HTMLURL == nil {
+	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
 		parser.Feed.HTMLURL, _ = href.Parse(parser.RSS.Link())
 	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
@@ -214,8 +214,10 @@ func (parser *AtomFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.Atom, err = atom.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	if link := parser.Atom.Link("alternate"); parser.Feed.HTMLURL == nil && link != nil {
-		parser.Feed.HTMLURL, _ = href.Parse(link.Href)
+	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
+		if link := parser.Atom.Link("alternate"); link != nil {
+			parser.Feed.HTMLURL, _ = href.Parse(link.Href)
+		}
 	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
 		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
@@ -322,7 +324,7 @@ func (parser *JSONFeedParser) Parse() (*hyperfeed.Feed, error) {
 	if parser.JSON, err = jsonfeed.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
-	if parser.Feed.HTMLURL == nil {
+	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
 		parser.Feed.HTMLURL, _ = href.Parse(parser.JSON.HomePageURL)
 	}
 	if parser.Feed.HTMLURL != nil && !parser.Feed.HTMLURL.IsAbs() {
