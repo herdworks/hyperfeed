@@ -1,4 +1,4 @@
-package hyperfeed
+package opml
 
 import (
 	"encoding/xml"
