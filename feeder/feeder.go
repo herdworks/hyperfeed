@@ -56,7 +56,7 @@ var (
 // Tick computes the feeder's next event. Implementation must load
 // state, honor rate-limit hints, and update persistence optimistically to avoid
 // duplicate work after crashes.
-func (feeder *Feeder) Tick(ctx context.Context) error {
+func (feeder *Feeder) Tick(ctx context.Context, timelinePosition time.Time) error {
 	var ready bool
 	var request *transporter.Request
 	var response *transporter.Response
@@ -79,7 +79,7 @@ func (feeder *Feeder) Tick(ctx context.Context) error {
 	if err = feeder.Apply(ctx, response); err != nil {
 		return err
 	}
-	return feeder.Parse(ctx, request.URL, response.Bytes)
+	return feeder.Parse(ctx, request.URL, response.Bytes, timelinePosition)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
@@ -300,7 +300,7 @@ func (feeder *Feeder) LogErrors(response *transporter.Response, err error) {
 	feeder.Feed.Status.LastError = message
 }
 
-func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte) (err error) {
+func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, timelinePosition time.Time) (err error) {
 	var parser FeedParser
 	if bytes == nil {
 		return nil // nothing to parse
@@ -308,7 +308,7 @@ func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte) (err 
 	if parser = NewFeedParser(u, bytes, feeder.Feed); parser == nil {
 		return err
 	}
-	if feeder.Feed, err = parser.Parse(); err != nil {
+	if feeder.Feed, err = parser.Parse(timelinePosition); err != nil {
 		return err
 	}
 	return nil
@@ -390,7 +390,7 @@ func (feeder *Feeder) HyperGraphEntity(ctx context.Context) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feeder.Feed.HTMLURL.String()}
 	for _, author := range feeder.Feed.Authors {
 		if author.Source == "hypergraph" {
-			return nil // already have hypergraph entity
+			return nil // already have hypergraph author
 		}
 	}
 	if err = document.Download(ctx, true, nil); err != nil {

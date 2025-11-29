@@ -11,6 +11,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/types/atom"
 	"github.com/herdworks/hyperfeed-go/types/href"
 	"github.com/herdworks/hyperfeed-go/types/jsonfeed"
+	"github.com/herdworks/hyperfeed-go/types/markdown"
 	"github.com/herdworks/hyperfeed-go/types/rss"
 	hypergraph "github.com/herdworks/hypergraph-go"
 )
@@ -20,7 +21,7 @@ import (
 
 type FeedParser interface {
 	Ready() bool
-	Parse() (*hyperfeed.Feed, error)
+	Parse(time.Time) (*hyperfeed.Feed, error)
 }
 
 type RSSFeedParser struct {
@@ -84,7 +85,7 @@ func (parser *RSSFeedParser) Ready() bool {
 }
 
 // RSSFeedParser.Parse()
-func (parser *RSSFeedParser) Parse() (*hyperfeed.Feed, error) {
+func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
 	var err error
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
@@ -104,7 +105,7 @@ func (parser *RSSFeedParser) Parse() (*hyperfeed.Feed, error) {
 	authors := []string{parser.RSS.Channel.ManagingEditor, parser.RSS.Channel.Webmaster, rss.GetItunesOwner(parser.RSS.Channel.Extensions)}
 	parser.Feed.Authors = append(parser.Feed.Authors, parser.Authors(authors)...) // append in case parser was initialized with an author
 	parser.Feed.Metadata = hyperfeed.Metadata{}
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition); err != nil {
 		return nil, err
 	}
 	if len(parser.RSS.Channel.Items) != len(parser.Feed.Items) {
@@ -145,7 +146,7 @@ func (parser *RSSFeedParser) Authors(incoming []string) (authors []hyperfeed.Aut
 }
 
 // RSSFeedParser.Items()
-func (parser *RSSFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
 	for _, rssitem := range parser.RSS.Channel.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		if item.URL = rss.LinkURL(rssitem.Links); item.URL != nil && !item.URL.IsAbs() {
@@ -156,13 +157,16 @@ func (parser *RSSFeedParser) Items(added time.Time) (items []*hyperfeed.Item, er
 		}
 		item.FeedID = item.Feed.Identifier()
 		item.Title = rssitem.Title
-		item.Summary = rssitem.Description
-		item.Content = rssitem.ContentEncoded
+		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
+			fmt.Printf("markdown error: %v\n", err)
+		}
+		item.Content = rss.HTML(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description))
 		item.Comments, _ = url.Parse(rssitem.Comments)
 		item.PublishedAt, _ = rss.Date(rssitem.PubDate)
 		item.ModifiedAt = item.PublishedAt // rss items don't have a modified date
 		item.AddedAt = added
 		item.UpdatedAt = added
+		item.FeedAt = item.TimelineAt(timelinePosition)
 		if byline := rss.GetDublinCoreCreator(rssitem.Extensions); byline != "" {
 			name, email := rss.ParseAuthor(byline)
 			item.Bylines = append(item.Bylines, hyperfeed.Author{Name: name, Email: email, Source: "rss/byline"})
@@ -206,7 +210,7 @@ func (parser *AtomFeedParser) Ready() bool {
 }
 
 // AtomFeedParser.Parse()
-func (parser *AtomFeedParser) Parse() (*hyperfeed.Feed, error) {
+func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
 	var err error
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
@@ -227,7 +231,7 @@ func (parser *AtomFeedParser) Parse() (*hyperfeed.Feed, error) {
 	parser.Feed.Language = ""
 	parser.Feed.Authors = append(parser.Feed.Authors, parser.Authors(parser.Atom.Authors...)...) // append in case parser was initialized with an author
 	parser.Feed.Metadata = hyperfeed.Metadata{}
-	parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt)
+	parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition)
 	if len(parser.Atom.Entries) != len(parser.Feed.Items) {
 		return nil, errors.Join(ErrParsingRawFeed, fmt.Errorf("item count mismatch: expected %d, got %d", len(parser.Atom.Entries), len(parser.Feed.Items)))
 	}
@@ -261,7 +265,7 @@ func (parser *AtomFeedParser) Authors(incoming ...*atom.Author) (authors []hyper
 }
 
 // AtomFeedParser.Items()
-func (parser *AtomFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
 	for _, entry := range parser.Atom.Entries {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		if link := entry.Link("alternate"); link != nil {
@@ -270,15 +274,21 @@ func (parser *AtomFeedParser) Items(added time.Time) (items []*hyperfeed.Item, e
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
+		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
+		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
+		summary := atom.First(&atom.Text{ Body: ""}, entry.Summary, entry.Content)
 		item.FeedID = item.Feed.Identifier()
 		item.Title = entry.Title
-		item.Summary = atom.FirstTextBody(entry.Summary, entry.Content) // prefer summary, fallback to content
-		item.Content = atom.FirstTextBody(entry.Content, entry.Summary) // prefer content, fallback to summary
+		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
+			fmt.Printf("markdown error: %v\n", err)
+		}
+		item.Content = atom.HTML(atom.First(entry.Content, entry.Summary))
 		item.Comments = nil                                             // Atom entries do not have a comments field
-		item.PublishedAt, _ = time.Parse(time.RFC3339, entry.Published)
-		item.ModifiedAt, _ = time.Parse(time.RFC3339, entry.Updated)
+		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
+		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
 		item.UpdatedAt = added
+		item.FeedAt = item.TimelineAt(timelinePosition)
 		for _, byline := range append(entry.Authors, entry.Contributors...) {
 			href, _ := href.Parse(byline.URI)
 			item.Bylines = append(item.Bylines, hyperfeed.Author{Href: href, Name: byline.Name, Email: byline.Email, Source: "atom/byline"})
@@ -316,7 +326,7 @@ func (parser *JSONFeedParser) Ready() bool {
 }
 
 // JSONFeedParser.Parse()
-func (parser *JSONFeedParser) Parse() (*hyperfeed.Feed, error) {
+func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
 	var err error
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
@@ -335,7 +345,7 @@ func (parser *JSONFeedParser) Parse() (*hyperfeed.Feed, error) {
 	parser.Feed.Language = parser.JSON.Language
 	parser.Feed.Authors = append(parser.Feed.Authors, parser.Authors(parser.JSON.Authors)...) // append in case parser was initialized with an author
 	parser.Feed.Metadata = hyperfeed.Metadata{}
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition); err != nil {
 		return nil, err
 	}
 	if len(parser.JSON.Items) != len(parser.Feed.Items) {
@@ -371,22 +381,27 @@ func (parser *JSONFeedParser) Authors(incoming []jsonfeed.Author) (authors []hyp
 }
 
 // JSONFeedParser.Items()
-func (parser *JSONFeedParser) Items(added time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
 	for _, jsonitem := range parser.JSON.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
 		}
+		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
+		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.FeedID = item.Feed.Identifier()
 		item.Title = jsonitem.Title
-		item.Summary = hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText) // prefer summary, fallback to content
-		item.Content = hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary) // prefer content, fallback to summary
-		item.Comments = nil                                                                          // Atom entries do not have a comments field
-		item.PublishedAt, _ = time.Parse(time.RFC3339, jsonitem.DatePublished)
-		item.ModifiedAt, _ = time.Parse(time.RFC3339, jsonitem.DateModified)
+		if item.Summary, err = markdown.Convert(hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText)); err != nil {
+			fmt.Printf("markdown error: %v\n", err)
+		}
+		item.Content = jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))
+		item.Comments = nil // Atom entries do not have a comments field
+		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
+		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
 		item.UpdatedAt = added
+		item.FeedAt = item.TimelineAt(timelinePosition)
 		for _, byline := range jsonitem.Authors {
 			url, _ := href.Parse(byline.URL)
 			favicon, _ := href.Parse(byline.Avatar)
@@ -421,7 +436,7 @@ func (parser *NoFeedParser) Ready() bool {
 }
 
 // NoFeedParser.Parse()
-func (parser *NoFeedParser) Parse() (*hyperfeed.Feed, error) {
+func (parser *NoFeedParser) Parse(_ time.Time) (*hyperfeed.Feed, error) {
 	return parser.Feed, nil
 }
 

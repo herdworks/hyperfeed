@@ -144,6 +144,8 @@ var (
 	ErrDateParser = fmt.Errorf("date parser error")
 
 	emailAddressPattern *regexp.Regexp = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
+
+	htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
 )
 
 // Methods
@@ -305,4 +307,11 @@ func LinkURL(links []Link) *url.URL {
 		}
 	}
 	return nil
+}
+
+func HTML(text string) string {
+	if text != "" && !htmlTagPattern.MatchString(text) {
+		return fmt.Sprintf("<p>%s</p>", text)
+	}
+	return text
 }

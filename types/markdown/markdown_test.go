@@ -1,0 +1,33 @@
+package markdown
+
+import (
+	"fmt"
+	"os"
+	"testing"
+)
+
+func TestConvertOrderedList(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name:   "Example post summary",
+			source: "testdata/1.html",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var htmlBytes []byte
+			var markdownString string
+			var err error
+			if htmlBytes, err = os.ReadFile(tc.source); err != nil {
+				t.Fatalf("Failed to read test data file: %v", err)
+			}
+			if markdownString, err = Convert(string(htmlBytes)); err != nil {
+				t.Fatalf("Convert returned error: %v", err)
+			}
+			fmt.Println(markdownString)
+		})
+	}
+}

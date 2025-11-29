@@ -171,7 +171,7 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context) (err error) {
 }
 
 // Refresh refreshes all subscribed feeds concurrently
-func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
+func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time) (err error) {
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
@@ -187,7 +187,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context) (err error) {
 		f := feed // capture range variable
 		ticker.Go(func() (e error) {
 			fmt.Printf("feed %q refreshing\n", f.Feed.URL.String())
-			f.Tick(cancellation) // ignore tick errors; they are recorded in f.Feed.Status
+			f.Tick(cancellation, timelinePosition) // ignore tick errors; they are recorded in f.Feed.Status
 			subscriber.SubscriptionList.Status.ItemsFetched.Increment(len(f.Items))
 			if e = f.HyperGraphEntity(ctx); e != nil {
 				fmt.Printf("graph %q entity error: %v\n", f.Feed.URL.String(), e)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/herdworks/hyperfeed-go/subscriber"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
@@ -24,6 +25,7 @@ func main() {
 	var ctx context.Context = context.Background()
 	var args []string = os.Args[1:]
 	var err error
+	var offset time.Time = time.Time{} // zero time
 
 	// Parse command line arguments
 	if len(args) < 1 {
@@ -47,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 	// Refresh all feeds
-	if err = subscriber.Refresh(ctx); err != nil {
+	if err = subscriber.Refresh(ctx, offset); err != nil {
 		fmt.Printf("Error refreshing subscriber: %v\n", err)
 		os.Exit(1)
 	}

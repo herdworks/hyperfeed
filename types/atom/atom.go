@@ -98,6 +98,10 @@ type Text struct {
 
 type TimeStamp = string
 
+// VARIABLES
+// =============================================================================
+var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+
 // METHODS
 // =============================================================================
 func (atom *Atom) Render() (string, error) {
@@ -161,11 +165,27 @@ func Parse(doc []byte) (*Atom, error) {
 	return atom, err
 }
 
-func FirstTextBody(values ...*Text) string {
+func First(values ...*Text) *Text {
+	if len(values) == 0 {
+		return nil
+	}
 	for _, v := range values {
 		if v != nil && v.Body != "" {
-			return v.Body
+			return v
 		}
 	}
-	return ""
+	return values[0]
+}
+
+func HTML(text *Text) string {
+	if text == nil {
+		return ""
+	}
+	if text.Type == "html" || text.Type == "xhtml" {
+		return text.Body
+	}
+	if !htmlTagPattern.MatchString(text.Body) && text.Body != "" {
+		return "<p>" + text.Body + "</p>"
+	}
+	return text.Body
 }

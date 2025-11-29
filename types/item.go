@@ -72,6 +72,32 @@ func (item *Item) Identifier() string {
 	return item.ID
 }
 
+// TimelineAt computes the HyperFeed default "chronological" timeline timestamp for an item
+// 
+// TimelineAt uses the following logic:
+// - If timelinePosition is zero, return the item's actual timestamp (PublishedAt or ModifiedAt).
+// - If the item's actual timestamp is after timelinePosition and before now, return the actual timestamp.
+// - If the item's actual timestamp is after timelinePosition and also after now, return AddedAt.
+// - If AddedAt is after timelinePosition, return AddedAt.
+// - Otherwise, return timelinePosition + 1 minute to nudge the item into the timeline.
+func (item *Item) TimelineAt(timelinePosition time.Time) (ts time.Time) {
+	ts = Earliest(item.PublishedAt, item.ModifiedAt) // actual item timestamp
+	if timelinePosition.IsZero() && ts.Before(time.Now()) {
+		return ts.UTC() // new timeline, use actual item timestamp
+	}
+	if ts.After(timelinePosition) && ts.Before(time.Now()) {
+		return ts.UTC() // item is between timeline position and "now", use actual item timestamp
+	}
+	if ts.After(timelinePosition) && ts.After(time.Now()) {
+		return item.AddedAt.UTC() // item has invalid future added timestamp, use added timestamp
+	}
+	if item.AddedAt.After(timelinePosition) {
+		return item.AddedAt.UTC() // item is behind timeline but was added after timeline position
+	}
+	// the timeline is scrolled and the item is older than the timeline position
+	return timelinePosition.Add(1 * time.Minute) // nudge item into timeline
+}
+
 func (Item) DatabaseView() string {
 	return "items_view"
 }
@@ -98,6 +124,7 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 		"modified_at",
 		"added_at",
 		"updated_at",
+		"feed_at",
 		"feed_id",
 	}
 }
@@ -111,6 +138,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.ModifiedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
+	args = append(args, item.FeedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.FeedID)
 	return args
 }
@@ -120,7 +148,6 @@ func (item *Item) DatabaseUpdatesSet() []string {
 		"title = excluded.title",
 		"summary = excluded.summary",
 		"content = excluded.content",
-		"published_at = excluded.published_at",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
 	}

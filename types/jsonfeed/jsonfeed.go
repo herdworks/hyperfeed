@@ -1,6 +1,9 @@
 package jsonfeed
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"regexp"
+)
 
 // jsonfeed.Feed represents a JSONFeed document as defined by https://jsonfeed.org/version/1.1
 type Feed struct {
@@ -63,6 +66,12 @@ type Item struct {
 	Attachments   []Attachment `json:"attachments,omitempty"`
 }
 
+// Variables
+// =============================================================================
+var (
+	htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+)
+
 // METHODS
 // =============================================================================
 func (feed *Feed) FeedVersion() string {
@@ -98,4 +107,11 @@ func Parse(doc []byte) (jf *Feed, err error) {
 		}
 	}
 	return jf, nil
+}
+
+func HTML(text string) string {
+	if text != "" && !htmlTagPattern.MatchString(text) {
+		return "<p>" + text + "</p>"
+	}
+	return text
 }

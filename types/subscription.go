@@ -7,6 +7,7 @@ import (
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	"github.com/herdworks/hyperfeed-go/types/opml"
 )
 
 type SubscriptionList struct {
@@ -15,7 +16,7 @@ type SubscriptionList struct {
 	Path string `json:"path,omitempty"` // Path is the string representation of SubscriptionList.URI
 
 	// OPML holds the parsed OPML document.
-	OPML *OPML `json:"-"`
+	OPML *opml.OPML `json:"-"`
 
 	// Standard metadata properties
 	Title     string    `json:"title,omitempty"`
@@ -58,7 +59,7 @@ type SubscriptionStatus struct {
 // =========================== SubscriptionList Methods =======================
 
 func (sl *SubscriptionList) Load() (err error) {
-	sl.OPML = &OPML{URI: &url.URL{Path: sl.Path}}
+	sl.OPML = &opml.OPML{URI: &url.URL{Path: sl.Path}}
 	if err = sl.OPML.Load(); err != nil {
 		return err
 	}
