@@ -13,7 +13,6 @@ require (
 // local development dependencies (replacements)
 //
 // uncomment to use local dependencies
-// replace github.com/herdworks/hypertemplates-go => ../hypertemplates-go
 // replace github.com/herdworks/hypergraph-go => ../hypergraph-go
 
 // transitive dependencies
