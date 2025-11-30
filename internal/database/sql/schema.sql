@@ -109,6 +109,25 @@ CREATE INDEX IF NOT EXISTS authors_href_index ON authors([href]);
 CREATE INDEX IF NOT EXISTS authors_verified_index ON authors([verified]);
 CREATE INDEX IF NOT EXISTS authors_source_index ON authors([source]);
 
+-- Images table
+CREATE TABLE IF NOT EXISTS images (
+    [id] TEXT UNIQUE DEFAULT( lower(hex(randomblob(4))) ),
+    [href] TEXT NOT NULL,
+    [title] TEXT,
+    [alt] TEXT,
+    [caption] TEXT,
+    [width] INTEGER,
+    [height] INTEGER,
+
+    [item_id] TEXT NOT NULL REFERENCES items([id]),
+    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+
+    PRIMARY KEY ([id])
+);
+CREATE INDEX IF NOT EXISTS images_href_index ON images([href]);
+CREATE INDEX IF NOT EXISTS images_item_id_index ON images([item_id]);
+CREATE INDEX IF NOT EXISTS images_feed_id_index ON images([feed_id]);
+
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
     [id] TEXT NOT NULL DEFAULT( lower(hex(randomblob(4))) ),
@@ -269,23 +288,54 @@ SELECT
         'added_at', [items].[added_at],
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
+        'authors', COALESCE(
+            (
+                SELECT json_group_array(json_object(
+                    'id', [a].[id],
+                    'href', [a].[href],
+                    'username', [a].[username],
+                    'name', [a].[name],
+                    'description', [a].[description],
+                    'favicon', [a].[favicon],
+                    'cover', [a].[cover],
+                    'verified', CASE WHEN [a].[verified] = 1 THEN json('true') ELSE json('false') END,
+                    'email', [a].[email],
+                    'source', [a].[source]
+                ))
+                FROM (
+                    SELECT DISTINCT [authors].*
+                    FROM [author_relation]
+                    JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
+                    WHERE [author_relation].[item_id] = [items].[id]
+                       OR ([author_relation].[item_id] IS NULL AND [author_relation].[feed_id] = [items].[feed_id])
+                ) AS [a]
+            ),
+            json('[]')
+        ),
         'title', [items].[title],
-        'authors', COALESCE(json_group_array(json_object(
-            'id', [authors].[id],
-            'href', [authors].[href],
-            'username', [authors].[username],
-            'name', [authors].[name],
-            'description', [authors].[description],
-            'favicon', [authors].[favicon],
-            'cover', [authors].[cover],
-            'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
-            'email', [authors].[email],
-            'source', [authors].[source]
-        )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
+        'images', COALESCE(
+            (
+                SELECT json_group_array(json_object(
+                    'id', [i].[id],
+                    'href', [i].[href],
+                    'title', [i].[title],
+                    'alt', [i].[alt],
+                    'caption', [i].[caption],
+                    'width', [i].[width],
+                    'height', [i].[height]
+                ))
+                FROM (
+                    SELECT DISTINCT [id], [href], [title], [alt], [caption], [width], [height]
+                    FROM [images]
+                    WHERE [item_id] = [items].[id]
+                ) AS [i]
+            ),
+            json('[]')
+        ),
         'summary', [items].[summary],
         'content', [items].[content],
         'feed_id', [items].[feed_id]
-    ) as 'item',
+    ) AS [item],
     [items].[id],
     [items].[url],
     [items].[published_at],
@@ -293,31 +343,13 @@ SELECT
     [items].[added_at],
     [items].[updated_at],
     [items].[feed_at]
-FROM
-    [items]
-    LEFT JOIN (
-        -- feed authors
-        SELECT [items].[id] AS [item_id], [author_relation].[author_id]
-        FROM [items]
-        JOIN [author_relation]
-        ON [author_relation].[feed_id] = [items].[feed_id]
-
-        UNION
-
-        -- item authors (bylines)
-        SELECT [item_id], [author_id]
-        FROM [author_relation]
-        WHERE [item_id] IS NOT NULL
-    ) AS [item_authors] ON [item_authors].[item_id] = [items].[id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [item_authors].[author_id]
-GROUP BY
-    [items].[id]
+FROM items
+GROUP BY [items].[id]
 ORDER BY
     [items].[feed_at] DESC,
     [items].[published_at] DESC,
     [items].[added_at] DESC
 ;
--- NOTE: use views for the different item "algorithms" (sort orders)?
 
 -- AuthorsView
 CREATE VIEW IF NOT EXISTS authors_view AS
@@ -341,6 +373,28 @@ SELECT
     [authors].[source]
 FROM
     [authors]
+;
+
+-- ImagesView
+CREATE VIEW IF NOT EXISTS images_view AS
+SELECT
+    json_object(
+        'id', [images].[id],
+        'href', [images].[href],
+        'title', [images].[title],
+        'alt', [images].[alt],
+        'caption', [images].[caption],
+        'width', [images].[width],
+        'height', [images].[height],
+        'item_id', [images].[item_id],
+        'feed_id', [images].[feed_id]
+    ) as 'image',
+    [images].[id],
+    [images].[href],
+    [images].[item_id],
+    [images].[feed_id]
+FROM
+    [images]
 ;
 
 -- AttachmentsView

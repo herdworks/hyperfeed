@@ -41,14 +41,6 @@ type Item struct {
 	Feed   *Feed  `json:"-"`                 // parent feed (not serialized)
 }
 
-// Image represents an image associated with a feed or item.
-type Image struct {
-	URL    *url.URL `json:"url,omitempty"`
-	Title  string   `json:"title,omitempty"`
-	Width  int      `json:"width,omitempty"`
-	Height int      `json:"height,omitempty"`
-}
-
 // ============================ Item Methods ==================================
 
 func (i *Item) Ready() bool {

@@ -352,6 +352,12 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 				return errors.Join(ErrDatabase, errors.New("inserting item-author relation"), err)
 			}
 		}
+		for _, image := range item.Images {
+			if err = feeder.Database.InsertRow(ctx, image); err != nil {
+				fmt.Printf("image.item_id: %q\n", image.ItemID)
+				return errors.Join(ErrDatabase, errors.New("inserting image"), err)
+			}
+		}
 		for _, attachment := range item.Attachments {
 			if err = feeder.Database.UpsertRow(ctx, &attachment); err != nil {
 				fmt.Printf("attachment.item_id: %q\n", attachment.ItemID)
