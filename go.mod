@@ -20,5 +20,4 @@ require (
 require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
