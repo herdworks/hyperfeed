@@ -12,15 +12,16 @@ import (
 
 // Image represents an image associated with a feed or item.
 type Image struct {
-	ID      string     `json:"id,omitempty"`
-	Href    *href.Href `json:"href,omitempty"`
-	Title   string     `json:"title,omitempty"`
-	Alt     string     `json:"alt,omitempty"`
-	Caption string     `json:"caption,omitempty"`
-	Width   int        `json:"width,omitempty"`
-	Height  int        `json:"height,omitempty"`
-	ItemID  string     `json:"item_id,omitempty"` // back-reference to parent item
-	FeedID  string     `json:"feed_id,omitempty"` // back-reference to parent feed
+	ID      string       `json:"id,omitempty"`
+	Href    *href.Href   `json:"href,omitempty"`
+	Sources []*href.Href `json:"sources,omitempty"`
+	Title   string       `json:"title,omitempty"`
+	Alt     string       `json:"alt,omitempty"`
+	Caption string       `json:"caption,omitempty"`
+	Width   int          `json:"width,omitempty"`
+	Height  int          `json:"height,omitempty"`
+	ItemID  string       `json:"item_id,omitempty"` // back-reference to parent item
+	FeedID  string       `json:"feed_id,omitempty"` // back-reference to parent feed
 }
 
 // RSSFeedParser.Images()

@@ -30,15 +30,15 @@ const (
 	ExtensionNamespaceYahooMediaRSS string = "http://search.yahoo.com/mrss/"
 
 	// Dublin Core
-	ExtensionNamespaceDublinCoreTerms     string = "http://purl.org/dc/terms/"
-	ExtensionNamespaceDublicCoreMetadata  string = "http://purl.org/dc/elements/1.1/"
+	ExtensionNamespaceDublinCoreTerms    string = "http://purl.org/dc/terms/"
+	ExtensionNamespaceDublicCoreMetadata string = "http://purl.org/dc/elements/1.1/"
 
 	// Scripting
 	ExtensionNamespaceScriptingNewsSource string = "http://source.scripting.com/"
 
 	// Other common extension namespaces
-	ExtensionNamespaceAtom                string = "http://www.w3.org/2005/Atom"
-	ExtensionNamespaceRSSContent          string = "http://purl.org/rss/1.0/modules/content/"
+	ExtensionNamespaceAtom       string = "http://www.w3.org/2005/Atom"
+	ExtensionNamespaceRSSContent string = "http://purl.org/rss/1.0/modules/content/"
 
 	// YouTube XML
 	ExtensionNamespaceYouTube string = "http://www.youtube.com/xml/schemas/2015"

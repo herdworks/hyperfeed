@@ -65,7 +65,7 @@ func (item *Item) Identifier() string {
 }
 
 // TimelineAt computes the HyperFeed default "chronological" timeline timestamp for an item
-// 
+//
 // TimelineAt uses the following logic:
 // - If timelinePosition is zero, return the item's actual timestamp (PublishedAt or ModifiedAt).
 // - If the item's actual timestamp is after timelinePosition and before now, return the actual timestamp.

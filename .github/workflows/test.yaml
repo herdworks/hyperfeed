@@ -34,6 +34,15 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com".insteadOf "https://github.com"
 
+      - name: Lint go code
+        run: |
+          formatted=$(go fmt ./...)
+          if [ -n "$formatted" ]; then
+            echo "go fmt issues:"
+            echo "  $formatted"
+            exit 1
+          fi
+
       - name: Run go tests
         run: |
           go test ./... -v

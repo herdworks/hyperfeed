@@ -15,6 +15,10 @@ func TestConvertOrderedList(t *testing.T) {
 			name:   "Example post summary",
 			source: "testdata/1.html",
 		},
+		{
+			name:   "Example RSS content:encoded",
+			source: "testdata/2.html",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

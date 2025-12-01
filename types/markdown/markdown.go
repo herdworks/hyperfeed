@@ -19,19 +19,19 @@ type Markup struct {
 }
 
 type ExtendedMarkup struct {
-	Tag         string
-	Attributes  map[string]string
+	Tag        string
+	Attributes map[string]string
 }
 
 var (
 	headerPattern *regexp.Regexp = regexp.MustCompile(`(?m)^#(\s+)`)
-	markupTags = map[string]Markup{
-		"h1":     {Tag: "h1", Prefix: "# ", Suffix: "\n\n"},
-		"h2":     {Tag: "h2", Prefix: "## ", Suffix: "\n\n"},
-		"h3":     {Tag: "h3", Prefix: "### ", Suffix: "\n\n"},
-		"h4":     {Tag: "h4", Prefix: "#### ", Suffix: "\n\n"},
-		"h5":     {Tag: "h5", Prefix: "##### ", Suffix: "\n\n"},
-		"h6":     {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
+	markupTags                   = map[string]Markup{
+		"h1":     {Tag: "h1", Prefix: "\n# ", Suffix: "\n\n"},
+		"h2":     {Tag: "h2", Prefix: "\n## ", Suffix: "\n\n"},
+		"h3":     {Tag: "h3", Prefix: "\n### ", Suffix: "\n\n"},
+		"h4":     {Tag: "h4", Prefix: "\n#### ", Suffix: "\n\n"},
+		"h5":     {Tag: "h5", Prefix: "\n##### ", Suffix: "\n\n"},
+		"h6":     {Tag: "h6", Prefix: "\n###### ", Suffix: "\n\n"},
 		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
 		"code":   {Tag: "code", Prefix: "`", Suffix: "`"},
 		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
@@ -174,7 +174,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 			a(buf, n, extended)
 			return
 		case "img":
-			img(buf, n)
+			img(buf, n, extended)
 			return
 		}
 
@@ -316,36 +316,61 @@ func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 		walk(&inner, c, 0, extended)
 	}
 	text := strings.TrimSpace(inner.String())
-
 	if text == "" && href != "" {
-		text = fallbackLabel(href)
+		// if no link text, use the domain as text? – Codex
+		href = strings.TrimPrefix(href, "https://")
+		href = strings.TrimPrefix(href, "http://")
+		parts := strings.Split(href, "/")
+		text = parts[0]
 	}
-
+	if !whitespaced(buf) {
+		buf.WriteString(" ")
+	}
 	if href == "" {
 		buf.WriteString(text)
 		return
 	}
-
 	buf.WriteString("[" + text + "](" + href + ")")
 }
 
-func img(buf *bytes.Buffer, n *html.Node) {
-	alt := ""
-	src := ""
+func img(buf *bytes.Buffer, n *html.Node, extended bool) {
+	var alt string
+	var src string
+	var srcset string
+	var attributes []string = []string{"kind: \"img\""}
 	for _, a := range n.Attr {
 		if a.Key == "alt" {
 			alt = a.Val
 		}
 		if a.Key == "src" {
 			src = a.Val
+			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "src", a.Val))
+		}
+		if a.Key == "srcset" {
+			srcset = a.Val
+			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "srcset", a.Val))
+			if src == "" {
+				for _, s := range strings.Split(srcset, ",") {
+					s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ") // normalize spaces
+					parts := strings.SplitN(s, " ", 2)
+					partSrc := parts[0]
+					partWidth, _ := strconv.Atoi(strings.TrimSuffix(strings.Join(parts[1:], ""), "w"))
+					if len(parts) > 0 && strings.HasSuffix(strings.Join(parts[1:], ""), "w") && partWidth > 1 {
+						src = partSrc
+						break
+					}
+				}
+			}
 		}
 	}
-
-	if src == "" {
-		return
+	if !newline(buf) {
+		buf.WriteString("\n")
 	}
-
-	buf.WriteString("![" + alt + "](" + src + ")")
+	if extended {
+		buf.WriteString(fmt.Sprintf("\n^[%s](%s)\n", alt, strings.Join(attributes, ", ")))
+	} else {
+		buf.WriteString(fmt.Sprintf("\n![%s](%s)\n", alt, src))
+	}
 }
 
 func escape(s string) (r string) {
@@ -359,9 +384,20 @@ func escape(s string) (r string) {
 	return r
 }
 
-func fallbackLabel(href string) string {
-	href = strings.TrimPrefix(href, "https://")
-	href = strings.TrimPrefix(href, "http://")
-	parts := strings.Split(href, "/")
-	return parts[0]
+// newline checks if the last character in the buffer is a newline
+func newline(buf *bytes.Buffer) bool {
+	bs := buf.Bytes()
+	if len(bs) == 0 {
+		return true
+	}
+	return bs[len(bs)-1] == '\n'
+}
+
+// whitespace checks if the last character in the buffer is whitespace
+func whitespaced(buf *bytes.Buffer) bool {
+	bs := buf.Bytes()
+	if len(bs) == 0 {
+		return true
+	}
+	return bs[len(bs)-1] == ' ' || bs[len(bs)-1] == '\n' || bs[len(bs)-1] == '\t'
 }

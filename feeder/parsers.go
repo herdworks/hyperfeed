@@ -286,7 +286,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 			fmt.Printf("markdown error: %v\n", err)
 		}
 		item.Content = atom.HTML(atom.First(entry.Content, entry.Summary))
-		item.Comments = nil                                             // Atom entries do not have a comments field
+		item.Comments = nil // Atom entries do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
