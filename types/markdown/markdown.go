@@ -44,23 +44,20 @@ var (
 		"hr":     {Tag: "hr", Replacement: "\n---\n\n"},
 	}
 	extensionTags = map[string]ExtendedMarkup{
-		"small": {Tag: "small", Attributes: map[string]string{"kind": "small"}},
+		"abbr":  {Tag: "abbr", Attributes: map[string]string{"kind": "abbr"}},
+		"kbd":   {Tag: "kbd", Attributes: map[string]string{"kind": "kbd"}},
 		"mark":  {Tag: "mark", Attributes: map[string]string{"kind": "mark"}},
+		"q":     {Tag: "q", Attributes: map[string]string{"kind": "q"}},
+		"small": {Tag: "small", Attributes: map[string]string{"kind": "small"}},
+		"sub":   {Tag: "sub", Attributes: map[string]string{"kind": "sub"}},
+		"sup":   {Tag: "sup", Attributes: map[string]string{"kind": "sup"}},
 	}
 	preservedTags = []string{
-		"abbr",
 		"address",
 		"cite",
 		"dfn",
-		"figure",
-		"figcaption",
 		"ins",
-		"kbd",
-		"q",
 		"samp",
-		"span",
-		"sub",
-		"sup",
 	}
 	wrapperTags = []string{
 		"html", "head", "body", "header", "nav", "main", "section", "article", "footer",
