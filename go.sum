@@ -1,7 +1,7 @@
 github.com/andybalholm/cascadia v1.3.2 h1:3Xi6Dw5lHF15JtdcmAHD3i1+T8plmv7BQ/nsViSLyss=
 github.com/andybalholm/cascadia v1.3.2/go.mod h1:7gtRlve5FxPPgIgX36uWBX58OdBsSS6lUvCFb+h7KvU=
-github.com/herdworks/hypergraph-go v0.17.4-0.20251130170325-b305e1970a91 h1:p7t+Q4Tjvn1A4NDR2s4QiQx+I5qDW/V0ptim6F/m9QU=
-github.com/herdworks/hypergraph-go v0.17.4-0.20251130170325-b305e1970a91/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251201191705-d55fed05b9c1 h1:hjl8oHRu7WswXrrpXtmETfn0HbGn9vJJpICjED3DVSM=
+github.com/herdworks/hypergraph-go v0.17.4-0.20251201191705-d55fed05b9c1/go.mod h1:yIgqNsfnxxoON3XqAAg+u3SG7SKBOu+7iNerZby5KhI=
 github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o4kU=
 github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=

@@ -4,7 +4,7 @@ go 1.23.5
 
 // direct dependencies
 require (
-	github.com/herdworks/hypergraph-go v0.17.4-0.20251130170325-b305e1970a91
+	github.com/herdworks/hypergraph-go v0.17.4-0.20251201191705-d55fed05b9c1
 	github.com/mattn/go-sqlite3 v1.14.22
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
