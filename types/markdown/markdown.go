@@ -364,9 +364,9 @@ func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 		buf.WriteString("\n")
 	}
 	if extended {
-		buf.WriteString(fmt.Sprintf("\n^[%s](%s)\n", alt, strings.Join(attributes, ", ")))
+		buf.WriteString(fmt.Sprintf("\n^[%s](%s)\n\n", alt, strings.Join(attributes, ", ")))
 	} else {
-		buf.WriteString(fmt.Sprintf("\n![%s](%s)\n", alt, src))
+		buf.WriteString(fmt.Sprintf("\n![%s](%s)\n\n", alt, src))
 	}
 }
 
