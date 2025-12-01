@@ -113,6 +113,7 @@ CREATE INDEX IF NOT EXISTS authors_source_index ON authors([source]);
 CREATE TABLE IF NOT EXISTS images (
     [id] TEXT UNIQUE DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
+    [sources] TEXT NOT NULL DEFAULT '[]', -- JSON array of ImageSource objects
     [title] TEXT,
     [alt] TEXT,
     [caption] TEXT,
@@ -318,6 +319,7 @@ SELECT
                 SELECT json_group_array(json_object(
                     'id', [i].[id],
                     'href', [i].[href],
+                    'sources', json([i].[sources]),
                     'title', [i].[title],
                     'alt', [i].[alt],
                     'caption', [i].[caption],
@@ -357,6 +359,7 @@ SELECT
     json_object(
         'id', [authors].[id],
         'href', [authors].[href],
+        'sources', json([authors].[sources]),
         'username', [authors].[username],
         'name', [authors].[name],
         'description', [authors].[description],
