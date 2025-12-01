@@ -327,7 +327,7 @@ SELECT
                     'height', [i].[height]
                 ))
                 FROM (
-                    SELECT DISTINCT [id], [href], [title], [alt], [caption], [width], [height]
+                    SELECT DISTINCT [id], [href], [sources], [title], [alt], [caption], [width], [height]
                     FROM [images]
                     WHERE [item_id] = [items].[id]
                 ) AS [i]
