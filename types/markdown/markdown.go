@@ -90,6 +90,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		text = strings.ReplaceAll(text, "\r", "")
 		text = strings.ReplaceAll(text, "\t", " ")
 		text = strings.ReplaceAll(text, "\n", " ")
+		text = strings.ReplaceAll(text, "\u00a0", " ")
 		if !newline(buf) && extended && strings.HasPrefix(text, " ") {
 			prefix = " "
 		}
