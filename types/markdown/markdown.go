@@ -288,13 +288,15 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 }
 
 func pre(buf *bytes.Buffer, n *html.Node) {
+	var inner bytes.Buffer
 	if !newline(buf) {
 		buf.WriteString("\n")
 	}
 	buf.WriteString("^[\n")
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		preformatted(buf, c) // ignore extensions
+		preformatted(&inner, c) // ignore extensions
 	}
+	buf.Write(bytes.ReplaceAll(inner.Bytes(), []byte("]"), []byte("\\]")))
 	buf.WriteString("\n](kind: \"pre\")\n\n")
 }
 
