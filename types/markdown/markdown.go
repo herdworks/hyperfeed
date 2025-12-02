@@ -26,12 +26,12 @@ type ExtendedMarkup struct {
 var (
 	headerPattern *regexp.Regexp = regexp.MustCompile(`(?m)^#(\s+)`)
 	markupTags                   = map[string]Markup{
-		"h1":     {Tag: "h1", Prefix: "\n# ", Suffix: "\n\n"},
-		"h2":     {Tag: "h2", Prefix: "\n## ", Suffix: "\n\n"},
-		"h3":     {Tag: "h3", Prefix: "\n### ", Suffix: "\n\n"},
-		"h4":     {Tag: "h4", Prefix: "\n#### ", Suffix: "\n\n"},
-		"h5":     {Tag: "h5", Prefix: "\n##### ", Suffix: "\n\n"},
-		"h6":     {Tag: "h6", Prefix: "\n###### ", Suffix: "\n\n"},
+		"h1":     {Tag: "h1", Prefix: "# ", Suffix: "\n\n"},
+		"h2":     {Tag: "h2", Prefix: "## ", Suffix: "\n\n"},
+		"h3":     {Tag: "h3", Prefix: "### ", Suffix: "\n\n"},
+		"h4":     {Tag: "h4", Prefix: "#### ", Suffix: "\n\n"},
+		"h5":     {Tag: "h5", Prefix: "##### ", Suffix: "\n\n"},
+		"h6":     {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
 		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
 		"code":   {Tag: "code", Prefix: "`", Suffix: "`"},
 		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
@@ -40,8 +40,8 @@ var (
 		"del":    {Tag: "del", Prefix: "~~", Suffix: "~~"},
 		"strike": {Tag: "strike", Prefix: "~~", Suffix: "~~"},
 		"s":      {Tag: "s", Prefix: "~~", Suffix: "~~"},
-		"br":     {Tag: "br", Replacement: "  \n"},
-		"hr":     {Tag: "hr", Replacement: "\n---\n\n"},
+		"br":     {Tag: "br", Replacement: "\n\n"},
+		"hr":     {Tag: "hr", Replacement: "---\n\n"},
 	}
 	extensionTags = map[string]ExtendedMarkup{
 		"abbr":  {Tag: "abbr", Attributes: map[string]string{"kind": "abbr"}},
@@ -90,7 +90,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		text = strings.ReplaceAll(text, "\r", "")
 		text = strings.ReplaceAll(text, "\t", " ")
 		text = strings.ReplaceAll(text, "\n", " ")
-		if strings.HasPrefix(text, " ") {
+		if !newline(buf) && extended && strings.HasPrefix(text, " ") {
 			prefix = " "
 		}
 		if strings.HasSuffix(text, " ") {
@@ -155,8 +155,14 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 
 		// special cases
 		switch n.Data {
+		case "a":
+			a(buf, n, extended)
+			return
 		case "blockquote":
 			blockquote(buf, n, extended)
+			return
+		case "img":
+			img(buf, n, extended)
 			return
 		case "ul":
 			ul(buf, n, indent, extended)
@@ -166,12 +172,6 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 			return
 		case "pre":
 			pre(buf, n)
-			return
-		case "a":
-			a(buf, n, extended)
-			return
-		case "img":
-			img(buf, n, extended)
 			return
 		}
 
@@ -203,6 +203,40 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 	}
 }
 
+func a(buf *bytes.Buffer, n *html.Node, extended bool) {
+	var href string = ""
+	var inner bytes.Buffer
+	if has(n, "img") && len(children(n)) == 1 {
+		// if the link contains only an image, skip link rendering and render the child image
+		walk(buf, n.FirstChild, 0, extended)
+		return
+	}
+	for _, a := range n.Attr {
+		if a.Key == "href" {
+			href = a.Val
+		}
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		walk(&inner, c, 0, false)
+	}
+	text := strings.TrimSpace(inner.String())
+	if text == "" && href != "" {
+		// if no link text, use the domain as text? – Codex
+		href = strings.TrimPrefix(href, "https://")
+		href = strings.TrimPrefix(href, "http://")
+		parts := strings.Split(href, "/")
+		text = parts[0]
+	}
+	if !whitespaced(buf) {
+		buf.WriteString(" ")
+	}
+	if href == "" {
+		buf.WriteString(text)
+		return
+	}
+	buf.WriteString("[" + text + "](" + href + ")")
+}
+
 func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
 	var quote bytes.Buffer
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -211,6 +245,80 @@ func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
 	for _, line := range strings.Split(strings.TrimSpace(quote.String()), "\n") {
 		buf.WriteString("> " + strings.TrimSpace(line) + "\n")
 	}
+	buf.WriteString("\n")
+}
+
+func img(buf *bytes.Buffer, n *html.Node, extended bool) {
+	var alt string
+	var src string
+	var srcset string
+	var attributes []string = []string{"kind: \"img\""}
+	for _, a := range n.Attr {
+		if a.Key == "alt" {
+			alt = a.Val
+		}
+		if a.Key == "src" {
+			src = a.Val
+			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "src", a.Val))
+		}
+		if a.Key == "srcset" {
+			srcset = a.Val
+			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "srcset", a.Val))
+			if src == "" {
+				for _, s := range strings.Split(srcset, ",") {
+					s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ") // normalize spaces
+					parts := strings.SplitN(s, " ", 2)
+					partSrc := parts[0]
+					partWidth, _ := strconv.Atoi(strings.TrimSuffix(strings.Join(parts[1:], ""), "w"))
+					if len(parts) > 0 && strings.HasSuffix(strings.Join(parts[1:], ""), "w") && partWidth > 1 {
+						src = partSrc
+						break
+					}
+				}
+			}
+		}
+	}
+	if !newline(buf) {
+		buf.WriteString("\n\n")
+	}
+	if extended {
+		buf.WriteString(fmt.Sprintf("^[%s](%s)\n\n", alt, strings.Join(attributes, ", ")))
+	} else {
+		buf.WriteString(fmt.Sprintf("![%s](%s)\n\n", alt, src))
+	}
+}
+
+func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
+	indent := strings.Repeat("  ", depth)
+	counter := 1
+	for li := n.FirstChild; li != nil; li = li.NextSibling {
+		if li.Type != html.ElementNode || li.Data != "li" {
+			continue
+		}
+
+		var item bytes.Buffer
+		item.WriteString(indent + strconv.Itoa(counter) + ". ")
+
+		for c := li.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+				continue
+			}
+			walk(&item, c, depth, extended)
+		}
+
+		line := strings.TrimSpace(strings.Join(strings.Fields(item.String()), " "))
+		buf.WriteString(line + "\n")
+
+		for c := li.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == html.ElementNode && c.Data == "ul" {
+				ul(buf, c, depth+1, extended)
+			} else if c.Type == html.ElementNode && c.Data == "ol" {
+				ol(buf, c, depth+1, extended)
+			}
+		}
+		counter++
+	}
+
 	buf.WriteString("\n")
 }
 
@@ -251,42 +359,6 @@ func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
-	indent := strings.Repeat("  ", depth)
-	i := 1
-
-	for li := n.FirstChild; li != nil; li = li.NextSibling {
-		if li.Type != html.ElementNode || li.Data != "li" {
-			continue
-		}
-
-		var item bytes.Buffer
-		item.WriteString(indent + strconv.Itoa(i) + ". ")
-
-		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
-				continue
-			}
-			walk(&item, c, depth, extended)
-		}
-
-		line := strings.TrimSpace(strings.Join(strings.Fields(item.String()), " "))
-		buf.WriteString(line + "\n")
-
-		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && c.Data == "ul" {
-				ul(buf, c, depth+1, extended)
-			} else if c.Type == html.ElementNode && c.Data == "ol" {
-				ol(buf, c, depth+1, extended)
-			}
-		}
-
-		i++
-	}
-
-	buf.WriteString("\n")
-}
-
 func pre(buf *bytes.Buffer, n *html.Node) {
 	var inner bytes.Buffer
 	if !newline(buf) {
@@ -298,75 +370,6 @@ func pre(buf *bytes.Buffer, n *html.Node) {
 	}
 	buf.Write(bytes.ReplaceAll(inner.Bytes(), []byte("]"), []byte("\\]")))
 	buf.WriteString("\n](kind: \"pre\")\n\n")
-}
-
-func a(buf *bytes.Buffer, n *html.Node, extended bool) {
-	var href string = ""
-	var inner bytes.Buffer
-	for _, a := range n.Attr {
-		if a.Key == "href" {
-			href = a.Val
-		}
-	}
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		walk(&inner, c, 0, extended)
-	}
-	text := strings.TrimSpace(inner.String())
-	if text == "" && href != "" {
-		// if no link text, use the domain as text? – Codex
-		href = strings.TrimPrefix(href, "https://")
-		href = strings.TrimPrefix(href, "http://")
-		parts := strings.Split(href, "/")
-		text = parts[0]
-	}
-	if !whitespaced(buf) {
-		buf.WriteString(" ")
-	}
-	if href == "" {
-		buf.WriteString(text)
-		return
-	}
-	buf.WriteString("[" + text + "](" + href + ")")
-}
-
-func img(buf *bytes.Buffer, n *html.Node, extended bool) {
-	var alt string
-	var src string
-	var srcset string
-	var attributes []string = []string{"kind: \"img\""}
-	for _, a := range n.Attr {
-		if a.Key == "alt" {
-			alt = a.Val
-		}
-		if a.Key == "src" {
-			src = a.Val
-			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "src", a.Val))
-		}
-		if a.Key == "srcset" {
-			srcset = a.Val
-			attributes = append(attributes, fmt.Sprintf("%s: \"%s\"", "srcset", a.Val))
-			if src == "" {
-				for _, s := range strings.Split(srcset, ",") {
-					s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ") // normalize spaces
-					parts := strings.SplitN(s, " ", 2)
-					partSrc := parts[0]
-					partWidth, _ := strconv.Atoi(strings.TrimSuffix(strings.Join(parts[1:], ""), "w"))
-					if len(parts) > 0 && strings.HasSuffix(strings.Join(parts[1:], ""), "w") && partWidth > 1 {
-						src = partSrc
-						break
-					}
-				}
-			}
-		}
-	}
-	if !newline(buf) {
-		buf.WriteString("\n")
-	}
-	if extended {
-		buf.WriteString(fmt.Sprintf("\n^[%s](%s)\n\n", alt, strings.Join(attributes, ", ")))
-	} else {
-		buf.WriteString(fmt.Sprintf("\n![%s](%s)\n\n", alt, src))
-	}
 }
 
 func escape(s string) (r string) {
@@ -412,4 +415,27 @@ func preformatted(buf *bytes.Buffer, n *html.Node) {
 			continue
 		}
 	}
+}
+
+func children(n *html.Node) []*html.Node {
+	var nodes []*html.Node
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type != html.ElementNode {
+			continue
+		}
+		nodes = append(nodes, c)
+	}
+	return nodes
+}
+
+func has(n *html.Node, tag string) bool {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && c.Data == tag {
+			return true
+		}
+		if has(c, tag) {
+			return true
+		}
+	}
+	return false
 }

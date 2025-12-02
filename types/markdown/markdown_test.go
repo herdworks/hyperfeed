@@ -20,8 +20,8 @@ func TestConvertOrderedList(t *testing.T) {
 			source: "testdata/2.html",
 		},
 		{
-			name:   "Example RSS content type text/html",
-			source: "testdata/htmhell.html",
+			name:   "Example RSS content:encoded with linked image",
+			source: "testdata/3.html",
 		},
 	}
 	for _, tc := range tests {
