@@ -288,7 +288,8 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 }
 
 func pre(buf *bytes.Buffer, n *html.Node) {
-	buf.WriteString("```\n")
+	// buf.WriteString("```\n")
+	buf.WriteString("^[\n")
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && c.Data == "code" {
 			for cc := c.FirstChild; cc != nil; cc = cc.NextSibling {
@@ -298,7 +299,8 @@ func pre(buf *bytes.Buffer, n *html.Node) {
 			walk(buf, c, 0, false) // ignore extensions
 		}
 	}
-	buf.WriteString("\n```\n\n")
+	buf.WriteString("\n](kind: \"pre\")\n\n")
+	// buf.WriteString("\n```\n\n")
 }
 
 func a(buf *bytes.Buffer, n *html.Node, extended bool) {
