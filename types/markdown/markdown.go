@@ -288,19 +288,14 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 }
 
 func pre(buf *bytes.Buffer, n *html.Node) {
-	// buf.WriteString("```\n")
+	if !newline(buf) {
+		buf.WriteString("\n")
+	}
 	buf.WriteString("^[\n")
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.ElementNode && c.Data == "code" {
-			for cc := c.FirstChild; cc != nil; cc = cc.NextSibling {
-				walk(buf, cc, 0, false) // ignore extensions
-			}
-		} else {
-			walk(buf, c, 0, false) // ignore extensions
-		}
+		preformatted(buf, c) // ignore extensions
 	}
 	buf.WriteString("\n](kind: \"pre\")\n\n")
-	// buf.WriteString("\n```\n\n")
 }
 
 func a(buf *bytes.Buffer, n *html.Node, extended bool) {
@@ -399,4 +394,20 @@ func whitespaced(buf *bytes.Buffer) bool {
 		return true
 	}
 	return bs[len(bs)-1] == ' ' || bs[len(bs)-1] == '\n' || bs[len(bs)-1] == '\t'
+}
+
+
+func preformatted(buf *bytes.Buffer, n *html.Node) {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		switch {
+		case c.Type == html.TextNode:
+			buf.WriteString(c.Data)
+		case c.Type == html.ElementNode && c.Data == "br":
+			buf.WriteString("\n")
+		case c.Type == html.ElementNode:
+			preformatted(buf, c)
+		default:
+			continue
+		}
+	}
 }
