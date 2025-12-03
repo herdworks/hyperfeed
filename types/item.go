@@ -126,7 +126,7 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.Identifier())
 	args = append(args, item.URL.String())
-	args = append(args, fmt.Sprintf("%q", item.ExternalHrefs))
+	args = append(args, fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", ")))
 	args = append(args, item.Title)
 	args = append(args, strings.TrimSpace(item.Summary))
 	args = append(args, strings.TrimSpace(item.Content))
