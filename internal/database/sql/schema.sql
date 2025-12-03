@@ -362,7 +362,6 @@ SELECT
     json_object(
         'id', [authors].[id],
         'href', [authors].[href],
-        'sources', json([authors].[sources]),
         'username', [authors].[username],
         'name', [authors].[name],
         'description', [authors].[description],
