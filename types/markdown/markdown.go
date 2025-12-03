@@ -244,7 +244,8 @@ func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
 		walk(&quote, c, 0, extended)
 	}
 	for _, line := range strings.Split(strings.TrimSpace(quote.String()), "\n") {
-		buf.WriteString(fmt.Sprintf("> %s  \n", strings.TrimSpace(line)))
+		if len(line) > 0 { line += "<br>" }
+		buf.WriteString(fmt.Sprintf("> %s\n", line))
 	}
 	buf.WriteString("\n")
 }
