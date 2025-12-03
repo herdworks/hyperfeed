@@ -271,8 +271,13 @@ func (parser *AtomFeedParser) Authors(incoming ...*atom.Author) (authors []hyper
 func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
 	for _, entry := range parser.Atom.Entries {
 		item := &hyperfeed.Item{Feed: parser.Feed}
-		if link := entry.Link("alternate"); link != nil {
+		if link := entry.InternalLink(parser.Feed.URL.URL()); link != nil {
 			item.URL, _ = url.Parse(link.Href)
+		}
+		if links := entry.ExternalLinks(parser.Feed.URL.URL()); len(links) > 0 {
+			for _, l := range links {
+				item.ExternalHrefs = append(item.ExternalHrefs, l.Href)
+			}
 		}
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
@@ -287,7 +292,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
 			fmt.Printf("markdown Atem entry.summary error: %v\n", err)
 		}
-		if item.Content, err  = markdown.Convert(atom.HTML(atom.First(entry.Content, entry.Summary))); err != nil {
+		if item.Content, err = markdown.Convert(atom.HTML(atom.First(entry.Content, entry.Summary))); err != nil {
 			fmt.Printf("markdown Atom entry.content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
@@ -394,6 +399,9 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		if !item.URL.IsAbs() {
 			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
+		}
+		if jsonitem.ExternalURL != "" && jsonitem.ExternalURL != jsonitem.URL {
+			item.ExternalHrefs = []string{jsonitem.ExternalURL}
 		}
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)

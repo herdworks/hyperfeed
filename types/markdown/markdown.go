@@ -35,8 +35,8 @@ var (
 		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
 		"code":   {Tag: "code", Prefix: "`", Suffix: "`"},
 		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
-		"em":     {Tag: "em", Prefix: "_", Suffix: "_"},
-		"i":      {Tag: "i", Prefix: "_", Suffix: "_"},
+		"em":     {Tag: "em", Prefix: "_", Suffix: "_ "},
+		"i":      {Tag: "i", Prefix: "_", Suffix: "_ "},
 		"del":    {Tag: "del", Prefix: "~~", Suffix: "~~"},
 		"strike": {Tag: "strike", Prefix: "~~", Suffix: "~~"},
 		"s":      {Tag: "s", Prefix: "~~", Suffix: "~~"},
@@ -401,7 +401,6 @@ func whitespaced(buf *bytes.Buffer) bool {
 	}
 	return bs[len(bs)-1] == ' ' || bs[len(bs)-1] == '\n' || bs[len(bs)-1] == '\t'
 }
-
 
 func preformatted(buf *bytes.Buffer, n *html.Node) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {

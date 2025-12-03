@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // This file is a derivative work of "golang.org/x/tools/blog/atom" and is
@@ -133,6 +134,46 @@ func (entry *Entry) Link(rel string) *Link {
 		}
 	}
 	return nil
+}
+
+// Entry.InternalLink()
+// returns the first link whose host matches the base URL host
+func (entry *Entry) InternalLink(base *url.URL) *Link {
+	for _, l := range entry.Links {
+		if l.URL() != nil && strings.TrimPrefix(l.URL().Host, "www.") == strings.TrimPrefix(base.Host, "www.") {
+			return &l
+		}
+	}
+	for _, l := range entry.Links {
+		if l.Rel == "alternate" || l.Rel == "" {
+			return &l // fallback to alternate/empty rel
+		}
+	}
+	return &entry.Links[0] // fallback to first link? (this should not happen)
+}
+
+// Entry.ExternalLinks()
+// returns all links whose host differs from the base URL host
+func (entry *Entry) ExternalLinks(base *url.URL) (links []*Link) {
+	if base == nil {
+		return links
+	}
+	for _, l := range entry.Links {
+		if l.URL() == nil {
+			continue
+		}
+		if l.Href == "" {
+			continue
+		}
+		if entry.InternalLink(base).Href == l.Href {
+			continue
+		}
+		if strings.TrimPrefix(l.URL().Host, "www.") == strings.TrimPrefix(base.Host, "www.") {
+			continue
+		}
+		links = append(links, &l)
+	}
+	return links
 }
 
 // Link.URL()

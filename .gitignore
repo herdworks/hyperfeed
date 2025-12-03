@@ -8,6 +8,7 @@ repl
 *.db*
 
 ## state files
+.cache/go-build
 .gocache
 
 ## wip

@@ -67,6 +67,7 @@ CREATE INDEX IF NOT EXISTS feeds_status_code_index ON feeds([status_code]);
 CREATE TABLE IF NOT EXISTS items (
     [id] TEXT,
     [url] TEXT,
+    [external_hrefs] TEXT NOT NULL DEFAULT '[]', -- JSON array of external URL strings
     [published_at] TIMESTAMP,
     [modified_at] TIMESTAMP,
     [added_at] TIMESTAMP,
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE INDEX IF NOT EXISTS items_id_index ON items([id]);
 CREATE INDEX IF NOT EXISTS items_url_index ON items([url]);
+CREATE INDEX IF NOT EXISTS items_external_hrefs_index ON items([external_hrefs]);
 CREATE INDEX IF NOT EXISTS items_published_at_index ON items([published_at] DESC);
 CREATE INDEX IF NOT EXISTS items_modified_at_index ON items([modified_at] DESC);
 CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
@@ -284,6 +286,7 @@ SELECT
     json_object(
         'id', [items].[id],
         'url', [items].[url],
+        'external_hrefs', json([items].[external_hrefs]),
         'published_at', [items].[published_at],
         'modified_at', [items].[modified_at],
         'added_at', [items].[added_at],

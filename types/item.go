@@ -16,6 +16,8 @@ type Item struct {
 	ID  string   `json:"id,omitempty"`
 	URL *url.URL `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
 
+	ExternalHrefs []string `json:"external_hrefs,omitempty"` // ExternalHrefs are other URLs associated with the item.
+
 	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
 	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
 	AddedAt     time.Time `json:"added_at,omitempty"`     // when we first saw the item
@@ -109,6 +111,7 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
+		"external_hrefs",
 		"title",
 		"summary",
 		"content",
@@ -123,6 +126,7 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.Identifier())
 	args = append(args, item.URL.String())
+	args = append(args, fmt.Sprintf("%q", item.ExternalHrefs))
 	args = append(args, item.Title)
 	args = append(args, strings.TrimSpace(item.Summary))
 	args = append(args, strings.TrimSpace(item.Content))
@@ -137,6 +141,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 func (item *Item) DatabaseUpdatesSet() []string {
 	return []string{
 		"url = excluded.url",
+		"external_hrefs = excluded.external_hrefs",
 		"title = excluded.title",
 		"summary = excluded.summary",
 		"content = excluded.content",
@@ -147,8 +152,9 @@ func (item *Item) DatabaseUpdatesSet() []string {
 
 func (item *Item) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s|%s",
+		"%s|%q|%s|%s|%s|%s|%s|%s",
 		item.URL.String(),
+		item.ExternalHrefs,
 		item.Title,
 		strings.TrimSpace(item.Summary),
 		strings.TrimSpace(item.Content),

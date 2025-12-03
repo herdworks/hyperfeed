@@ -15,21 +15,21 @@ import (
 
 // Image represents an image associated with a feed or item.
 type Image struct {
-	ID      string       `json:"id,omitempty"`
-	Href    *href.Href   `json:"href,omitempty"`
-	Sources []ImageSrc   `json:"sources,omitempty"`
-	Title   string       `json:"title,omitempty"`
-	Alt     string       `json:"alt,omitempty"`
-	Caption string       `json:"caption,omitempty"`
-	Width   int          `json:"width,omitempty"`
-	Height  int          `json:"height,omitempty"`
-	ItemID  string       `json:"item_id,omitempty"` // back-reference to parent item
-	FeedID  string       `json:"feed_id,omitempty"` // back-reference to parent feed
+	ID      string     `json:"id,omitempty"`
+	Href    *href.Href `json:"href,omitempty"`
+	Sources []ImageSrc `json:"sources,omitempty"`
+	Title   string     `json:"title,omitempty"`
+	Alt     string     `json:"alt,omitempty"`
+	Caption string     `json:"caption,omitempty"`
+	Width   int        `json:"width,omitempty"`
+	Height  int        `json:"height,omitempty"`
+	ItemID  string     `json:"item_id,omitempty"` // back-reference to parent item
+	FeedID  string     `json:"feed_id,omitempty"` // back-reference to parent feed
 }
 type ImageSrc struct {
-	Href  *href.Href `json:"href,omitempty"`
-	Width int        `json:"width,omitempty"`
-	Height int       `json:"height,omitempty"`
+	Href   *href.Href `json:"href,omitempty"`
+	Width  int        `json:"width,omitempty"`
+	Height int        `json:"height,omitempty"`
 }
 
 // ParseImages() extracts images from an item's HTML content
@@ -43,11 +43,11 @@ func ParseImages(item *Item, bytes []byte) (images []*Image) {
 	}
 	for _, i := range document.Images {
 		var img Image = Image{
-			Title: i.Title,
-			Alt: i.Alt,
+			Title:   i.Title,
+			Alt:     i.Alt,
 			Caption: i.Caption,
-			ItemID: item.Identifier(),
-			FeedID: item.FeedID,
+			ItemID:  item.Identifier(),
+			FeedID:  item.FeedID,
 		}
 		for _, s := range i.Sources {
 			var src ImageSrc
