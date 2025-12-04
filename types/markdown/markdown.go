@@ -228,9 +228,6 @@ func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 		parts := strings.Split(href, "/")
 		text = parts[0]
 	}
-	if !whitespaced(buf) {
-		buf.WriteString(" ")
-	}
 	if href == "" {
 		buf.WriteString(text)
 		return

@@ -27,6 +27,10 @@ func TestConvertOrderedList(t *testing.T) {
 			name:   "Example Atom content with complex blockquote",
 			source: "testdata/4.html",
 		},
+		{
+			name:   "Example post with sup element(s)",
+			source: "testdata/5.html",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
