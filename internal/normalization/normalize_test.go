@@ -188,3 +188,34 @@ func TestCleanPath(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentifierNormalization(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"http://example.com", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
+		{"http://example.com/", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
+		{"http://EXAMPLE.com", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
+		{"http://example.com:80", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
+		{"https://example.com/path", "5faa4bf4918ff56562141cc328545ec8f7b6dd27"},
+		{"https://example.com:443/path", "5faa4bf4918ff56562141cc328545ec8f7b6dd27"},
+		{"https://example.com/path?a=1&b=2", "94ab2087f4c4ce19d248cfbab9e2b19cc5065e44"},
+		{"", "8a5edab282632443219e051e4ade2d1d5bbc671c"}, // the empty url identifier
+	}
+	for _, tc := range tests {
+		t.Logf("normalize %q identifier\n", tc.input)
+		u, err := url.Parse(tc.input)
+		if err != nil {
+			t.Fatalf("url %q parser error: %v", tc.input, err)
+		}
+		u = URL(u)
+		t.Logf("normaled %q url\n", u.String())
+		got := Identifier(u.String())
+		if got != tc.want {
+			t.Fatalf("normalized %q identifier error\n\twanted: %q\n\t   got: %q", tc.input, tc.want, got)
+		} else {
+			t.Logf("normalized %q identifier: %q", u.String(), got)
+		}
+	}
+}

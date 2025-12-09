@@ -96,6 +96,9 @@ func (href *Href) IsAbs() bool {
 
 // ResolveReference resolves a reference URL against this Href
 func (href *Href) ResolveReference(ref *url.URL) *Href {
+	if ref == nil {
+		return nil
+	}
 	if href == nil {
 		return (*Href)(ref)
 	}
@@ -120,4 +123,46 @@ func Parse(s string) (href *Href, err error) {
 	}
 	h := Href(*u)
 	return &h, nil
+}
+
+func ResolveHrefString(base, ref any) string {
+	if href := ResolveHref(base, ref); href != nil {
+		return href.String()
+	}
+	return ""
+}
+
+func ResolveHref(base, ref any) *Href {
+	var b, r *Href
+	var err error
+	if b, err = parse(base); err != nil {
+		return nil
+	}
+	if r, err = parse(ref); err != nil {
+		return nil
+	}
+	if b == nil {
+		return r
+	}
+	if r == nil {
+		return b
+	}
+	return b.ResolveReference(r.URL())
+}
+
+func parse(in any) (out *Href, err error) {
+	var u *url.URL
+	switch v := in.(type) {
+	case *Href:
+		return v, nil
+	case *url.URL:
+		u = v
+	case string:
+		u, err = url.Parse(v)
+	case []byte:
+		u, err = url.Parse(string(v))
+	default:
+		err = fmt.Errorf("unsupported type for href parsing: %T", in)
+	}
+	return (*Href)(u), err
 }

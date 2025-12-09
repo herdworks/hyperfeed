@@ -131,8 +131,7 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
 				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
 				Title:   "Example Feed",
-				Authors: []hyperfeed.Author{},
-				Status:  &hyperfeed.FeedStatus{},
+				Status:  &hyperfeed.Status{},
 			},
 			reader: &hyperfeed.Feed{
 				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},

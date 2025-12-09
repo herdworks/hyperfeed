@@ -252,21 +252,6 @@ func (r *RSS) Link() string {
 	}
 	return ""
 }
-func (r *RSS) GetURL() *url.URL {
-	if r == nil {
-		return nil
-	}
-	if u, err := url.Parse(r.Link()); err == nil {
-		return u
-	}
-	return nil
-}
-func (r *RSS) SetURL(u *url.URL) {
-	if u == nil || u.String() == "" {
-		return
-	}
-	r.Channel.Links = append([]Link{{Href: u.String()}}, r.Channel.Links...) // prepend if not already present
-}
 
 // ParseAuthor extracts name and email from an RSS author string.
 //

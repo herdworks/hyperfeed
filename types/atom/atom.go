@@ -52,14 +52,15 @@ import (
 //
 // reference: https://www.ietf.org/rfc/rfc4287.txt
 type Atom struct {
-	XMLName xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
-	XMLNS   string    `xml:"xmlns:hypergraph,attr"`
-	Title   string    `xml:"title"`
-	ID      string    `xml:"id"`
-	Links   []Link    `xml:"link"`
-	Authors []*Author `xml:"author,omitempty"`
-	Entries []*Entry  `xml:"entry"`
-	Updated TimeStamp `xml:"updated"`
+	XMLName  xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
+	XMLNS    string    `xml:"xmlns:hypergraph,attr"`
+	Title    string    `xml:"title"`
+	Subtitle string    `xml:"subtitle,omitempty"`
+	ID       string    `xml:"id"`
+	Links    []Link    `xml:"link"`
+	Authors  []*Author `xml:"author,omitempty"`
+	Entries  []*Entry  `xml:"entry"`
+	Updated  TimeStamp `xml:"updated"`
 }
 
 type Entry struct {
@@ -159,16 +160,13 @@ func (entry *Entry) ExternalLinks(base *url.URL) (links []*Link) {
 		return links
 	}
 	for _, l := range entry.Links {
-		if l.URL() == nil {
-			continue
-		}
-		if l.Href == "" {
-			continue
-		}
-		if entry.InternalLink(base).Href == l.Href {
+		if len(l.Href) == 0 {
 			continue
 		}
 		if strings.TrimPrefix(l.URL().Host, "www.") == strings.TrimPrefix(base.Host, "www.") {
+			continue
+		}
+		if entry.InternalLink(base).Href == l.Href {
 			continue
 		}
 		links = append(links, &l)

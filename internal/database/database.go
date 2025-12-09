@@ -262,6 +262,14 @@ func (db *Database) RelateRows(ctx context.Context, table string, columns []stri
 }
 
 // ============================ Helper Methods ===================================
+func (Database) SelectAllStatement(row DatabaseRow) (query string) {
+	return fmt.Sprintf(
+		"SELECT %s FROM %s;",
+		row.DatabaseObject(),
+		row.DatabaseView(),
+	)
+}
+
 func (Database) SelectStatement(row DatabaseRow) (query string) {
 	return fmt.Sprintf(
 		"SELECT %s FROM %s WHERE %s = ?;",
@@ -307,4 +315,29 @@ func (Database) WriteParameters(columns []string) (params []string) {
 
 func (Database) RecordsMatch(a, b DatabaseRow) bool {
 	return a.Hash() == b.Hash()
+}
+
+func ListRecords[T DatabaseRow](ctx context.Context, db *Database) (records []T, err error) {
+	var kind T
+	query := db.SelectAllStatement(kind)
+	rows, err := db.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("database record list query: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var record T
+		var recordBytes []byte
+		if err = rows.Scan(&recordBytes); err != nil {
+			return nil, fmt.Errorf("database record list scan: %w", err)
+		}
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			return nil, fmt.Errorf("database record list unmarshal: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("database record list rows: %w", err)
+	}
+	return records, nil
 }

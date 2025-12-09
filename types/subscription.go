@@ -102,22 +102,22 @@ func (subscription *SubscriptionList) RowColumns() []string {
 		"status",
 	}
 }
-func (SubscriptionList) DatabaseView() string {
+func (*SubscriptionList) DatabaseView() string {
 	return "subscriptionlists_view"
 }
-func (SubscriptionList) DatabaseViewIdentifier() string {
+func (*SubscriptionList) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (SubscriptionList) DatabaseObject() string {
+func (*SubscriptionList) DatabaseObject() string {
 	return "subscriptionlist"
 }
-func (SubscriptionList) DatabaseTable() string {
+func (*SubscriptionList) DatabaseTable() string {
 	return "subscriptionlists"
 }
-func (SubscriptionList) DatabaseTableIdentifier() string {
+func (*SubscriptionList) DatabaseTableIdentifier() string {
 	return "id"
 }
-func (SubscriptionList) DatabaseInsertColumns() []string {
+func (*SubscriptionList) DatabaseInsertColumns() []string {
 	return []string{
 		"id",
 		"uri",
@@ -163,20 +163,4 @@ func (subscription *SubscriptionList) Hash() string {
 		subscription.Owner.Email,
 		subscription.CreatedAt.UTC().Format(time.RFC3339),
 	)
-}
-
-// ======================= SubscriptionStatus Methods =========================
-
-func (status *SubscriptionStatus) Print() string {
-	var report string = "\n"
-	report += fmt.Sprintf("Feeds Skipped:   %6d\n", status.FeedsSkipped.Count)
-	report += fmt.Sprintf("Feeds Failed:    %6d\n", status.FeedsFailed.Count)
-	report += fmt.Sprintf("Feeds Fetched:   %6d\n", status.FeedsFetched.Count)
-	report += fmt.Sprintf("Items Fetched:   %6d\n", status.ItemsFetched.Count)
-	report += fmt.Sprintf("Items Duplicate: %6d\n", status.ItemsDuplicate.Count)
-	report += fmt.Sprintf("Items Updated:   %6d\n", status.ItemsUpdated.Count)
-	report += fmt.Sprintf("Items Added:     %6d\n", status.ItemsAdded.Count)
-	report += "-----------------------\n"
-	report += fmt.Sprintf("TOTAL:           %6v\n", status.Duration.Truncate(time.Millisecond))
-	return report
 }

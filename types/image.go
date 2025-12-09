@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -10,21 +11,23 @@ import (
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	href "github.com/herdworks/hyperfeed-go/types/href"
-	hypergraph "github.com/herdworks/hypergraph-go"
+	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"golang.org/x/net/html"
 )
 
 // Image represents an image associated with a feed or item.
 type Image struct {
-	ID      string     `json:"id,omitempty"`
-	Href    *href.Href `json:"href,omitempty"`
-	Sources []ImageSrc `json:"sources,omitempty"`
-	Title   string     `json:"title,omitempty"`
-	Alt     string     `json:"alt,omitempty"`
-	Caption string     `json:"caption,omitempty"`
-	Width   int        `json:"width,omitempty"`
-	Height  int        `json:"height,omitempty"`
-	ItemID  string     `json:"item_id,omitempty"` // back-reference to parent item
-	FeedID  string     `json:"feed_id,omitempty"` // back-reference to parent feed
+	ID        string     `json:"id,omitempty"`
+	Href      *href.Href `json:"href,omitempty"`
+	Sources   []ImageSrc `json:"sources,omitempty"`
+	Title     string     `json:"title,omitempty"`
+	Alt       string     `json:"alt,omitempty"`
+	Caption   string     `json:"caption,omitempty"`
+	Width     int        `json:"width,omitempty"`
+	Height    int        `json:"height,omitempty"`
+	ItemID    string     `json:"item_id,omitempty"`    // back-reference to parent item
+	FeedID    string     `json:"feed_id,omitempty"`    // back-reference to parent feed
+	WebsiteID string     `json:"website_id,omitempty"` // back-reference to parent website
 }
 type ImageSrc struct {
 	Href   *href.Href `json:"href,omitempty"`
@@ -33,12 +36,17 @@ type ImageSrc struct {
 }
 
 // ParseImages() extracts images from an item's HTML content
-func ParseImages(item *Item, bytes []byte) (images []*Image) {
+func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
 	var base href.Href = href.Href(*item.URL)
-	var document hypergraph.Document = hypergraph.Document{Href: item.URL.String(), Bytes: bytes}
+	var document hypergraph.Document = hypergraph.Document{Href: item.URL.String()}
 	var ctx context.Context = context.Background()
 	var err error
-	if err = document.Scrape(ctx, true, nil); err != nil {
+	if document.HTML, err = html.Parse(bytes.NewReader(htmlBytes)); err == nil {
+		document.Root = document.HTML
+	} else {
+		return images
+	}
+	if err = document.Scrape(ctx, true, nil, 5); err != nil {
 		return images
 	}
 	for _, i := range document.Images {
@@ -47,7 +55,7 @@ func ParseImages(item *Item, bytes []byte) (images []*Image) {
 			Alt:     i.Alt,
 			Caption: i.Caption,
 			ItemID:  item.Identifier(),
-			FeedID:  item.FeedID,
+			FeedID:  item.Feed.Identifier(),
 		}
 		for _, s := range i.Sources {
 			var src ImageSrc
@@ -88,19 +96,19 @@ func (image *Image) Identifier() string {
 	return image.ID
 }
 
-func (Image) DatabaseView() string {
+func (*Image) DatabaseView() string {
 	return "images_view"
 }
-func (Image) DatabaseViewIdentifier() string {
+func (*Image) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (Image) DatabaseObject() string {
+func (*Image) DatabaseObject() string {
 	return "image"
 }
-func (Image) DatabaseTable() string {
+func (*Image) DatabaseTable() string {
 	return "images"
 }
-func (Image) DatabaseTableIdentifier() string {
+func (*Image) DatabaseTableIdentifier() string {
 	return "id"
 }
 func (image *Image) DatabaseInsertColumns() (columns []string) {
@@ -115,6 +123,7 @@ func (image *Image) DatabaseInsertColumns() (columns []string) {
 		"height",
 		"item_id",
 		"feed_id",
+		"website_id",
 	}
 }
 func (image *Image) DatabaseInsertValues() (args []any) {
@@ -132,10 +141,11 @@ func (image *Image) DatabaseInsertValues() (args []any) {
 	args = append(args, image.Height)
 	args = append(args, image.ItemID)
 	args = append(args, image.FeedID)
+	args = append(args, image.WebsiteID)
 	return args
 }
 
-func (Image) DatabaseUpdatesSet() []string {
+func (*Image) DatabaseUpdatesSet() []string {
 	return []string{
 		"href = excluded.href",
 		"sources = excluded.sources",
@@ -144,6 +154,9 @@ func (Image) DatabaseUpdatesSet() []string {
 		"caption = excluded.caption",
 		"width = excluded.width",
 		"height = excluded.height",
+		"item_id = excluded.item_id",
+		"feed_id = excluded.feed_id",
+		"website_id = excluded.website_id",
 	}
 }
 

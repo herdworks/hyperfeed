@@ -25,7 +25,7 @@ type Item struct {
 	FeedAt      time.Time `json:"feed_at,omitempty"`      // default feed order timestamp
 
 	Title       string       `json:"title,omitempty"`
-	Bylines     []Author     `json:"bylines,omitempty"`
+	Bylines     []Byline     `json:"bylines,omitempty"`
 	Summary     string       `json:"summary,omitempty"`
 	Content     string       `json:"content,omitempty"`
 	Images      []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
@@ -39,8 +39,8 @@ type Item struct {
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
 
-	FeedID string `json:"feed_id,omitempty"` // back-reference to parent feed
-	Feed   *Feed  `json:"-"`                 // parent feed (not serialized)
+	// Feed is the parent feed this item belongs to
+	Feed *Feed `json:"-"` // parent feed (not serialized)
 }
 
 // ============================ Item Methods ==================================
@@ -61,7 +61,7 @@ func (item *Item) Identifier() string {
 	}
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier(item.FeedID + u.String())
+		item.ID = normalized.Identifier(item.Feed.Identifier() + u.String())
 	}
 	return item.ID
 }
@@ -92,22 +92,22 @@ func (item *Item) TimelineAt(timelinePosition time.Time) (ts time.Time) {
 	return timelinePosition.Add(1 * time.Minute) // nudge item into timeline
 }
 
-func (Item) DatabaseView() string {
+func (*Item) DatabaseView() string {
 	return "items_view"
 }
-func (Item) DatabaseViewIdentifier() string {
+func (*Item) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (Item) DatabaseObject() string {
+func (*Item) DatabaseObject() string {
 	return "item"
 }
-func (Item) DatabaseTable() string {
+func (*Item) DatabaseTable() string {
 	return "items"
 }
-func (Item) DatabaseTableIdentifier() string {
+func (*Item) DatabaseTableIdentifier() string {
 	return "id"
 }
-func (Item) DatabaseInsertColumns() (columns []string) {
+func (*Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
@@ -121,12 +121,17 @@ func (Item) DatabaseInsertColumns() (columns []string) {
 		"updated_at",
 		"feed_at",
 		"feed_id",
+		"website_id",
 	}
 }
 func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.Identifier())
 	args = append(args, item.URL.String())
-	args = append(args, fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", ")))
+	if len(item.ExternalHrefs) > 0 {
+		args = append(args, fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", ")))
+	} else {
+		args = append(args, "[]")
+	}
 	args = append(args, item.Title)
 	args = append(args, strings.TrimSpace(item.Summary))
 	args = append(args, strings.TrimSpace(item.Content))
@@ -135,7 +140,8 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.FeedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.FeedID)
+	args = append(args, item.Feed.Identifier())
+	args = append(args, item.Feed.Website.Identifier())
 	return args
 }
 func (item *Item) DatabaseUpdatesSet() []string {
@@ -147,6 +153,7 @@ func (item *Item) DatabaseUpdatesSet() []string {
 		"content = excluded.content",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
+		"website_id = excluded.website_id",
 	}
 }
 
@@ -160,6 +167,6 @@ func (item *Item) Hash() string {
 		strings.TrimSpace(item.Content),
 		item.PublishedAt.UTC().Format(time.RFC3339),
 		item.ModifiedAt.UTC().Format(time.RFC3339),
-		item.FeedID,
+		item.Feed.Identifier(),
 	)
 }

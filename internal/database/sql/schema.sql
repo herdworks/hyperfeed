@@ -32,18 +32,39 @@ CREATE TABLE IF NOT EXISTS subscriptionlists (
     PRIMARY KEY ([id])
 );
 
+-- Websites table
+CREATE TABLE IF NOT EXISTS websites (
+    [id] TEXT,
+    [href] TEXT GENERATED ALWAYS AS ([html_url]) STORED,
+    [html_url] TEXT,
+    [favicon_url] TEXT,
+    [cover_url] TEXT,
+    [mentions_url] TEXT,
+    [email] TEXT,
+    [name] TEXT,
+    [username] TEXT,
+    [description] TEXT,
+    [verified] INTEGER DEFAULT 0 CHECK ([verified] IN (0, 1)),
+    [status] TEXT NOT NULL DEFAULT '{}', -- Website.Status JSON string
+
+    PRIMARY KEY ([id])
+);
+CREATE INDEX IF NOT EXISTS websites_id_index ON websites([id]);
+CREATE INDEX IF NOT EXISTS websites_href_index ON websites([href]);
+CREATE INDEX IF NOT EXISTS websites_html_url_index ON websites([html_url]);
+CREATE INDEX IF NOT EXISTS websites_username_index ON websites([username]);
+CREATE INDEX IF NOT EXISTS websites_email_index ON websites([email]);
+
 -- Feeds table
 CREATE TABLE IF NOT EXISTS feeds (
     [id] TEXT,
     [url] TEXT UNIQUE,
     [html_url] TEXT,
-    [favicon_url] TEXT,
-    [updated_at] TIMESTAMP,
     [title] TEXT,
     [description] TEXT,
     [language] TEXT,
-
-    [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
+    [interval] TEXT,
+    [updated_at] TIMESTAMP,
 
     -- NOTE:
     --   [status_code] is an example computed column for indexing [status] JSON subfields.
@@ -53,31 +74,33 @@ CREATE TABLE IF NOT EXISTS feeds (
     --   Use VIRTUAL for unindexed columns or write-heavy workloads, STORED for indexed columns or read-heavy workloads
     [status_code] INT GENERATED ALWAYS AS (json_extract(status, '$.last_status_code')) VIRTUAL,
 
+    [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
+
     [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
+    [website_id] TEXT REFERENCES websites([id]),
 
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds([id]);
 CREATE INDEX IF NOT EXISTS feeds_url_index ON feeds([url]);
 CREATE INDEX IF NOT EXISTS feeds_html_url_index ON feeds([html_url]);
-CREATE INDEX IF NOT EXISTS feeds_favicon_url_index ON feeds([favicon_url]);
 CREATE INDEX IF NOT EXISTS feeds_status_code_index ON feeds([status_code]);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
+    [website_id] TEXT REFERENCES websites([id]),
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
     [id] TEXT,
-    [url] TEXT,
-    [external_hrefs] TEXT NOT NULL DEFAULT '[]', -- JSON array of external URL strings
     [published_at] TIMESTAMP,
     [modified_at] TIMESTAMP,
     [added_at] TIMESTAMP,
     [updated_at] TIMESTAMP,
     [feed_at] TIMESTAMP,
+    [url] TEXT,
+    [external_hrefs] TEXT NOT NULL DEFAULT '[]', -- JSON array of external URL strings
     [title] TEXT,
     [summary] TEXT,
     [content] TEXT,
-
-    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
 
     PRIMARY KEY ([id])
 );
@@ -91,25 +114,19 @@ CREATE INDEX IF NOT EXISTS items_updated_at_index ON items([updated_at] DESC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_asc ON items([feed_at] ASC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_desc ON items([feed_at] DESC);
 
--- Authors table
-CREATE TABLE IF NOT EXISTS authors (
+-- Bylines table
+CREATE TABLE IF NOT EXISTS bylines (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT,
-    [username] TEXT,
     [name] TEXT,
-    [description] TEXT,
-    [favicon] TEXT,
-    [cover] TEXT,
-    [verified] INTEGER DEFAULT 0 CHECK ([verified] IN (0, 1)),
     [email] TEXT,
-    [source] TEXT,
 
     PRIMARY KEY ([id])
 );
-CREATE INDEX IF NOT EXISTS authors_id_index ON authors([id]);
-CREATE INDEX IF NOT EXISTS authors_href_index ON authors([href]);
-CREATE INDEX IF NOT EXISTS authors_verified_index ON authors([verified]);
-CREATE INDEX IF NOT EXISTS authors_source_index ON authors([source]);
+CREATE INDEX IF NOT EXISTS bylines_id_index ON bylines([id]);
+CREATE INDEX IF NOT EXISTS bylines_href_index ON bylines([href]);
+CREATE INDEX IF NOT EXISTS bylines_name_index ON bylines([name]);
+CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 
 -- Images table
 CREATE TABLE IF NOT EXISTS images (
@@ -124,12 +141,14 @@ CREATE TABLE IF NOT EXISTS images (
 
     [item_id] TEXT NOT NULL REFERENCES items([id]),
     [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+    [website_id] TEXT NOT NULL REFERENCES websites([id]),
 
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS images_href_index ON images([href]);
 CREATE INDEX IF NOT EXISTS images_item_id_index ON images([item_id]);
 CREATE INDEX IF NOT EXISTS images_feed_id_index ON images([feed_id]);
+CREATE INDEX IF NOT EXISTS images_website_id_index ON images([website_id]);
 
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
@@ -141,13 +160,17 @@ CREATE TABLE IF NOT EXISTS attachments (
     [title] TEXT,
     [labels] TEXT,
 
-    [item_id] TEXT REFERENCES items([id]),
+    [item_id] TEXT NOT NULL REFERENCES items([id]),
+    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+    [website_id] TEXT NOT NULL REFERENCES websites([id]),
 
     PRIMARY KEY ([url],[item_id]) -- Composite PK
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
 CREATE INDEX IF NOT EXISTS attachments_url_index ON attachments([url]);
 CREATE INDEX IF NOT EXISTS attachments_item_id_index ON attachments([item_id]);
+CREATE INDEX IF NOT EXISTS attachments_feed_id_index ON attachments([feed_id]);
+CREATE INDEX IF NOT EXISTS attachments_website_id_index ON attachments([website_id]);
 
 -- Cache table
 CREATE TABLE IF NOT EXISTS cache (
@@ -186,40 +209,32 @@ CREATE TABLE IF NOT EXISTS metadata_relation (
     [subscription_id] TEXT REFERENCES subscriptionlists([id]),
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
-    [author_id] TEXT REFERENCES authors([id]),
     [metadata_id] INTEGER NOT NULL REFERENCES metadata([id]),
 
-    CHECK((subscription_id IS NOT NULL) OR (feed_id IS NOT NULL) OR (item_id IS NOT NULL) OR (author_id IS NOT NULL)),
+    CHECK((subscription_id IS NOT NULL) OR (feed_id IS NOT NULL) OR (item_id IS NOT NULL)),
 
     UNIQUE (subscription_id, metadata_id),
     UNIQUE (feed_id, metadata_id),
     UNIQUE (item_id, metadata_id),
-    UNIQUE (author_id, metadata_id),
 
-    PRIMARY KEY([subscription_id], [feed_id], [item_id], [author_id])
+    PRIMARY KEY([subscription_id], [feed_id], [item_id])
 );
 CREATE INDEX IF NOT EXISTS metadata_relation_subscription_id_index ON metadata_relation([subscription_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_feed_id_index ON metadata_relation([feed_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_item_id_index ON metadata_relation([item_id]);
-CREATE INDEX IF NOT EXISTS metadata_relation_author_id_index ON metadata_relation([author_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relation([metadata_id]);
 
 -- Author-Relation join table
-CREATE TABLE IF NOT EXISTS author_relation (
+CREATE TABLE IF NOT EXISTS item_bylines (
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
-    [author_id] TEXT NOT NULL REFERENCES authors([id]),
+    [byline_id] TEXT NOT NULL REFERENCES bylines([id]),
 
-    CHECK((feed_id IS NOT NULL) OR (item_id IS NOT NULL)),
-
-    UNIQUE (feed_id, author_id),
-    UNIQUE (item_id, author_id),
-
-    PRIMARY KEY([feed_id], [item_id], [author_id])
+    PRIMARY KEY([item_id], [byline_id])
 );
-CREATE INDEX IF NOT EXISTS author_relation_feed_id_index ON author_relation([feed_id]);
-CREATE INDEX IF NOT EXISTS author_relation_item_id_index ON author_relation([item_id]);
-CREATE INDEX IF NOT EXISTS author_relation_author_id_index ON author_relation([author_id]);
+CREATE INDEX IF NOT EXISTS item_bylines_feed_id_index ON item_bylines([feed_id]);
+CREATE INDEX IF NOT EXISTS item_bylines_item_id_index ON item_bylines([item_id]);
+CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_id]);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -241,41 +256,69 @@ FROM
     [subscriptionlists]
 ;
 
+-- WebsitesView
+CREATE VIEW IF NOT EXISTS websites_view AS
+SELECT
+    json_object(
+        'id', [websites].[id],
+        'html_url', [websites].[html_url],
+        'favicon_url', [websites].[favicon_url],
+        'cover_url', [websites].[cover_url],
+        'mentions_url', [websites].[mentions_url],
+        'email', [websites].[email],
+        'name', [websites].[name],
+        'username', [websites].[username],
+        'description', [websites].[description],
+        'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+    ) AS 'website',
+    [websites].[id],
+    [websites].[html_url],
+    [websites].[username],
+    [websites].[email]
+FROM
+    [websites]
+;
+
 -- FeedsView
 CREATE VIEW IF NOT EXISTS feeds_view AS
 SELECT
     json_object(
         'id', [feeds].[id],
+        'updated_at', [feeds].[updated_at],
         'url', [feeds].[url],
         'html_url', [feeds].[html_url],
-        'favicon_url', [feeds].[favicon_url],
-        'updated_at', [feeds].[updated_at],
         'title', [feeds].[title],
         'description', [feeds].[description],
-        'authors', COALESCE(json_group_array(json_object(
-            'id', [authors].[id],
-            'href', [authors].[href],
-            'username', [authors].[username],
-            'name', [authors].[name],
-            'description', [authors].[description],
-            'favicon', [authors].[favicon],
-            'cover', [authors].[cover],
-            'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
-            'email', [authors].[email],
-            'source', [authors].[source]
-        )) FILTER (WHERE [authors].[id] IS NOT NULL), json('[]')),
         'language', [feeds].[language],
+        'website', COALESCE(
+            (
+                SELECT json_object(
+                    'id', [websites].[id],
+                    'html_url', [websites].[html_url],
+                    'favicon_url', [websites].[favicon_url],
+                    'cover_url', [websites].[cover_url],
+                    'mentions_url', [websites].[mentions_url],
+                    'email', [websites].[email],
+                    'name', [websites].[name],
+                    'username', [websites].[username],
+                    'description', [websites].[description],
+                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+                )
+                FROM [websites]
+                WHERE [websites].[id] = [feeds].[website_id]
+                LIMIT 1
+            ),
+            json('{}')
+        ),
         'status', json([feeds].[status]),
         'subscriptionlist_id', [feeds].[subscriptionlist_id]
     ) AS 'feed',
     [feeds].[id],
     [feeds].[url],
     [feeds].[updated_at],
-    COUNT([authors].[id]) AS [author_count]
+    [feeds].[website_id]
 FROM
     [feeds]
-    LEFT OUTER JOIN [author_relation] ON [author_relation].[feed_id] = [feeds].[id]
-    LEFT OUTER JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
 GROUP BY
     [feeds].[id]
 ;
@@ -292,54 +335,60 @@ SELECT
         'added_at', [items].[added_at],
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
-        'authors', COALESCE(
+        'website', COALESCE(
+            (
+                SELECT json_object(
+                    'id', [websites].[id],
+                    'html_url', [websites].[html_url],
+                    'favicon_url', [websites].[favicon_url],
+                    'cover_url', [websites].[cover_url],
+                    'mentions_url', [websites].[mentions_url],
+                    'email', [websites].[email],
+                    'name', [websites].[name],
+                    'username', [websites].[username],
+                    'description', [websites].[description],
+                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+                )
+                FROM [websites]
+                WHERE [websites].[id] = [items].[website_id]
+                LIMIT 1
+            ),
+            json('{}')
+        ),
+        'title', [items].[title],
+        'bylines', COALESCE(
             (
                 SELECT json_group_array(json_object(
-                    'id', [a].[id],
-                    'href', [a].[href],
-                    'username', [a].[username],
-                    'name', [a].[name],
-                    'description', [a].[description],
-                    'favicon', [a].[favicon],
-                    'cover', [a].[cover],
-                    'verified', CASE WHEN [a].[verified] = 1 THEN json('true') ELSE json('false') END,
-                    'email', [a].[email],
-                    'source', [a].[source]
+                    'id', [bylines].[id],
+                    'href', [bylines].[href],
+                    'name', [bylines].[name],
+                    'email', [bylines].[email]
                 ))
-                FROM (
-                    SELECT DISTINCT [authors].*
-                    FROM [author_relation]
-                    JOIN [authors] ON [authors].[id] = [author_relation].[author_id]
-                    WHERE [author_relation].[item_id] = [items].[id]
-                       OR ([author_relation].[item_id] IS NULL AND [author_relation].[feed_id] = [items].[feed_id])
-                ) AS [a]
+                FROM [item_bylines]
+                INNER JOIN [bylines] ON [bylines].[id] = [item_bylines].[byline_id]
+				WHERE [item_bylines].[item_id] = [items].[id]
             ),
             json('[]')
         ),
-        'title', [items].[title],
         'images', COALESCE(
             (
                 SELECT json_group_array(json_object(
-                    'id', [i].[id],
-                    'href', [i].[href],
-                    'sources', json([i].[sources]),
-                    'title', [i].[title],
-                    'alt', [i].[alt],
-                    'caption', [i].[caption],
-                    'width', [i].[width],
-                    'height', [i].[height]
+                    'id', [images].[id],
+                    'href', [images].[href],
+                    'sources', json([images].[sources]),
+                    'title', [images].[title],
+                    'alt', [images].[alt],
+                    'caption', [images].[caption],
+                    'width', [images].[width],
+                    'height', [images].[height]
                 ))
-                FROM (
-                    SELECT DISTINCT [id], [href], [sources], [title], [alt], [caption], [width], [height]
-                    FROM [images]
-                    WHERE [item_id] = [items].[id]
-                ) AS [i]
+                FROM [images]
+                WHERE [images].[item_id] = [items].[id]
             ),
             json('[]')
         ),
         'summary', [items].[summary],
-        'content', [items].[content],
-        'feed_id', [items].[feed_id]
+        'content', [items].[content]
     ) AS [item],
     [items].[id],
     [items].[url],
@@ -356,28 +405,22 @@ ORDER BY
     [items].[added_at] DESC
 ;
 
--- AuthorsView
-CREATE VIEW IF NOT EXISTS authors_view AS
+-- BylinesView
+CREATE VIEW IF NOT EXISTS bylines_view AS
 SELECT
     json_object(
-        'id', [authors].[id],
-        'href', [authors].[href],
-        'username', [authors].[username],
-        'name', [authors].[name],
-        'description', [authors].[description],
-        'favicon', [authors].[favicon],
-        'cover', [authors].[cover],
-        'verified', CASE WHEN authors.verified = 1 THEN json('true') ELSE json('false') END,
-        'email', [authors].[email],
-        'source', [authors].[source]
-    ) as 'author',
-    [authors].[id],
-    [authors].[href],
-    [authors].[name],
-    [authors].[username],
-    [authors].[source]
+        'id', [bylines].[id],
+        'href', [bylines].[href],
+        'name', [bylines].[name],
+        'email', [bylines].[email],
+        'favicon', [bylines].[favicon]
+    ) as 'byline',
+    [bylines].[id],
+    [bylines].[href],
+    [bylines].[name],
+    [bylines].[email]
 FROM
-    [authors]
+    [bylines]
 ;
 
 -- ImagesView

@@ -29,7 +29,9 @@ type Attachment struct {
 	Mimetype string     `json:"mimetype,omitempty"` // MIME type
 	Labels   []string   `json:"labels,omitempty"`
 
-	ItemID string `json:"-"` // back-reference to parent item
+	ItemID    string `json:"-"` // back-reference to parent item
+	FeedID    string `json:"-"` // back-reference to parent feed
+	WebsiteID string `json:"-"` // back-reference to parent website
 }
 
 // ============================ Attachment Methods ============================
@@ -52,22 +54,22 @@ func (attachment *Attachment) Identifier() string {
 	}
 	return attachment.ID
 }
-func (Attachment) DatabaseView() (name string) {
+func (*Attachment) DatabaseView() (name string) {
 	return "attachments_view"
 }
-func (Attachment) DatabaseViewIdentifier() string {
+func (*Attachment) DatabaseViewIdentifier() string {
 	return "id"
 }
-func (Attachment) DatabaseObject() string {
+func (*Attachment) DatabaseObject() string {
 	return "attachment"
 }
-func (Attachment) DatabaseTable() string {
+func (*Attachment) DatabaseTable() string {
 	return "attachments"
 }
-func (Attachment) DatabaseTableIdentifier() string {
+func (*Attachment) DatabaseTableIdentifier() string {
 	return "id"
 }
-func (Attachment) DatabaseInsertColumns() (columns []string) {
+func (*Attachment) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
@@ -77,12 +79,11 @@ func (Attachment) DatabaseInsertColumns() (columns []string) {
 		"mimetype",
 		"labels",
 		"item_id",
+		"feed_id",
+		"website_id",
 	}
 }
 func (attachment *Attachment) DatabaseInsertValues() (values []any) {
-	// if attachment.ItemID == "" {
-	// 	fmt.Printf("WARNING: Attachment missing ItemID back-reference: %+v\n", attachment)
-	// }
 	values = append(values, attachment.Identifier())
 	values = append(values, attachment.URL.String())
 	values = append(values, attachment.Title)
@@ -91,6 +92,8 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, attachment.Mimetype)
 	values = append(values, strings.Join(attachment.Labels, ", "))
 	values = append(values, attachment.ItemID)
+	values = append(values, attachment.FeedID)
+	values = append(values, attachment.WebsiteID)
 	return values
 }
 func (attachment *Attachment) DatabaseUpdatesSet() []string {
@@ -101,6 +104,8 @@ func (attachment *Attachment) DatabaseUpdatesSet() []string {
 		"mimetype = excluded.mimetype",
 		"labels = excluded.labels",
 		"item_id = excluded.item_id",
+		"feed_id = excluded.feed_id",
+		"website_id = excluded.website_id",
 	}
 }
 func (attachment *Attachment) Hash() string {
