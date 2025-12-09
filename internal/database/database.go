@@ -314,6 +314,9 @@ func (Database) WriteParameters(columns []string) (params []string) {
 }
 
 func (Database) RecordsMatch(a, b DatabaseRow) bool {
+	if a == nil || b == nil {
+		return false
+	}
 	return a.Hash() == b.Hash()
 }
 

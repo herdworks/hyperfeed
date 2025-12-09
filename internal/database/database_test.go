@@ -5,10 +5,12 @@ import (
 	"net/url"
 	"path/filepath"
 	"testing"
+	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
 	"github.com/herdworks/hyperfeed-go/types/opml"
+	hypergraph "github.com/herdworks/hypergraph-go/types"
 )
 
 func TestOpenAndSchema(t *testing.T) {
@@ -126,15 +128,35 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		err    error
 	}{
 		{
+			name: "SubscriptionList record",
+			writer: &hyperfeed.SubscriptionList{
+				Path:      "following.opml",
+				OPML:      &opml.OPML{},
+				CreatedAt: time.Now().UTC(),
+			},
+			reader: &hyperfeed.SubscriptionList{
+				Path: "following.opml",
+			},
+		},
+		{
+			name:   "Website record",
+			writer: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com", FaviconURL: "https://example.com/favicon.ico"}},
+			reader: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+			err:    nil,
+		},
+		{
 			name: "Feed record",
 			writer: &hyperfeed.Feed{
-				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
-				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
-				Title:   "Example Feed",
-				Status:  &hyperfeed.Status{},
+				URL:                &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				HTMLURL:            &href.Href{Scheme: "https", Host: "example.com"},
+				Title:              "Example Feed",
+				Status:             &hyperfeed.Status{},
+				Website:            hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+				SubscriptionListID: (&hyperfeed.SubscriptionList{Path: "following.opml", OPML: &opml.OPML{}}).Identifier(),
 			},
 			reader: &hyperfeed.Feed{
-				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
 			},
 			err: nil,
 		},
@@ -149,10 +171,16 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Validate inputs
+			if tc.writer == nil || tc.reader == nil {
+				t.Fatal("test case writer and reader must be non-nil")
+			}
 			if db.RecordsMatch(tc.writer, tc.reader) {
 				t.Fatalf("pre-test row and reader should differ;\n\trow:    %#v\n\treader: %#v", tc.writer, tc.reader)
 			}
 			// Test upsert
+			if err = db.UpsertRow(ctx, tc.writer); err != nil {
+				t.Fatalf("insert feed: %v", err)
+			}
 			if err = db.UpsertRow(ctx, tc.writer); err != nil {
 				t.Fatalf("insert feed: %v", err)
 			}

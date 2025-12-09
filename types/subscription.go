@@ -155,12 +155,10 @@ func (subscription *SubscriptionList) DatabaseUpdatesSet() []string {
 
 func (subscription *SubscriptionList) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s",
+		"%s|%s|%s|%s",
 		subscription.Identifier(),
 		subscription.Path,
 		subscription.Title,
-		subscription.Owner.Name,
-		subscription.Owner.Email,
 		subscription.CreatedAt.UTC().Format(time.RFC3339),
 	)
 }
