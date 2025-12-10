@@ -464,28 +464,24 @@ func (parser *NoFeedParser) Parse(_ time.Time) (*hyperfeed.Feed, error) {
 // FUNCTIONS ===================================================================
 
 // NewFeedParser detects and returns an appropriate FeedParserKind for the given feed bytes.
-func NewFeedParser(origin *url.URL, bytes []byte, feed *hyperfeed.Feed) (parser FeedParser) {
-	u := href.Href(*origin)
-	if feed == nil {
-		feed = &hyperfeed.Feed{URL: &u}
-	}
-	if feed.URL == nil {
-		feed.URL = &u
-	}
-	if feed.Status == nil {
-		feed.Status = &hyperfeed.Status{}
+func NewFeedParser(feed *hyperfeed.Feed, bytes []byte) (parser FeedParser, err error) {
+	if bytes == nil || feed == nil || feed.URL == nil {
+		return nil, errors.Join(ErrParserInitialization, errors.New("nil feed passed to NewFeedParser()"))
 	}
 	switch {
 	case len(bytes) == 0:
+		feed.Kind = "unknown"
 		parser = &NoFeedParser{Feed: feed}
 	case rss.Detected(bytes):
+		feed.Kind = "rss"
 		parser = &RSSFeedParser{Bytes: bytes, Feed: feed}
 	case atom.Detected(bytes):
+		feed.Kind = "atom"
 		parser = &AtomFeedParser{Bytes: bytes, Feed: feed}
 	case jsonfeed.Detected(bytes):
 		parser = &JSONFeedParser{Bytes: bytes, Feed: feed}
 	}
-	return parser
+	return parser, nil
 }
 
 func FeedKind(bytes []byte) (kind string) {

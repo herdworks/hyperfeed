@@ -123,11 +123,10 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 
 	// check feed status
 	if feeder.Feed == nil {
-		feeder.Feed = &hyperfeed.Feed{URL: &href.Href{}, Status: &hyperfeed.Status{}}
+		feeder.Feed = &hyperfeed.Feed{URL: &href.Href{}}
 		return false, ErrFeed // feeder must have a feed
 	}
-	if feeder.Feed.Status == nil {
-		feeder.Feed.Status = &hyperfeed.Status{}
+	if feeder.Feed.Status.UpdatedAt.IsZero() {
 		return true, nil // new feed
 	}
 
@@ -178,9 +177,6 @@ func (feeder *Feeder) Request(ctx context.Context) (request *http.Request, err e
 // Apply updates the feeder state based on the transporter response.
 // Implementation must update error counters, compute backoff, and persist state.
 func (feeder *Feeder) Apply(response *http.Response) {
-	if feeder.Status == nil {
-		feeder.Status = &hyperfeed.Status{LastStatusCodes: []int{}}
-	}
 	feeder.ApplyReset(response)
 	feeder.ApplyTimestamps(response)
 	feeder.ApplyStatusCode(response)
@@ -295,15 +291,13 @@ func (feeder *Feeder) LogErrors(response *http.Response, err error) {
 
 func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, timelinePosition time.Time) (err error) {
 	var parser FeedParser
-	if bytes == nil {
-		return nil // nothing to parse
-	}
-	if parser = NewFeedParser(u, bytes, feeder.Feed); parser == nil {
+	if parser, err = NewFeedParser(feeder.Feed, bytes); err != nil || parser == nil {
 		return err
 	}
-	if feeder.Feed, err = parser.Parse(timelinePosition); err != nil {
+	if _, err = parser.Parse(timelinePosition); err != nil {
 		return err
 	}
+	// feeder.Feed = parser.Feed
 	return nil
 }
 

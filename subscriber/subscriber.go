@@ -34,17 +34,6 @@ type Config struct {
 	// DefaultInterval is the baseline polling interval when no hints are available.
 	// Implementations must never schedule requests more frequently than this value.
 	DefaultInterval time.Duration `json:"default_interval"`
-
-	// MinInterval constrains how aggressively we can poll, even when feeds publish explicit TTL hints.
-	// Implementations must clamp decisions to this floor to avoid overwhelming origins.
-	MinInterval time.Duration `json:"min_interval"`
-
-	// MaxInterval caps how stale a feed is allowed to become.
-	// Implementations must clamp decisions to this ceiling even when the origin suggests very long TTLs, unless the operator explicitly overrides the value.
-	MaxInterval time.Duration `json:"max_interval"`
-
-	// StartupGracePeriod allows newly subscribed feeds to be fetched more aggressively during onboarding without violating server hints.
-	StartupGracePeriod time.Duration `json:"startup_grace_period"`
 }
 
 // Status holds Subscriber runtime status information
@@ -79,9 +68,6 @@ var (
 var (
 	DefaultFeederConfig = &Config{
 		DefaultInterval:    IntervalActivityHigh,
-		MinInterval:        IntervalActivityLive,
-		MaxInterval:        IntervalActivityDaily,
-		StartupGracePeriod: 5 * time.Minute,
 	}
 	IntervalActivityLive   = 1 * time.Minute
 	IntervalActivityHigh   = 10 * time.Minute
@@ -126,9 +112,9 @@ func (subscriber *Subscriber) Init(ctx context.Context, config *Config) (err err
 			subscriber.Config.DatabasePath = filepath.Join(pwd, "hyperfeed.db") // default to current working directory
 		}
 	}
+	subscriber.Database.Path = filepath.Clean(subscriber.Config.DatabasePath)
 
 	// Open the database, creating it if necessary
-	subscriber.Database.Path = filepath.Clean(subscriber.Config.DatabasePath)
 	if err = subscriber.Database.Open(ctx); err != nil {
 		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
 	}
@@ -270,9 +256,8 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 
 	// Refresh all feeds concurrently
 	for _, feed := range feeds {
-		f := feed // capture range variable
 		ff := &feeder.Feeder{
-			Feed:     f,
+			Feed:     feed,
 			Database: subscriber.Database,
 		}
 		if ff.Feed.Interval == 0 {

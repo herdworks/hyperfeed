@@ -28,8 +28,9 @@ type Feed struct {
 	Interval           time.Duration `json:"interval,omitempty"` // fetch interval in minutes
 	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
 	Website            Website       `json:"website,omitempty"`             // the Website this feed is associated with
-	Status             *Status       `json:"status,omitempty"`              // fetch status
+	Status             Status        `json:"status,omitempty"`              // fetch status
 	SubscriptionListID string        `json:"subscriptionlist_id,omitempty"` // the SubscriptionList.ID this feed originated from
+	Kind               string        `json:"kind,omitempty"`                // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
 
 	Items []*Item `json:"-"` // the most recent items for this feed
 	Bytes []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
@@ -101,9 +102,6 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 
 func (feed *Feed) HyperGraphEntity(ctx context.Context) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
-	if feed.Status == nil {
-		feed.Status = &Status{}
-	}
 	if !feed.Status.LastEntityUpdateAt.IsZero() && time.Since(feed.Status.LastEntityUpdateAt) < 24*time.Hour {
 		return nil // recently updated
 	}
@@ -163,11 +161,10 @@ func (feed *Feed) DatabaseInsertValues() (values []any) {
 	values = append(values, feed.Language)                               // language
 	values = append(values, feed.Interval.String())                      // interval
 	values = append(values, feed.UpdatedAt.UTC().Format(time.RFC3339))   // updated_at
-	if feed.Status == nil {
-		values = append(values, "{}") // default status
-	} else {
-		statusBytes, _ := json.Marshal(feed.Status)
+	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
 		values = append(values, string(statusBytes)) // status
+	} else {
+		values = append(values, "{}") // status
 	}
 	values = append(values, feed.SubscriptionListID)   // subscriptionlist_id
 	values = append(values, feed.Website.Identifier()) // website_id
