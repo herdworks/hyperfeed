@@ -261,10 +261,10 @@ CREATE VIEW IF NOT EXISTS websites_view AS
 SELECT
     json_object(
         'id', [websites].[id],
-        'html_url', [websites].[html_url],
-        'favicon_url', [websites].[favicon_url],
-        'cover_url', [websites].[cover_url],
-        'mentions_url', [websites].[mentions_url],
+        'html_url', NULLIF([websites].[html_url], ''),
+        'favicon_url', NULLIF([websites].[favicon_url], ''),
+        'cover_url', NULLIF([websites].[cover_url], ''),
+        'mentions_url', NULLIF([websites].[mentions_url], ''),
         'email', [websites].[email],
         'name', [websites].[name],
         'username', [websites].[username],
@@ -294,10 +294,10 @@ SELECT
             (
                 SELECT json_object(
                     'id', [websites].[id],
-                    'html_url', [websites].[html_url],
-                    'favicon_url', [websites].[favicon_url],
-                    'cover_url', [websites].[cover_url],
-                    'mentions_url', [websites].[mentions_url],
+                    'html_url', NULLIF([websites].[html_url], ''),
+                    'favicon_url', NULLIF([websites].[favicon_url], ''),
+                    'cover_url', NULLIF([websites].[cover_url], ''),
+                    'mentions_url', NULLIF([websites].[mentions_url], ''),
                     'email', [websites].[email],
                     'name', [websites].[name],
                     'username', [websites].[username],
@@ -339,10 +339,10 @@ SELECT
             (
                 SELECT json_object(
                     'id', [websites].[id],
-                    'html_url', [websites].[html_url],
-                    'favicon_url', [websites].[favicon_url],
-                    'cover_url', [websites].[cover_url],
-                    'mentions_url', [websites].[mentions_url],
+                    'html_url', NULLIF([websites].[html_url], ''),
+                    'favicon_url', NULLIF([websites].[favicon_url], ''),
+                    'cover_url', NULLIF([websites].[cover_url], ''),
+                    'mentions_url', NULLIF([websites].[mentions_url], ''),
                     'email', [websites].[email],
                     'name', [websites].[name],
                     'username', [websites].[username],
