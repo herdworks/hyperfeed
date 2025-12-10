@@ -18,8 +18,9 @@ import (
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
-	ID                 string        `json:"id,omitempty"`  // stable HyperFeed Feed identifier (normalized URL string)
-	URL                *href.Href    `json:"url,omitempty"` // canonical feed URL (RSS/Atom endpoint)
+	ID                 string        `json:"id,omitempty"`   // stable HyperFeed Feed identifier (normalized URL string)
+	Kind               string        `json:"kind,omitempty"` // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
+	URL                *href.Href    `json:"url,omitempty"`  // canonical feed URL (RSS/Atom endpoint)
 	HTMLURL            *href.Href    `json:"html_url,omitempty"`
 	Title              string        `json:"title,omitempty"`
 	Description        string        `json:"description,omitempty"`
@@ -30,7 +31,6 @@ type Feed struct {
 	Website            Website       `json:"website,omitempty"`             // the Website this feed is associated with
 	Status             Status        `json:"status,omitempty"`              // fetch status
 	SubscriptionListID string        `json:"subscriptionlist_id,omitempty"` // the SubscriptionList.ID this feed originated from
-	Kind               string        `json:"kind,omitempty"`                // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
 
 	Items []*Item `json:"-"` // the most recent items for this feed
 	Bytes []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
@@ -140,13 +140,13 @@ func (*Feed) DatabaseTableIdentifier() string {
 func (*Feed) DatabaseInsertColumns() []string {
 	return []string{
 		"id",
+		"kind",
 		"url",
 		"html_url",
 		"title",
 		"description",
 		"language",
 		"interval",
-		"updated_at",
 		"status",
 		"subscriptionlist_id",
 		"website_id",
@@ -154,13 +154,13 @@ func (*Feed) DatabaseInsertColumns() []string {
 }
 func (feed *Feed) DatabaseInsertValues() (values []any) {
 	values = append(values, feed.Identifier())                           // id
+	values = append(values, feed.Kind)                                   // kind
 	values = append(values, normalized.URL(feed.URL.URL()).String())     // url
 	values = append(values, normalized.URL(feed.HTMLURL.URL()).String()) // html_url
 	values = append(values, feed.Title)                                  // title
 	values = append(values, feed.Description)                            // description
 	values = append(values, feed.Language)                               // language
 	values = append(values, feed.Interval.String())                      // interval
-	values = append(values, feed.UpdatedAt.UTC().Format(time.RFC3339))   // updated_at
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
 		values = append(values, string(statusBytes)) // status
 	} else {
@@ -173,12 +173,12 @@ func (feed *Feed) DatabaseInsertValues() (values []any) {
 func (feed *Feed) DatabaseUpdatesSet() []string {
 	return []string{
 		"url = excluded.url",
+		"kind = excluded.kind",
 		"html_url = excluded.html_url",
 		"title = excluded.title",
 		"description = excluded.description",
 		"language = excluded.language",
 		"interval = excluded.interval",
-		"updated_at = excluded.updated_at",
 		"status = excluded.status",
 		// never update subscriptionlist_id
 		"website_id = excluded.website_id",
@@ -189,8 +189,9 @@ func (feed *Feed) DatabaseUpdatesSet() []string {
 // TODO: is this needed for anything other than testing?
 func (feed *Feed) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s|%s",
+		"%s|%s|%s|%s|%s|%s|%s|%s",
 		feed.Identifier(),
+		feed.Kind,
 		normalized.URL(feed.URL.URL()).String(),
 		normalized.URL(feed.HTMLURL.URL()).String(),
 		feed.UpdatedAt.UTC().Format(time.RFC3339),

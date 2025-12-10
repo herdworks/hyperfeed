@@ -202,7 +202,6 @@ func (feeder *Feeder) ApplyTimestamps(response *http.Response) {
 		feeder.Feed.Status.LastAttemptAt = feeder.Feed.Status.UpdatedAt
 	}
 	if response.StatusCode >= http.StatusOK && response.StatusCode < 300 {
-		feeder.Feed.UpdatedAt = feeder.Feed.Status.UpdatedAt
 		feeder.Feed.Status.LastSuccessAt = feeder.Feed.Status.UpdatedAt
 	} else if response.StatusCode == http.StatusNotModified {
 		feeder.Feed.Status.LastSuccessAt = feeder.Feed.Status.UpdatedAt

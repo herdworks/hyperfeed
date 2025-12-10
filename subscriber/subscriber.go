@@ -67,7 +67,7 @@ var (
 // defaults
 var (
 	DefaultFeederConfig = &Config{
-		DefaultInterval:    IntervalActivityHigh,
+		DefaultInterval: IntervalActivityHigh,
 	}
 	IntervalActivityLive   = 1 * time.Minute
 	IntervalActivityHigh   = 10 * time.Minute

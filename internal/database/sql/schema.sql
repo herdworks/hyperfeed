@@ -58,23 +58,22 @@ CREATE INDEX IF NOT EXISTS websites_email_index ON websites([email]);
 -- Feeds table
 CREATE TABLE IF NOT EXISTS feeds (
     [id] TEXT,
+    [kind] TEXT,
     [url] TEXT UNIQUE,
     [html_url] TEXT,
     [title] TEXT,
     [description] TEXT,
     [language] TEXT,
     [interval] TEXT,
-    [updated_at] TIMESTAMP,
+    [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
 
     -- NOTE:
     --   [status_code] is an example computed column for indexing [status] JSON subfields.
     --   To create additional indexed JSON projections, use the same pattern:
-    --     [<column>] [<type>] GENERATED ALWAYS AS (json_extract(status, '$.<json_path>')) VIRTUAL
+    --     [<column>] [<type>] GENERATED ALWAYS AS (json_extract(status, '$.<json_path>')) STORED
     --   This allows efficient filtering/sorting on JSON subfields.
     --   Use VIRTUAL for unindexed columns or write-heavy workloads, STORED for indexed columns or read-heavy workloads
-    [status_code] INT GENERATED ALWAYS AS (json_extract(status, '$.last_status_code')) VIRTUAL,
-
-    [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
+    [updated_at] TIMESTAMP GENERATED ALWAYS AS (json_extract(status, '$.updated_at')) STORED,
 
     [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
     [website_id] TEXT REFERENCES websites([id]),
@@ -82,9 +81,10 @@ CREATE TABLE IF NOT EXISTS feeds (
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS feeds_id_index ON feeds([id]);
+CREATE INDEX IF NOT EXISTS feeds_kind_index ON feeds([kind]);
 CREATE INDEX IF NOT EXISTS feeds_url_index ON feeds([url]);
 CREATE INDEX IF NOT EXISTS feeds_html_url_index ON feeds([html_url]);
-CREATE INDEX IF NOT EXISTS feeds_status_code_index ON feeds([status_code]);
+CREATE INDEX IF NOT EXISTS feeds_updated_at_index ON feeds([updated_at] DESC);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
@@ -285,7 +285,7 @@ CREATE VIEW IF NOT EXISTS feeds_view AS
 SELECT
     json_object(
         'id', [feeds].[id],
-        'updated_at', [feeds].[updated_at],
+        'kind', [feeds].[kind],
         'url', [feeds].[url],
         'html_url', [feeds].[html_url],
         'title', [feeds].[title],
@@ -317,6 +317,7 @@ SELECT
     [feeds].[id],
     [feeds].[url],
     [feeds].[updated_at],
+    [feeds].[subscriptionlist_id],
     [feeds].[website_id]
 FROM
     [feeds]
@@ -427,26 +428,4 @@ SELECT
     [attachments].[item_id]
 FROM
     [attachments]
-;
-
--- CacheView
-CREATE VIEW IF NOT EXISTS cache_view AS
-SELECT
-    json_object(
-        'url', [url],
-        'uri', [uri],
-        'type', [type],
-        'size_in_bytes', [size_in_bytes],
-        'updated_at', [updated_at],
-        'fetched_at', [fetched_at],
-        'http_etag', [http_etag],
-        'http_last_modified', [http_last_modified],
-        'http_expires_at', [http_expires_at],
-        'http_status_code', [http_status_code]
-    ) as 'file',
-    [url],
-    [type],
-    [http_expires_at]
-FROM
-    [cache]
 ;
