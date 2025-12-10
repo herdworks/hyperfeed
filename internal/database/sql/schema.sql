@@ -392,6 +392,7 @@ SELECT
     json_object(
         'id', [images].[id],
         'href', [images].[href],
+        'sources', json([images].[sources]),
         'title', [images].[title],
         'alt', [images].[alt],
         'caption', [images].[caption],
