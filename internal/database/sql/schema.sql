@@ -342,7 +342,7 @@ SELECT
         ), json('{}')),
         'title', [items].[title],
         'bylines', COALESCE((
-            SELECT json([bylines_view].[byline])
+            SELECT json_group_array(json([bylines_view].[byline]))
             FROM [item_bylines]
             INNER JOIN [bylines_view] ON [bylines_view].[id] = [item_bylines].[byline_id]
             WHERE [item_bylines].[item_id] = [items].[id]
@@ -350,7 +350,7 @@ SELECT
         'summary', [items].[summary],
         'content', [items].[content],
         'images', COALESCE((
-            SELECT json([images_view].[image])
+            SELECT json_group_array(json([images_view].[image]))
             FROM [images_view]
             WHERE [images_view].[item_id] = [items].[id]
         ), json('[]'))
