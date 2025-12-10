@@ -113,6 +113,7 @@ CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
 CREATE INDEX IF NOT EXISTS items_updated_at_index ON items([updated_at] DESC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_asc ON items([feed_at] ASC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_desc ON items([feed_at] DESC);
+CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items(feed_at DESC, published_at DESC, added_at DESC);
 
 -- Bylines table
 CREATE TABLE IF NOT EXISTS bylines (
@@ -319,8 +320,6 @@ SELECT
     [feeds].[website_id]
 FROM
     [feeds]
-GROUP BY
-    [feeds].[id]
 ;
 
 -- ItemsView
@@ -335,60 +334,26 @@ SELECT
         'added_at', [items].[added_at],
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
-        'website', COALESCE(
-            (
-                SELECT json_object(
-                    'id', [websites].[id],
-                    'html_url', NULLIF([websites].[html_url], ''),
-                    'favicon_url', NULLIF([websites].[favicon_url], ''),
-                    'cover_url', NULLIF([websites].[cover_url], ''),
-                    'mentions_url', NULLIF([websites].[mentions_url], ''),
-                    'email', [websites].[email],
-                    'name', [websites].[name],
-                    'username', [websites].[username],
-                    'description', [websites].[description],
-                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
-                )
-                FROM [websites]
-                WHERE [websites].[id] = [items].[website_id]
-                LIMIT 1
-            ),
-            json('{}')
-        ),
+        'feed', COALESCE((
+            SELECT
+                json([feeds_view].[feed])
+            FROM [feeds_view]
+            WHERE [feeds_view].[id] = [items].[feed_id]
+        ), json('{}')),
         'title', [items].[title],
-        'bylines', COALESCE(
-            (
-                SELECT json_group_array(json_object(
-                    'id', [bylines].[id],
-                    'href', NULLIF([bylines].[href], ''),
-                    'name', [bylines].[name],
-                    'email', [bylines].[email]
-                ))
-                FROM [item_bylines]
-                INNER JOIN [bylines] ON [bylines].[id] = [item_bylines].[byline_id]
-				WHERE [item_bylines].[item_id] = [items].[id]
-            ),
-            json('[]')
-        ),
-        'images', COALESCE(
-            (
-                SELECT json_group_array(json_object(
-                    'id', [images].[id],
-                    'href', [images].[href],
-                    'sources', json([images].[sources]),
-                    'title', [images].[title],
-                    'alt', [images].[alt],
-                    'caption', [images].[caption],
-                    'width', [images].[width],
-                    'height', [images].[height]
-                ))
-                FROM [images]
-                WHERE [images].[item_id] = [items].[id]
-            ),
-            json('[]')
-        ),
+        'bylines', COALESCE((
+            SELECT json([bylines_view].[byline])
+            FROM [item_bylines]
+            INNER JOIN [bylines_view] ON [bylines_view].[id] = [item_bylines].[byline_id]
+            WHERE [item_bylines].[item_id] = [items].[id]
+        ), json('[]')),
         'summary', [items].[summary],
-        'content', [items].[content]
+        'content', [items].[content],
+        'images', COALESCE((
+            SELECT json([images_view].[image])
+            FROM [images_view]
+            WHERE [images_view].[item_id] = [items].[id]
+        ), json('[]'))
     ) AS [item],
     [items].[id],
     [items].[url],
@@ -398,7 +363,6 @@ SELECT
     [items].[updated_at],
     [items].[feed_at]
 FROM items
-GROUP BY [items].[id]
 ORDER BY
     [items].[feed_at] DESC,
     [items].[published_at] DESC,
@@ -412,8 +376,7 @@ SELECT
         'id', [bylines].[id],
         'href', NULLIF([bylines].[href], ''),
         'name', [bylines].[name],
-        'email', [bylines].[email],
-        'favicon', [bylines].[favicon]
+        'email', [bylines].[email]
     ) as 'byline',
     [bylines].[id],
     [bylines].[href],
