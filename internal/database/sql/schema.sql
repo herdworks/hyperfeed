@@ -360,7 +360,7 @@ SELECT
             (
                 SELECT json_group_array(json_object(
                     'id', [bylines].[id],
-                    'href', [bylines].[href],
+                    'href', NULLIF([bylines].[href], ''),
                     'name', [bylines].[name],
                     'email', [bylines].[email]
                 ))
@@ -410,7 +410,7 @@ CREATE VIEW IF NOT EXISTS bylines_view AS
 SELECT
     json_object(
         'id', [bylines].[id],
-        'href', [bylines].[href],
+        'href', NULLIF([bylines].[href], ''),
         'name', [bylines].[name],
         'email', [bylines].[email],
         'favicon', [bylines].[favicon]
