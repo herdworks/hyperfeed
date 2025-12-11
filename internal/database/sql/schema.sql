@@ -370,6 +370,56 @@ ORDER BY
     [items].[added_at] DESC
 ;
 
+-- PostsView
+CREATE VIEW IF NOT EXISTS posts_view AS
+SELECT
+    json_object(
+        'item', json_object(
+            'id', [items].[id],
+            'url', [items].[url],
+            'external_hrefs', json([items].[external_hrefs]),
+            'published_at', [items].[published_at],
+            'modified_at', [items].[modified_at],
+            'added_at', [items].[added_at],
+            'updated_at', [items].[updated_at],
+            'feed_at', [items].[feed_at],
+            'feed', json('{}'),
+            'title', [items].[title],
+            'bylines', COALESCE((
+                SELECT json_group_array(json([bylines_view].[byline]))
+                FROM [item_bylines]
+                INNER JOIN [bylines_view] ON [bylines_view].[id] = [item_bylines].[byline_id]
+                WHERE [item_bylines].[item_id] = [items].[id]
+            ), json('[]')),
+            'summary', [items].[summary],
+            'content', [items].[content],
+            'images', COALESCE((
+                SELECT json_group_array(json([images_view].[image]))
+                FROM [images_view]
+                WHERE [images_view].[item_id] = [items].[id]
+            ), json('[]'))
+        ),
+        'feed', COALESCE((
+            SELECT
+                json([feeds_view].[feed])
+            FROM [feeds_view]
+            WHERE [feeds_view].[id] = [items].[feed_id]
+        ), json('{}'))
+    ) AS [post],
+    [items].[id],
+    [items].[url],
+    [items].[published_at],
+    [items].[modified_at],
+    [items].[added_at],
+    [items].[updated_at],
+    [items].[feed_at]
+FROM items
+ORDER BY
+    [items].[feed_at] DESC,
+    [items].[published_at] DESC,
+    [items].[added_at] DESC
+;
+
 -- BylinesView
 CREATE VIEW IF NOT EXISTS bylines_view AS
 SELECT
