@@ -402,9 +402,38 @@ SELECT
         ),
         'feed', COALESCE((
             SELECT
-                json([feeds_view].[feed])
-            FROM [feeds_view]
-            WHERE [feeds_view].[id] = [items].[feed_id]
+                json_object(
+                    'id', [feeds].[id],
+                    'kind', [feeds].[kind],
+                    'url', [feeds].[url],
+                    'html_url', [feeds].[html_url],
+                    'title', [feeds].[title],
+                    'description', [feeds].[description],
+                    'language', [feeds].[language],
+                    'website', json('{}'),
+                    'status', [feeds].[status],
+                    'subscriptionlist_id', [feeds].[subscriptionlist_id]
+                )
+            FROM [feeds]
+            WHERE [feeds].[id] = [items].[feed_id]
+        ), json('{}')),
+        'website', COALESCE((
+            SELECT
+                json_object(
+                    'id', [websites].[id],
+                    'html_url', NULLIF([websites].[html_url], ''),
+                    'favicon_url', NULLIF([websites].[favicon_url], ''),
+                    'cover_url', NULLIF([websites].[cover_url], ''),
+                    'mentions_url', NULLIF([websites].[mentions_url], ''),
+                    'email', [websites].[email],
+                    'name', [websites].[name],
+                    'username', [websites].[username],
+                    'description', [websites].[description],
+                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+                )
+            FROM [websites]
+            WHERE [websites].[id] = [items].[website_id]
+            LIMIT 1
         ), json('{}'))
     ) AS [post],
     [items].[id],
