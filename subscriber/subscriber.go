@@ -160,14 +160,10 @@ func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionLis
 		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
 			return feeds, err
 		}
-		if feed.HTMLURL, err = href.Parse(outline.HTMLURL); err != nil {
-			return feeds, err
+		if outline.HTMLURL != "" {
+			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
+			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL)
 		}
-		if !feed.HTMLURL.IsAbs() {
-			feed.HTMLURL = feed.URL.ResolveReference(feed.HTMLURL.URL())
-		}
-		feed.Website.HTMLURL = feed.HTMLURL.String() // stub the feed.Website with the feed HTMLURL (if available)
-		// NOTE: website.HTMLURL is required for website.Identifier()
 		feeds = append(feeds, feed)
 	}
 	return feeds, nil
@@ -210,14 +206,12 @@ func (subscriber *Subscriber) SaveSubscriptionList(ctx context.Context, subscrip
 }
 
 // SaveFeeds persists the provided feeds to the database
+// NOTE: Subscriber.SaveFeeds saves feeds only; it does not save associated Websites
 func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.Feed) (err error) {
 	if err = subscriber.Database.PingContext(ctx); err != nil {
 		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
 	for _, feed := range feeds {
-		if err = subscriber.Database.UpsertRow(ctx, &feed.Website); err != nil {
-			return errors.Join(ErrDatabase, errors.New("upserting website"), err)
-		}
 		if err = subscriber.Database.UpsertRow(ctx, feed); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting feed"), err)
 		}
@@ -268,7 +262,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
 			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
 				if e = ff.Feed.HyperGraphEntity(ctx); e != nil {
-					fmt.Printf("graph %q website error: %v\n", ff.Feed.URL.String(), e)
+					fmt.Printf("graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
 				}
 				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()

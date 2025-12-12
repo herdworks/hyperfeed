@@ -18,6 +18,8 @@ import (
 type RSS struct {
 	Version string  `xml:"version,attr" json:"version,omitempty"`
 	Channel Channel `xml:"channel"`
+
+	Origin *url.URL `xml:"-" json:"-"`
 }
 
 type Channel struct {
@@ -51,7 +53,7 @@ type Item struct {
 	ContentEncoded string      `xml:"http://purl.org/rss/1.0/modules/content/ encoded,omitempty"` // RSS Content Module
 	Authors        []string    `xml:"author"`
 	Comments       string      `xml:"comments"`
-	GUID           *RSSGUID    `xml:"guid"`
+	GUID           RSSGUID     `xml:"guid"`
 	PubDate        string      `xml:"pubDate"`
 	Categories     []Category  `xml:"category"`
 	Enclosures     []Enclosure `xml:"enclosure"`
@@ -85,7 +87,7 @@ type Enclosure struct {
 
 // RSSGUID may include the isPermaLink attribute.
 type RSSGUID struct {
-	IsPermaLink string `xml:"isPermaLink,attr" json:"isPermaLink,omitempty"`
+	IsPermaLink bool   `xml:"isPermaLink,attr" json:"isPermaLink,omitempty"`
 	Value       string `xml:",chardata" json:"value,omitempty"`
 }
 
@@ -246,11 +248,24 @@ func (r *RSS) Link() string {
 		return ""
 	}
 	for _, link := range r.Channel.Links {
-		if link.Href != "" {
+		if link.Rel == "self" || link.Type == "application/rss+xml" {
+			continue // skip self-referencing feed links
+		}
+		if link.Href != "" && link.Href != r.Origin.String() {
 			return link.Href
 		}
 	}
-	return ""
+	for i, item := range r.Channel.Items {
+		if i == 3 {
+			fmt.Printf("WOW!!!")
+			break
+		}
+		if itemLink := LinkURL(item.Links); itemLink != nil {
+			itemLink.Path = "/"
+			return itemLink.String()
+		}
+	}
+	return r.Origin.ResolveReference(&url.URL{Path: "/"}).String()
 }
 
 // ParseAuthor extracts name and email from an RSS author string.

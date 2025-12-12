@@ -29,10 +29,10 @@ var CleanPathReservedFileNames = []string{
 // ============================ Helper Functions ==============================
 
 // URL returns a canonicalized copy of u:
+// - Returns nil if incoming url is nil.
 // - Lowercases scheme and host
 // - Removes default ports (http:80, https:443)
 // - Sorts query parameters (by key and value)
-// - Returns nil if u is nil.
 // - Removes trailing slash from path (except for root "/")
 func URL(incoming *url.URL) *url.URL {
 	if incoming == nil {
@@ -149,6 +149,7 @@ func SanitizeParams(u *url.URL) *url.URL {
 // Inspired by Git's SHA-256-based object naming.
 // https://git-scm.com/docs/hash-function-transition
 func Identifier(incoming string) string {
+	incoming = strings.ToLower(incoming)
 	sum := sha256.Sum256([]byte(incoming))
 	return hex.EncodeToString(sum[:])[:40]
 }

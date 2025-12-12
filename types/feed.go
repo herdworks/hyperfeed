@@ -18,10 +18,10 @@ import (
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
-	ID                 string        `json:"id,omitempty"`   // stable HyperFeed Feed identifier (normalized URL string)
-	Kind               string        `json:"kind,omitempty"` // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
-	URL                *href.Href    `json:"url,omitempty"`  // canonical feed URL (RSS/Atom endpoint)
-	HTMLURL            *href.Href    `json:"html_url,omitempty"`
+	ID                 string        `json:"id,omitempty"`       // stable HyperFeed Feed identifier (normalized URL string)
+	Kind               string        `json:"kind,omitempty"`     // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
+	URL                *href.Href    `json:"url,omitempty"`      // canonical feed URL (RSS/Atom endpoint)
+	HTMLURL            *href.Href    `json:"html_url,omitempty"` // human-readable feed URL (web page)
 	Title              string        `json:"title,omitempty"`
 	Description        string        `json:"description,omitempty"`
 	Language           string        `json:"language,omitempty"`
@@ -112,6 +112,7 @@ func (feed *Feed) HyperGraphEntity(ctx context.Context) (err error) {
 		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
 	feed.Website.Entity = document.Metadata.Entity
+	feed.Website.ID = "" // reset website ID
 	if feed.Website.Status == nil {
 		feed.Website.Status = &Status{}
 	}
@@ -153,21 +154,29 @@ func (*Feed) DatabaseInsertColumns() []string {
 	}
 }
 func (feed *Feed) DatabaseInsertValues() (values []any) {
-	values = append(values, feed.Identifier())                           // id
-	values = append(values, feed.Kind)                                   // kind
-	values = append(values, normalized.URL(feed.URL.URL()).String())     // url
-	values = append(values, normalized.URL(feed.HTMLURL.URL()).String()) // html_url
-	values = append(values, feed.Title)                                  // title
-	values = append(values, feed.Description)                            // description
-	values = append(values, feed.Language)                               // language
-	values = append(values, feed.Interval.String())                      // interval
+	values = append(values, feed.Identifier())       // id
+	values = append(values, feed.Kind)               // kind
+	values = append(values, feed.URL.URL().String()) // url
+	if feed.HTMLURL != nil {
+		values = append(values, feed.HTMLURL.URL().String()) // html_url
+	} else {
+		values = append(values, nil) // html_url
+	}
+	values = append(values, feed.Title)             // title
+	values = append(values, feed.Description)       // description
+	values = append(values, feed.Language)          // language
+	values = append(values, feed.Interval.String()) // interval
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
 		values = append(values, string(statusBytes)) // status
 	} else {
 		values = append(values, "{}") // status
 	}
-	values = append(values, feed.SubscriptionListID)   // subscriptionlist_id
-	values = append(values, feed.Website.Identifier()) // website_id
+	values = append(values, feed.SubscriptionListID) // subscriptionlist_id
+	if len(feed.Website.HTMLURL) > 0 {
+		values = append(values, feed.Website.Identifier()) // website_id
+	} else {
+		values = append(values, nil) // website_id
+	}
 	return values
 }
 func (feed *Feed) DatabaseUpdatesSet() []string {

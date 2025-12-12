@@ -394,35 +394,16 @@ func Request(ctx context.Context, method string, href string, headers http.Heade
 	if request, err = http.NewRequestWithContext(ctx, method, href, body); err != nil {
 		return nil, err
 	}
-	request.Header = http.Header{
-		"User-Agent": []string{hyperfeed.LibUserAgent}, // set the versioned user-agent header
-		"Accept":     DefaultAcceptHeaders,
+	if headers.Get("User-Agent") == "" {
+		headers.Set("User-Agent", hyperfeed.LibUserAgent)
+	} else {
+		fmt.Printf("MASQUERADING %s %q AS %q\n", method, href, headers.Get("User-Agent"))
 	}
-	request.Header = mergeHeaders(request.Header, headers)
+	// if headers.Get("Accept") == "" {
+	// 	headers["Accept"] = DefaultAcceptHeaders
+	// }
+	request.Header = headers
 	return request, nil
-}
-
-// mergeHeaders combines multiple http.Header maps into one.
-// Duplicate header names are case-insensitively deduplicated (last one wins).
-func mergeHeaders(incoming ...http.Header) http.Header {
-	var merged http.Header = http.Header{}
-	for _, headers := range incoming {
-		if headers == nil {
-			continue
-		}
-		for name, values := range headers {
-			var exists = merged.Get(name) != ""
-			name = http.CanonicalHeaderKey(name)
-			for index, value := range values {
-				if exists && index == 0 {
-					merged.Set(name, value) // replace existing value
-				} else {
-					merged.Add(name, value) // append value
-				}
-			}
-		}
-	}
-	return merged
 }
 
 func HeaderDurationValue(headers http.Header, name string) (duration time.Duration) {

@@ -23,18 +23,16 @@ type Website struct {
 
 func (website *Website) Identifier() string {
 	var id *url.URL
-	var query url.Values
 	var err error
 	if website == nil {
 		return normalized.Identifier("") // the unknown entity
 	}
 	if website.ID == "" {
 		if id, err = url.Parse(website.HTMLURL); err != nil {
-			return normalized.Identifier("") // the unknown entity
+			return normalized.Identifier("")
 		}
-		query = id.Query()
-		id.RawQuery = query.Encode()
-		website.ID = normalized.Identifier(normalized.URL(id).String())
+		id = normalized.URL(id)
+		website.ID = normalized.Identifier(id.String())
 	}
 	return website.ID
 }

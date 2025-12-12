@@ -95,15 +95,17 @@ func (href *Href) IsAbs() bool {
 }
 
 // ResolveReference resolves a reference URL against this Href
-func (href *Href) ResolveReference(ref *url.URL) *Href {
-	if ref == nil {
+func (href *Href) ResolveReference(in *Href) (out *Href) {
+	if in == nil {
 		return nil
 	}
 	if href == nil {
-		return (*Href)(ref)
+		return in
 	}
-	base := href.URL()
-	return (*Href)(base.ResolveReference(ref))
+	inURL := in.URL()
+	hrefURL := href.URL()
+	resolvedURL := hrefURL.ResolveReference(inURL)
+	return (*Href)(resolvedURL)
 }
 
 // String returns the string representation of the Href
@@ -135,30 +137,35 @@ func ResolveHrefString(base, ref any) string {
 func ResolveHref(base, ref any) *Href {
 	var b, r *Href
 	var err error
-	if b, err = parse(base); err != nil {
+	if b, err = parse(base); err != nil || b == nil {
+		fmt.Println(err)
 		return nil
 	}
-	if r, err = parse(ref); err != nil {
+	if r, err = parse(ref); err != nil || r == nil {
+		fmt.Println(err)
 		return nil
 	}
-	if b == nil {
-		return r
-	}
-	if r == nil {
-		return b
-	}
-	return b.ResolveReference(r.URL())
+	return b.ResolveReference(r)
 }
 
 func parse(in any) (out *Href, err error) {
 	var u *url.URL
+	if in == nil {
+		return nil, fmt.Errorf("cannot parse nil as href")
+	}
 	switch v := in.(type) {
+	case Href:
+		return &v, nil
 	case *Href:
 		return v, nil
+	case url.URL:
+		u = &v
 	case *url.URL:
 		u = v
 	case string:
 		u, err = url.Parse(v)
+	case *string:
+		u, err = url.Parse(*v)
 	case []byte:
 		u, err = url.Parse(string(v))
 	default:

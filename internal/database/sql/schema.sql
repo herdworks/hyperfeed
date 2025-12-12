@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS items (
     [added_at] TIMESTAMP,
     [updated_at] TIMESTAMP,
     [feed_at] TIMESTAMP,
+    [guid] TEXT,
     [url] TEXT,
     [external_hrefs] TEXT NOT NULL DEFAULT '[]', -- JSON array of external URL strings
     [title] TEXT,

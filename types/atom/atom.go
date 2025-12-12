@@ -61,6 +61,8 @@ type Atom struct {
 	Authors  []*Author `xml:"author,omitempty"`
 	Entries  []*Entry  `xml:"entry"`
 	Updated  TimeStamp `xml:"updated"`
+
+	Origin *url.URL `xml:"-" json:"-"`
 }
 
 type Entry struct {

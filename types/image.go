@@ -37,10 +37,14 @@ type ImageSrc struct {
 
 // ParseImages() extracts images from an item's HTML content
 func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
-	var base href.Href = href.Href(*item.URL)
-	var document hypergraph.Document = hypergraph.Document{Href: item.URL.String()}
+	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
 	var err error
+	if item.URL != nil {
+		document.Href = item.URL.String()
+	} else {
+		document.Href = "about:blank" // TODO: setting document.Href for hypergraph's Document.Ready() 🤦 until we finish the hypergraph refactor
+	}
 	if document.HTML, err = html.Parse(bytes.NewReader(htmlBytes)); err == nil {
 		document.Root = document.HTML
 	} else {
@@ -62,7 +66,6 @@ func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
 			if src.Href, err = href.Parse(s.Href); err != nil {
 				continue
 			}
-			src.Href = base.ResolveReference(src.Href.URL())
 			src.Width = s.Width
 			src.Height = s.Height
 			if src.Width == 1 || src.Height == 1 {

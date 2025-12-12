@@ -12,7 +12,9 @@ import (
 
 type SubscriptionList struct {
 	ID string `json:"id,omitempty"` // stable HyperFeed SubscriptionList identifier (e.g. hash of URI+owner)
+
 	// URI *url.URL `json:"uri,omitempty"` // URI is the location of the OPML file representing the subscription list.
+
 	Path string `json:"path,omitempty"` // Path is the string representation of SubscriptionList.URI
 
 	// OPML holds the parsed OPML document.

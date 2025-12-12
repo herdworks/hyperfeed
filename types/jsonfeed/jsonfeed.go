@@ -2,6 +2,7 @@ package jsonfeed
 
 import (
 	"encoding/json"
+	"net/url"
 	"regexp"
 )
 
@@ -22,6 +23,8 @@ type Feed struct {
 	Expired     bool     `json:"expired,omitempty"`
 	Hubs        []Hub    `json:"hubs,omitempty"`
 	Items       []Item   `json:"items,omitempty"`
+
+	Origin *url.URL `json:"-"`
 }
 
 // Author represents an author in a JSON Feed document.

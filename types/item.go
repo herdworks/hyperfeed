@@ -7,6 +7,7 @@ import (
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // ============================ Package Types =================================
@@ -39,6 +40,10 @@ type Item struct {
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
 
+	// GUID is the original feed-provided unique identifier for the item
+	// GUID is only used as Identifier() material
+	GUID string `json:"-"`
+
 	// Feed is the parent feed this item belongs to
 	Feed *Feed `json:"-"` // parent feed (not serialized)
 }
@@ -61,9 +66,59 @@ func (item *Item) Identifier() string {
 	}
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier(item.Feed.Identifier() + u.String())
+		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.Identifier(), u, item.GUID))
 	}
 	return item.ID
+}
+
+// ResolveRelativeURLs resolves any relative URLs within the item to absolute URLs
+func (item *Item) ResolveRelativeURLs() {
+	var base href.Href
+	if item.URL != nil && item.URL.IsAbs() {
+		base = href.Href(*item.URL)
+	} else if item.Feed != nil && item.Feed.URL != nil && item.Feed.URL.IsAbs() {
+		base = *item.Feed.URL
+	} else {
+		fmt.Printf("\n\ncannot resolve relative URLs for item %q: no base URL\n\n", item.Identifier())
+		return
+	}
+	if item.URL != nil {
+		item.URL = href.ResolveHref(base, item.URL).URL()
+	}
+	for i, h := range item.ExternalHrefs {
+		item.ExternalHrefs[i] = href.ResolveHrefString(base, h)
+	}
+	for i, b := range item.Bylines {
+		if b.Href != nil {
+			b.Href = href.ResolveHref(base, b.Href)
+			item.Bylines[i] = b
+		}
+		if b.Favicon != nil {
+			b.Favicon = href.ResolveHref(base, b.Favicon)
+			item.Bylines[i] = b
+		}
+	}
+	for i, img := range item.Images {
+		if img.Href != nil {
+			img.Href = href.ResolveHref(base, img.Href)
+		}
+		for j, src := range img.Sources {
+			if src.Href != nil {
+				src.Href = href.ResolveHref(base, src.Href)
+				img.Sources[j] = src
+			}
+		}
+		item.Images[i] = img
+	}
+	for i, l := range item.Links {
+		item.Links[i] = href.ResolveHref(base, l).URL()
+	}
+	for i, a := range item.Attachments {
+		if a.URL != nil {
+			a.URL = href.ResolveHref(base, a.URL)
+			item.Attachments[i] = a
+		}
+	}
 }
 
 // TimelineAt computes the HyperFeed default "chronological" timeline timestamp for an item
@@ -119,6 +174,7 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 		"modified_at",
 		"added_at",
 		"updated_at",
+		"guid",
 		"feed_at",
 		"feed_id",
 		"website_id",
@@ -126,7 +182,11 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 }
 func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.Identifier())
-	args = append(args, item.URL.String())
+	if item.URL != nil {
+		args = append(args, item.URL.String())
+	} else {
+		args = append(args, nil)
+	}
 	if len(item.ExternalHrefs) > 0 {
 		args = append(args, fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", ")))
 	} else {
@@ -139,6 +199,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, item.ModifiedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
+	args = append(args, item.GUID)
 	args = append(args, item.FeedAt.UTC().Format(time.RFC3339))
 	args = append(args, item.Feed.Identifier())
 	args = append(args, item.Feed.Website.Identifier())

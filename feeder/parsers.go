@@ -82,11 +82,15 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 	if parser.RSS, err = rss.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
+	parser.RSS.Origin = parser.Feed.URL.URL()
 
 	// Feed properties
-	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
-		parser.Feed.HTMLURL, _ = href.Parse(parser.RSS.Link())
-		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
+	if link := parser.RSS.Link(); link != "" {
+		if link == parser.Feed.URL.String() {
+			link = href.ResolveHrefString(link, "/")
+		}
+		parser.Feed.HTMLURL, _ = href.Parse(link)
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.RSS.Channel.Title
 	parser.Feed.Description = parser.RSS.Channel.Description
@@ -96,6 +100,7 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 	// Feed.Website properties
 	if parser.Feed.Website.HTMLURL == "" {
 		parser.Feed.Website.HTMLURL = parser.Feed.HTMLURL.String()
+		parser.Feed.Website.ID = "" // reset website ID
 	}
 	if parser.Feed.Website.FaviconURL == "" {
 		// RSS does not have a standard favicon field, will source from HyperGraph later
@@ -133,12 +138,8 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
 	for _, rssitem := range parser.RSS.Channel.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
-		if item.URL = rss.LinkURL(rssitem.Links); item.URL != nil && !item.URL.IsAbs() {
-			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
-		}
-		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
-		}
+		item.GUID = rssitem.GUID.Value
+		item.URL = rss.LinkURL(rssitem.Links)
 		item.Title = rssitem.Title
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)))
 		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
@@ -160,6 +161,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) 
 		if item.Attachments, err = parser.Attachments(&rssitem, item); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs()
 		items = append(items, item)
 	}
 	return items, nil
@@ -206,13 +208,12 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	if parser.Atom, err = atom.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
+	parser.Atom.Origin = parser.Feed.URL.URL()
 
 	// Feed properties
-	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
-		if link := parser.Atom.Link("alternate"); link != nil {
-			parser.Feed.HTMLURL, _ = href.Parse(link.Href)
-			parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
-		}
+	if link := parser.Atom.Link("alternate"); link != nil {
+		parser.Feed.HTMLURL, _ = href.Parse(link.Href)
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
 	}
 	if len(parser.Atom.Title) > 0 {
 		parser.Feed.Title = parser.Atom.Title
@@ -231,7 +232,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	// Feed.Website properties
 	if parser.Feed.Website.FaviconURL == "" {
 		if link := parser.Atom.Link("icon"); link != nil {
-			parser.Feed.Website.FaviconURL = parser.Feed.HTMLURL.String()
+			parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, link.Href)
 		}
 	}
 	if parser.Feed.Website.CoverURL == "" {
@@ -287,9 +288,6 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 				item.ExternalHrefs = append(item.ExternalHrefs, l.Href)
 			}
 		}
-		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
-		}
 		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
 		summary := atom.First(&atom.Text{}, entry.Summary, entry.Content)
@@ -315,6 +313,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 		if item.Attachments, err = parser.Attachments(entry, item); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs()
 		items = append(items, item)
 	}
 	return items, nil
@@ -355,11 +354,12 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	if parser.JSON, err = jsonfeed.Parse(parser.Bytes); err != nil {
 		return nil, errors.Join(ErrParsingRawFeed, err)
 	}
+	parser.JSON.Origin = parser.Feed.URL.URL()
 
 	// Feed properties
-	if parser.Feed.HTMLURL == nil || parser.Feed.URL.String() == parser.Feed.HTMLURL.String() {
-		parser.Feed.HTMLURL, _ = href.Parse(parser.JSON.HomePageURL)
-		parser.Feed.HTMLURL = parser.Feed.URL.ResolveReference(parser.Feed.HTMLURL.URL()) // resolve relative URLs against the feed URL
+	if link := parser.JSON.HomePageURL; link != "" {
+		parser.Feed.HTMLURL, _ = href.Parse(link)
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.JSON.Title
 	parser.Feed.Description = parser.JSON.Description
@@ -399,9 +399,6 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 	for _, jsonitem := range parser.JSON.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
-		if !item.URL.IsAbs() {
-			item.URL = parser.Feed.URL.ResolveReference(item.URL).URL() // resolve relative URLs against the feed URL
-		}
 		if jsonitem.ExternalURL != "" && jsonitem.ExternalURL != jsonitem.URL {
 			item.ExternalHrefs = []string{jsonitem.ExternalURL}
 		}
@@ -429,6 +426,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 		if item.Attachments, err = parser.Attachments(&jsonitem, item); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs()
 		items = append(items, item)
 	}
 	return items, nil
