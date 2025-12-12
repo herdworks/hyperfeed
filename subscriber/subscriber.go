@@ -164,6 +164,7 @@ func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionLis
 			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
 			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL)
 		}
+		feed.Status.LastStatusCodes = []int{}
 		feeds = append(feeds, feed)
 	}
 	return feeds, nil
