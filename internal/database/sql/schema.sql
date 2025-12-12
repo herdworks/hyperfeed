@@ -411,7 +411,7 @@ SELECT
                     'description', [feeds].[description],
                     'language', [feeds].[language],
                     'website', json('{}'),
-                    'status', [feeds].[status],
+                    'status', json([feeds].[status]),
                     'subscriptionlist_id', [feeds].[subscriptionlist_id]
                 )
             FROM [feeds]
