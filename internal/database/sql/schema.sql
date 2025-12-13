@@ -384,7 +384,7 @@ SELECT
             'added_at', [items].[added_at],
             'updated_at', [items].[updated_at],
             'feed_at', [items].[feed_at],
-            'feed', json('{}'),
+            'feed', json(NULL),
             'title', [items].[title],
             'bylines', COALESCE((
                 SELECT json_group_array(json([bylines_view].[byline]))
@@ -410,7 +410,7 @@ SELECT
                     'title', [feeds].[title],
                     'description', [feeds].[description],
                     'language', [feeds].[language],
-                    'website', json('{}'),
+                    'website', json(NULL),
                     'status', json([feeds].[status]),
                     'subscriptionlist_id', [feeds].[subscriptionlist_id]
                 )
@@ -442,7 +442,9 @@ SELECT
     [items].[modified_at],
     [items].[added_at],
     [items].[updated_at],
-    [items].[feed_at]
+    [items].[feed_at],
+    [items].[feed_id],
+    [items].[website_id]
 FROM items
 ORDER BY
     [items].[feed_at] DESC,
