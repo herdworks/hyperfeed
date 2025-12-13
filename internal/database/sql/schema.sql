@@ -310,7 +310,7 @@ SELECT
                 WHERE [websites].[id] = [feeds].[website_id]
                 LIMIT 1
             ),
-            json('{}')
+            json(NULL)
         ),
         'status', json([feeds].[status]),
         'subscriptionlist_id', [feeds].[subscriptionlist_id]
