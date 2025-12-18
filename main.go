@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/subscriber"
@@ -24,6 +25,7 @@ func main() {
 	var config subscriber.Config = *subscriber.DefaultFeederConfig
 	var subscriber *subscriber.Subscriber = &subscriber.Subscriber{}
 	var feeds []*hyperfeed.Feed
+	var timeout int
 	var opmlPath, feedHref string
 	var ctx context.Context = context.Background()
 	var args []string = os.Args[1:]
@@ -54,6 +56,12 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	if timeoutString, err := get(args, "--timeout"); err == nil && timeoutString != "" {
+		if timeout, err = strconv.Atoi(timeoutString); err != nil {
+			fmt.Printf("Error parsing timeout duration %q: %v\n", timeoutString, err)
+			os.Exit(1)
+		}
+	}
 
 	// Initialize the Subscriber
 	if err = subscriber.Init(ctx, &config); err != nil {
@@ -80,7 +88,7 @@ func main() {
 	}
 
 	// Refresh feeds
-	if err = subscriber.Refresh(ctx, offset, feeds); err != nil {
+	if err = subscriber.Refresh(ctx, offset, feeds, timeout); err != nil {
 		fmt.Printf("Error refreshing subscriber: %v\n", err)
 		os.Exit(1)
 	}

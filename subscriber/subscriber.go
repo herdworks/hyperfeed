@@ -222,8 +222,8 @@ func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.
 
 // Refresh refreshes all subscribed feeds concurrently
 // TODO: can this be split up into smaller methods for testability?
-func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time, feeds []*hyperfeed.Feed) (err error) {
-	var client *http.Client = feeder.Client(feeder.Config{Timeout: 10 * time.Second})
+func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time, feeds []*hyperfeed.Feed, timeout int) (err error) {
+	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
@@ -262,7 +262,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			ff.Tick(cancellation, client, timelinePosition) // ignore tick errors; they are recorded in f.Feed.Status
 			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
 			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
-				if e = ff.Feed.HyperGraphEntity(ctx); e != nil {
+				if e = ff.Feed.HyperGraphEntity(ctx, timeout); e != nil {
 					fmt.Printf("graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
 				}

@@ -100,15 +100,15 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 	return duplicates
 }
 
-func (feed *Feed) HyperGraphEntity(ctx context.Context) (err error) {
+func (feed *Feed) HyperGraphEntity(ctx context.Context, timeout int) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
 	if !feed.Status.LastEntityUpdateAt.IsZero() && time.Since(feed.Status.LastEntityUpdateAt) < 24*time.Hour {
 		return nil // recently updated
 	}
-	if err = document.Download(ctx, true, nil, 5); err != nil {
+	if err = document.Download(ctx, true, nil, timeout); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("downloading document"), err)
 	}
-	if err = document.Scrape(ctx, true, nil, 5); err != nil {
+	if err = document.Scrape(ctx, true, nil, timeout); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
 	feed.Website.Entity = document.Metadata.Entity

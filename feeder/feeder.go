@@ -381,9 +381,7 @@ func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed) (int
 // ============================================================================
 func Client(config Config) (client *http.Client) {
 	client = &http.Client{}
-	if config.Timeout > 0 {
-		client.Timeout = config.Timeout
-	}
+	client.Timeout = config.Timeout
 	return client
 }
 
