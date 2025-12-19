@@ -130,6 +130,18 @@ CREATE INDEX IF NOT EXISTS bylines_href_index ON bylines([href]);
 CREATE INDEX IF NOT EXISTS bylines_name_index ON bylines([name]);
 CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 
+-- Links table
+CREATE TABLE IF NOT EXISTS links (
+    [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
+    [href] TEXT NOT NULL,
+    [website_id] TEXT NOT NULL,
+
+    PRIMARY KEY ([id])
+);
+CREATE INDEX IF NOT EXISTS links_id_index ON links([id]);
+CREATE INDEX IF NOT EXISTS links_href_index ON links([href]);
+CREATE INDEX IF NOT EXISTS links_website_id_index ON links([website_id]);
+
 -- Images table
 CREATE TABLE IF NOT EXISTS images (
     [id] TEXT UNIQUE DEFAULT( lower(hex(randomblob(4))) ),
@@ -226,7 +238,7 @@ CREATE INDEX IF NOT EXISTS metadata_relation_feed_id_index ON metadata_relation(
 CREATE INDEX IF NOT EXISTS metadata_relation_item_id_index ON metadata_relation([item_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relation([metadata_id]);
 
--- Author-Relation join table
+-- Item-Bylines join table
 CREATE TABLE IF NOT EXISTS item_bylines (
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
@@ -237,6 +249,16 @@ CREATE TABLE IF NOT EXISTS item_bylines (
 CREATE INDEX IF NOT EXISTS item_bylines_feed_id_index ON item_bylines([feed_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_item_id_index ON item_bylines([item_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_id]);
+
+-- Item-Links join table
+CREATE TABLE IF NOT EXISTS item_links (
+    [website_id] TEXT REFERENCES websites([id]),
+    [feed_id] TEXT REFERENCES feeds([id]),
+    [item_id] TEXT REFERENCES items([id]),
+    [link_id] TEXT NOT NULL REFERENCES links([id]),
+
+    PRIMARY KEY([item_id], [link_id])
+);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -451,6 +473,62 @@ ORDER BY
     [items].[published_at] DESC,
     [items].[added_at] DESC
 ;
+
+-- LinksView
+CREATE VIEW IF NOT EXISTS links_view AS
+SELECT
+    json_object(
+        'id', [links].[id],
+        'href', [links].[href],
+        'website_id', [links].[website_id]
+    ) as 'link',
+    [links].[id],
+    [links].[href],
+    [links].[website_id]
+FROM
+    [links]
+;
+
+-- HotHyperLinksView
+CREATE VIEW IF NOT EXISTS hot_hyperlinks_view AS
+SELECT
+    json_object(
+        'id', [links].[id],
+        'href', [links].[href],
+        'website_id', [links].[website_id],
+        'website_count', [link_counts].[website_count],
+        'item_count', [link_counts].[item_count]
+    ) as 'link',
+    [links].[id],
+    [links].[href],
+    [links].[website_id],
+    [link_counts].[website_count],
+    [link_counts].[item_count]
+FROM
+    [links]
+    JOIN (
+        SELECT
+            [item_links].[link_id],
+            COUNT(DISTINCT [item_links].[website_id]) AS [website_count],
+            COUNT(*) AS [item_count],
+            MAX([items].[feed_at]) AS [last_feed_at]
+        FROM
+            [item_links]
+            JOIN [items] ON [items].[id] = [item_links].[item_id]
+        WHERE
+            [items].[feed_at] >= datetime('now', '-7 days')
+        GROUP BY
+            [item_links].[link_id]
+        HAVING
+            COUNT(DISTINCT [item_links].[website_id]) > 1
+    ) AS [link_counts] ON [link_counts].[link_id] = [links].[id]
+ORDER BY
+    [link_counts].[website_count] DESC,
+    [link_counts].[item_count] DESC,
+    [link_counts].[last_feed_at] DESC
+LIMIT 100
+;
+
 
 -- BylinesView
 CREATE VIEW IF NOT EXISTS bylines_view AS

@@ -331,9 +331,20 @@ func (feeder *Feeder) SaveItems(ctx context.Context) (err error) {
 				return errors.Join(ErrDatabase, errors.New("inserting item-byline relation"), err)
 			}
 		}
+		for _, link := range item.Links {
+			if err = feeder.Database.UpsertRow(ctx, link); err != nil {
+				fmt.Printf("link: %q\n", link)
+				return errors.Join(ErrDatabase, errors.New("upserting link"), err)
+			}
+			columns := []string{"website_id", "feed_id", "item_id", "link_id"}
+			values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier()}
+			if err = feeder.Database.RelateRows(ctx, "item_links", columns, values); err != nil {
+				return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)
+			}
+		}
 		for _, image := range item.Images {
 			image.FeedID = item.Feed.Identifier()
-			image.WebsiteID = item.Feed.Website.ID
+			image.WebsiteID = item.Feed.Website.Identifier()
 			if err = feeder.Database.InsertRow(ctx, image); err != nil {
 				fmt.Printf("image.item_id: %q\n", image.ItemID)
 				return errors.Join(ErrDatabase, errors.New("inserting image"), err)

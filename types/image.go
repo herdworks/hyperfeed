@@ -60,6 +60,7 @@ func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
 			Caption: i.Caption,
 			ItemID:  item.Identifier(),
 			FeedID:  item.Feed.Identifier(),
+			// TODO: add item.Feed.Website.Identifier() ??
 		}
 		for _, s := range i.Sources {
 			var src ImageSrc

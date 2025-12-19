@@ -30,7 +30,7 @@ type Item struct {
 	Summary     string       `json:"summary,omitempty"`
 	Content     string       `json:"content,omitempty"`
 	Images      []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
-	Links       []*url.URL   `json:"links,omitempty"`
+	Links       []*HyperLink `json:"links,omitempty"`
 	Categories  []string     `json:"categories,omitempty"`
 	Attachments []Attachment `json:"attachments,omitempty"` // RSS enclosures, JSONFeed attachments
 
@@ -110,9 +110,10 @@ func (item *Item) ResolveRelativeURLs() {
 		}
 		item.Images[i] = img
 	}
-	for i, l := range item.Links {
-		item.Links[i] = href.ResolveHref(base, l).URL()
-	}
+	// for i, l := range item.Links {
+	// 	l.Href = href.ResolveHref(base, l.Href)
+	// 	item.Links[i] = l
+	// }
 	for i, a := range item.Attachments {
 		if a.URL != nil {
 			a.URL = href.ResolveHref(base, a.URL)

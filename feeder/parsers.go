@@ -142,6 +142,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) 
 		item.URL = rss.LinkURL(rssitem.Links)
 		item.Title = rssitem.Title
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)))
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)))
 		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
 			fmt.Printf("markdown RSS item.description error: %v\n", err)
 		}
@@ -294,6 +295,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 		content := atom.First(&atom.Text{}, entry.Content, entry.Summary)
 		item.Title = entry.Title
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)))
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)))
 		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
 			fmt.Printf("markdown Atem entry.summary error: %v\n", err)
 		}
@@ -406,6 +408,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.Title = jsonitem.Title
 		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))))
+		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))))
 		if item.Summary, err = markdown.Convert(hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText)); err != nil {
 			fmt.Printf("markdown JSONFeed item.Summary error: %v\n", err)
 		}
