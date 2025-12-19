@@ -482,12 +482,14 @@ SELECT
         'width', [images].[width],
         'height', [images].[height],
         'item_id', [images].[item_id],
-        'feed_id', [images].[feed_id]
+        'feed_id', [images].[feed_id],
+        'website_id', [images].[website_id]
     ) as 'image',
     [images].[id],
     [images].[href],
     [images].[item_id],
-    [images].[feed_id]
+    [images].[feed_id],
+    [images].[website_id]
 FROM
     [images]
 ;
