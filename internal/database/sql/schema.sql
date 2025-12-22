@@ -114,6 +114,7 @@ CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
 CREATE INDEX IF NOT EXISTS items_updated_at_index ON items([updated_at] DESC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_asc ON items([feed_at] ASC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_desc ON items([feed_at] DESC);
+CREATE INDEX IF NOT EXISTS items_feed_at_id_desc ON items(feed_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items(feed_at DESC, published_at DESC, added_at DESC);
 
 -- Bylines table
@@ -389,8 +390,7 @@ SELECT
 FROM items
 ORDER BY
     [items].[feed_at] DESC,
-    [items].[published_at] DESC,
-    [items].[added_at] DESC
+    [items].[id] DESC
 ;
 
 -- PostsView
@@ -470,8 +470,7 @@ SELECT
 FROM items
 ORDER BY
     [items].[feed_at] DESC,
-    [items].[published_at] DESC,
-    [items].[added_at] DESC
+    [items].[id] DESC
 ;
 
 -- LinksView
