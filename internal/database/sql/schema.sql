@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [updated_at] TIMESTAMP GENERATED ALWAYS AS (json_extract(status, '$.updated_at')) STORED,
 
     [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
-    [website_id] TEXT REFERENCES websites([id]),
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
 
     PRIMARY KEY ([id])
 );
@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS feeds_updated_at_index ON feeds([updated_at] DESC);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
-    [website_id] TEXT REFERENCES websites([id]),
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
     [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
     [id] TEXT,
     [published_at] TIMESTAMP,
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS images (
 
     [item_id] TEXT NOT NULL REFERENCES items([id]),
     [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
-    [website_id] TEXT NOT NULL REFERENCES websites([id]),
+    [website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
 
     PRIMARY KEY ([id])
 );
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 
     [item_id] TEXT NOT NULL REFERENCES items([id]),
     [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
-    [website_id] TEXT NOT NULL REFERENCES websites([id]),
+    [website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
 
     PRIMARY KEY ([url],[item_id]) -- Composite PK
 );
@@ -253,7 +253,7 @@ CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_
 
 -- Item-Links join table
 CREATE TABLE IF NOT EXISTS item_links (
-    [website_id] TEXT REFERENCES websites([id]),
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
     [link_id] TEXT NOT NULL REFERENCES links([id]),
