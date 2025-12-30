@@ -33,10 +33,6 @@ func main() {
 	var offset time.Time = time.Time{} // zero time
 
 	// Parse command line arguments
-	if !slices.Contains(args, "refresh") {
-		fmt.Println(usage())
-		os.Exit(1)
-	}
 	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
 		fmt.Println(usage())
 		os.Exit(0)
@@ -71,9 +67,14 @@ func main() {
 
 	// Refresh subscriber.SubscriptionList from underlying OPML source (if provided)
 	if opmlPath != "" {
-		if feeds, err = subscriber.LoadSubscriptions(ctx, opmlPath); err != nil {
+		if feeds, err = subscriber.LoadFeeds(ctx, opmlPath); err != nil {
 			fmt.Printf("Error loading subscriber: %v\n", err)
 			os.Exit(1)
+		} else {
+			if err = subscriber.SaveFeeds(ctx, feeds); err != nil {
+				fmt.Printf("Error saving feeds: %v\n", err)
+				os.Exit(1)
+			}
 		}
 	}
 
@@ -88,9 +89,11 @@ func main() {
 	}
 
 	// Refresh feeds
-	if err = subscriber.Refresh(ctx, offset, feeds, timeout); err != nil {
-		fmt.Printf("Error refreshing subscriber: %v\n", err)
-		os.Exit(1)
+	if slices.Contains(args, "refresh") {
+		if err = subscriber.Refresh(ctx, offset, feeds, timeout); err != nil {
+			fmt.Printf("Error refreshing subscriber: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 

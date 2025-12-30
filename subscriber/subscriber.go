@@ -125,8 +125,6 @@ func (subscriber *Subscriber) Init(ctx context.Context, config *Config) (err err
 }
 
 // Load loads the SubscriptionList from its OPML URI and updates the feeds table
-//
-// TODO: add support for fetching subscription lists from remote URLs
 func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptionsPath string) (feeds []*hyperfeed.Feed, err error) {
 	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
 	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
@@ -145,6 +143,26 @@ func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptio
 		return nil, err
 	}
 	if err = subscriber.SaveFeeds(ctx, feeds); err != nil {
+		return nil, err
+	}
+	return feeds, nil
+}
+
+func (subscriber *Subscriber) LoadFeeds(ctx context.Context, subscriptionsPath string) (feeds []*hyperfeed.Feed, err error) {
+	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
+	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
+		return nil, err
+	}
+	if err = subscriptions.Load(); err != nil {
+		return nil, err
+	}
+	if feeds, err = subscriber.InitFeeds(subscriptions); err != nil {
+		return nil, err
+	}
+	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
+		return nil, err
+	}
+	if err = subscriber.SaveSubscriptionList(ctx, subscriptions); err != nil {
 		return nil, err
 	}
 	return feeds, nil
