@@ -26,6 +26,13 @@ func ParseLinks(item *Item, htmlBytes []byte) (links []*HyperLink) {
 	var err error
 	if item.URL != nil {
 		document.Href = item.URL.String()
+		if h,e := href.Parse(item.URL.String()); e == nil {
+			l := &HyperLink{Href: h}
+			if item.Feed != nil {
+				l.WebsiteID = item.Feed.Website.Identifier()
+			}
+			links = append(links, l) // include a "self link"
+		}
 	} else {
 		document.Href = "about:blank" // TODO: setting document.Href for hypergraph's Document.Ready() 🤦 until we finish the hypergraph refactor
 	}
@@ -52,7 +59,7 @@ func ParseLinks(item *Item, htmlBytes []byte) (links []*HyperLink) {
 
 func (link *HyperLink) Identifier() string {
 	if link == nil {
-		return normalized.Identifier("") // the unknown entity
+		return normalized.Identifier("") // the unknown identifier
 	}
 	if link.ID == "" {
 		id := normalized.URL(link.Href.URL())

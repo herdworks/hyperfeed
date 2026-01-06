@@ -66,7 +66,7 @@ func (item *Item) Identifier() string {
 	}
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.Identifier(), u, item.GUID))
+		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.Website.Identifier(), u, item.GUID))
 	}
 	return item.ID
 }

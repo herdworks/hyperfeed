@@ -117,13 +117,20 @@ func (atom *Atom) Render() (string, error) {
 }
 
 // Atom.Link()
-func (atom *Atom) Link(rel string) *Link {
+func (atom *Atom) Link(rel string) (link *Link) {
+	if atom != nil && atom.Origin != nil {
+		// default link
+		link = &Link{Href: atom.Origin.ResolveReference(&url.URL{Path: "/"}).String(), Rel: "origin"}
+	}
+	if atom == nil {
+		return link
+	}
 	for _, l := range atom.Links {
 		if l.Rel == rel {
 			return &l
 		}
 	}
-	return nil
+	return link
 }
 
 // Entry.Link()

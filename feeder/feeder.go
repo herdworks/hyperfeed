@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
-	"golang.org/x/net/http2"
 )
 
 // TYPES

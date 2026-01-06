@@ -74,11 +74,11 @@ func (feed *Feed) Domain() string {
 // Identifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) Identifier() string {
 	if feed == nil {
-		return ""
+		return normalized.Identifier("") // the unknown identifier
 	}
 	if feed.ID == "" {
-		u := normalized.URL(feed.URL.URL())
-		feed.ID = normalized.Identifier(u.String())
+		id := normalized.URL(feed.URL.URL())
+		feed.ID = normalized.Identifier(id.String())
 	}
 	return feed.ID
 }

@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS item_links (
     [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
-    [link_id] TEXT NOT NULL REFERENCES links([id]),
+    [link_id] TEXT REFERENCES links([id]),
 
     PRIMARY KEY([item_id], [link_id])
 );

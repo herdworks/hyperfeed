@@ -118,37 +118,7 @@ func (href *Href) String() string {
 
 // ============================ Helper Functions ===============================
 // Parse parses a string into the Href
-func Parse(s string) (href *Href, err error) {
-	var u *url.URL
-	if u, err = url.Parse(s); err != nil {
-		return nil, errors.Join(ErrDeserialization, err)
-	}
-	h := Href(*u)
-	return &h, nil
-}
-
-func ResolveHrefString(base, ref any) string {
-	if href := ResolveHref(base, ref); href != nil {
-		return href.String()
-	}
-	return ""
-}
-
-func ResolveHref(base, ref any) *Href {
-	var b, r *Href
-	var err error
-	if b, err = parse(base); err != nil || b == nil {
-		fmt.Println(err)
-		return nil
-	}
-	if r, err = parse(ref); err != nil || r == nil {
-		fmt.Println(err)
-		return nil
-	}
-	return b.ResolveReference(r)
-}
-
-func parse(in any) (out *Href, err error) {
+func Parse(in any) (out *Href, err error) {
 	var u *url.URL
 	if in == nil {
 		return nil, fmt.Errorf("cannot parse nil as href")
@@ -173,3 +143,25 @@ func parse(in any) (out *Href, err error) {
 	}
 	return (*Href)(u), err
 }
+
+func ResolveHrefString(base, ref any) string {
+	if href := ResolveHref(base, ref); href != nil {
+		return href.String()
+	}
+	return ""
+}
+
+func ResolveHref(base, ref any) *Href {
+	var b, r *Href
+	var err error
+	if b, err = Parse(base); err != nil || b == nil {
+		fmt.Println(err)
+		return nil
+	}
+	if r, err = Parse(ref); err != nil || r == nil {
+		fmt.Println(err)
+		return nil
+	}
+	return b.ResolveReference(r)
+}
+
