@@ -236,11 +236,13 @@ func TestCacheFilePutOperation(t *testing.T) {
 	}
 	items := []*hyperfeed.Item{
 		{
-			URL:         &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-world/"},
+			URL:         &url.URL{Scheme: "https", Host: "example.com", Path: "/thoughts-on-hashtags/"},
+			Feed:        feeds[0],
 			PublishedAt: cacheTime,
 		},
 		{
 			URL:         &url.URL{Scheme: "https", Host: "example.com", Path: "/blog/hello-again/"},
+			Feed:        feeds[1],
 			PublishedAt: cacheTime,
 		},
 	}
