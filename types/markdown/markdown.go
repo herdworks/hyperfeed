@@ -188,7 +188,6 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 
 		// unknown tags
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			// fmt.Printf("tag %q unknown\n", n.Data)
 			walk(buf, c, indent, extended)
 		}
 		return

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 
@@ -36,7 +37,7 @@ type ImageSrc struct {
 }
 
 // ParseImages() extracts images from an item's HTML content
-func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
+func ParseImages(item *Item, htmlBytes []byte, w io.Writer) (images []*Image) {
 	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
 	var err error
@@ -50,7 +51,7 @@ func ParseImages(item *Item, htmlBytes []byte) (images []*Image) {
 	} else {
 		return images
 	}
-	if err = document.Scrape(ctx, true, nil, 5); err != nil {
+	if err = document.Scrape(ctx, true, nil, 5, w); err != nil {
 		return images
 	}
 	for _, i := range document.Images {

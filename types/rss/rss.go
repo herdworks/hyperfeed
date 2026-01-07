@@ -257,7 +257,6 @@ func (r *RSS) Link() string {
 	}
 	for i, item := range r.Channel.Items {
 		if i == 3 {
-			fmt.Printf("WOW!!!")
 			break
 		}
 		if itemLink := LinkURL(item.Links); itemLink != nil {

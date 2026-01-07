@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
@@ -20,7 +21,7 @@ type HyperLink struct {
 }
 
 // ParseLinks() extracts links from an item's HTML content
-func ParseLinks(item *Item, htmlBytes []byte) (links []*HyperLink) {
+func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) {
 	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
 	var err error
@@ -41,7 +42,7 @@ func ParseLinks(item *Item, htmlBytes []byte) (links []*HyperLink) {
 	} else {
 		return links
 	}
-	if err = document.Scrape(ctx, true, nil, 5); err != nil {
+	if err = document.Scrape(ctx, true, nil, 5, w); err != nil {
 		return links
 	}
 	for _, i := range document.Metadata.HyperLinks.Hrefs {

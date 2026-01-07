@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -125,8 +126,11 @@ func (subscriber *Subscriber) Init(ctx context.Context, config *Config) (err err
 }
 
 // Load loads the SubscriptionList from its OPML URI and updates the feeds table
-func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptionsPath string) (feeds []*hyperfeed.Feed, err error) {
+func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptionsPath string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
 	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
+	if w == nil {
+		w = os.Stdout
+	}
 	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
 		return nil, err
 	}
@@ -136,27 +140,30 @@ func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptio
 	if err = subscriber.SaveSubscriptionList(ctx, subscriptions); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.InitFeeds(subscriptions); err != nil {
+	if feeds, err = subscriber.InitFeeds(subscriptions, w); err != nil {
 		return nil, err
 	}
 	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
 		return nil, err
 	}
-	if err = subscriber.SaveFeeds(ctx, feeds); err != nil {
+	if err = subscriber.SaveFeeds(ctx, feeds, w); err != nil {
 		return nil, err
 	}
 	return feeds, nil
 }
 
-func (subscriber *Subscriber) LoadFeeds(ctx context.Context, subscriptionsPath string) (feeds []*hyperfeed.Feed, err error) {
+func (subscriber *Subscriber) LoadFeeds(ctx context.Context, subscriptionsPath string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
 	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
+	if w == nil {
+		w = os.Stdout
+	}
 	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
 		return nil, err
 	}
 	if err = subscriptions.Load(); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.InitFeeds(subscriptions); err != nil {
+	if feeds, err = subscriber.InitFeeds(subscriptions, w); err != nil {
 		return nil, err
 	}
 	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
@@ -169,7 +176,10 @@ func (subscriber *Subscriber) LoadFeeds(ctx context.Context, subscriptionsPath s
 }
 
 // InitFeeders generates a Feeder per SubscriptionList.OPML.Body.Outline in the managed Feeds slice ([]*feeder.Feeder)
-func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionList) (feeds []*hyperfeed.Feed, err error) {
+func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionList, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
+	if w == nil {
+		w = os.Stdout
+	}
 	for _, outline := range subscriptions.OPML.Body.Outlines {
 		var feed *hyperfeed.Feed = &hyperfeed.Feed{
 			Title:              outline.Text,
@@ -180,7 +190,7 @@ func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionLis
 		}
 		if outline.HTMLURL != "" {
 			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
-			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL)
+			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
 		}
 		feed.Status.LastStatusCodes = []int{}
 		feeds = append(feeds, feed)
@@ -226,7 +236,7 @@ func (subscriber *Subscriber) SaveSubscriptionList(ctx context.Context, subscrip
 
 // SaveFeeds persists the provided feeds to the database
 // NOTE: Subscriber.SaveFeeds saves feeds only; it does not save associated Websites
-func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.Feed) (err error) {
+func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.Feed, _ io.Writer) (err error) {
 	if err = subscriber.Database.PingContext(ctx); err != nil {
 		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
@@ -240,13 +250,16 @@ func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.
 
 // Refresh refreshes all subscribed feeds concurrently
 // TODO: can this be split up into smaller methods for testability?
-func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time, feeds []*hyperfeed.Feed, timeout int) (err error) {
+func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
 	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
 	subscriber.Status = &Status{UpdatedAt: time.Now().UTC()}
 	ticker, cancellation = errgroup.WithContext(ctx)
+	if w == nil {
+		w = os.Stdout
+	}
 
 	// TODO: do we need to open the database here, or can we just check if it is already open?
 	if err = subscriber.Database.Open(ctx); err == nil {
@@ -277,19 +290,19 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			ff.Feed.Interval = 5 * time.Minute // default interval
 		}
 		ticker.Go(func() (e error) {
-			ff.Tick(cancellation, client, timelinePosition) // ignore tick errors; they are recorded in f.Feed.Status
+			ff.Tick(cancellation, client, timelinePosition, w) // ignore tick errors; they are recorded in f.Feed.Status
 			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
 			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
-				if e = ff.Feed.HyperGraphEntity(ctx, timeout); e != nil {
-					fmt.Printf("graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
+				if e = ff.Feed.HyperGraphEntity(ctx, timeout, w); e != nil {
+					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
 				}
 				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()
 			}
-			if e = ff.SaveFeed(ctx); e != nil {
+			if e = ff.SaveFeed(ctx, w); e != nil {
 				return errors.Join(ErrSubscriber, e)
 			}
-			if e = ff.SaveItems(ctx); e != nil {
+			if e = ff.SaveItems(ctx, w); e != nil {
 				return errors.Join(ErrSubscriber, e)
 			}
 			if ff.Feed.Status.Fetched() {
@@ -301,7 +314,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			if ff.Feed.Status.Failed() {
 				subscriber.Status.FeedsFailed.Increment(1)
 			}
-			if a, u, err := ff.AddedItems(ctx, ff.Feed); err == nil {
+			if a, u, err := ff.AddedItems(ctx, ff.Feed, w); err == nil {
 				subscriber.Status.ItemsAdded.Increment(a)
 				subscriber.Status.ItemsUpdated.Increment(u)
 			} else {
@@ -317,7 +330,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 		return err
 	}
 	subscriber.Status.Duration = time.Since(start)
-	fmt.Println(subscriber.Status.Print())
+	fmt.Fprintln(w, subscriber.Status.Print())
 	return nil
 }
 

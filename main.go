@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -29,6 +31,8 @@ func main() {
 	var opmlPath, feedHref string
 	var ctx context.Context = context.Background()
 	var args []string = os.Args[1:]
+	var w io.Writer = os.Stdout
+	var logfile string
 	var err error
 	var offset time.Time = time.Time{} // zero time
 
@@ -52,6 +56,9 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	if logfile, err = get(args, "--logfile"); len(logfile) > 0 {
+		w = &bytes.Buffer{}
+	}
 	if timeoutString, err := get(args, "--timeout"); err == nil && timeoutString != "" {
 		if timeout, err = strconv.Atoi(timeoutString); err != nil {
 			fmt.Printf("Error parsing timeout duration %q: %v\n", timeoutString, err)
@@ -67,11 +74,11 @@ func main() {
 
 	// Refresh subscriber.SubscriptionList from underlying OPML source (if provided)
 	if opmlPath != "" {
-		if feeds, err = subscriber.LoadFeeds(ctx, opmlPath); err != nil {
+		if feeds, err = subscriber.LoadFeeds(ctx, opmlPath, os.Stdout); err != nil {
 			fmt.Printf("Error loading subscriber: %v\n", err)
 			os.Exit(1)
 		} else {
-			if err = subscriber.SaveFeeds(ctx, feeds); err != nil {
+			if err = subscriber.SaveFeeds(ctx, feeds, os.Stdout); err != nil {
 				fmt.Printf("Error saving feeds: %v\n", err)
 				os.Exit(1)
 			}
@@ -90,9 +97,21 @@ func main() {
 
 	// Refresh feeds
 	if slices.Contains(args, "refresh") {
-		if err = subscriber.Refresh(ctx, offset, feeds, timeout); err != nil {
+		if err = subscriber.Refresh(ctx, offset, feeds, timeout, w); err != nil {
 			fmt.Printf("Error refreshing subscriber: %v\n", err)
 			os.Exit(1)
+		}
+		if w != os.Stdout {
+			var f *os.File
+			if f, err = os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err != nil {
+				fmt.Printf("Error opening logfile %q: %v\n", logfile, err)
+				os.Exit(1)
+			}
+			defer f.Close()
+			if _, err = f.WriteString(w.(*bytes.Buffer).String()); err != nil {
+				fmt.Printf("Error writing to logfile %q: %v\n", logfile, err)
+				os.Exit(1)
+			}
 		}
 	}
 }
@@ -119,6 +138,8 @@ func usage() (usage string) {
 		{"-d, --database <path>", "Path to HyperFeed database file (required)"},
 		{"-o, --opml <path>", "Refresh feeds in the provided OPML file"},
 		{"-f, --feed <href>", "Refresh a single feed at the provided HREF"},
+		{"    --timeout <seconds>", "Timeout duration for network operations (in seconds)"},
+		{"    --logfile <path>", "Output progress to logfile instead of stdout"},
 		{"-h, --help", "Print this help message"},
 	}
 	usage += fmt.Sprintf("hyperfeed %s\n\n", LibVersion)

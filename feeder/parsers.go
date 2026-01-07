@@ -3,7 +3,9 @@ package feeder
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -21,7 +23,7 @@ import (
 
 type FeedParser interface {
 	Ready() bool
-	Parse(time.Time) (*hyperfeed.Feed, error)
+	Parse(time.Time, io.Writer) (*hyperfeed.Feed, error)
 }
 
 type RSSFeedParser struct {
@@ -74,8 +76,11 @@ func (parser *RSSFeedParser) Ready() bool {
 }
 
 // RSSFeedParser.Parse()
-func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
+func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
+	if w == nil {
+		w = os.Stdout
+	}
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
 	}
@@ -87,10 +92,10 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 	// Feed properties
 	if link := parser.RSS.Link(); link != "" {
 		if link == parser.Feed.URL.String() {
-			link = href.ResolveHrefString(link, "/")
+			link = href.ResolveHrefString(link, "/", w)
 		}
 		parser.Feed.HTMLURL, _ = href.Parse(link)
-		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL, w) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.RSS.Channel.Title
 	parser.Feed.Description = parser.RSS.Channel.Description
@@ -125,7 +130,7 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 	}
 
 	// Feed.Items
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
 		return nil, err
 	}
 	if len(parser.RSS.Channel.Items) != len(parser.Feed.Items) {
@@ -135,19 +140,19 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed,
 }
 
 // RSSFeedParser.Items()
-func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
 	for _, rssitem := range parser.RSS.Channel.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = rssitem.GUID.Value
 		item.URL = rss.LinkURL(rssitem.Links)
 		item.Title = rssitem.Title
-		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)))
-		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)))
+		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
-			fmt.Printf("markdown RSS item.description error: %v\n", err)
+			fmt.Fprintf(w, "markdown RSS item.description error: %v\n", err)
 		}
 		if item.Content, err = markdown.Convert(rss.HTML(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description))); err != nil {
-			fmt.Printf("markdown RSS item.content:encoded error: %v\n", err)
+			fmt.Fprintf(w, "markdown RSS item.content:encoded error: %v\n", err)
 		}
 		item.Comments, _ = url.Parse(rssitem.Comments)
 		item.PublishedAt, _ = rss.Date(rssitem.PubDate)
@@ -159,17 +164,17 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time) 
 			name, email := rss.ParseAuthor(byline)
 			item.Bylines = append(item.Bylines, hyperfeed.Byline{Name: name, Email: email})
 		}
-		if item.Attachments, err = parser.Attachments(&rssitem, item); err != nil {
+		if item.Attachments, err = parser.Attachments(&rssitem, item, w); err != nil {
 			return nil, err
 		}
-		item.ResolveRelativeURLs()
+		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil
 }
 
 // RSSFeedParser.Attachments()
-func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item) (attachments []hyperfeed.Attachment, err error) {
+func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, enclosure := range rssitem.Enclosures {
 		attachment := hyperfeed.Attachment{}
 		if attachment.URL, err = href.Parse(enclosure.URL); err != nil {
@@ -201,8 +206,11 @@ func (parser *AtomFeedParser) Ready() bool {
 }
 
 // AtomFeedParser.Parse()
-func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
+func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
+	if w == nil {
+		w = os.Stdout
+	}
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
 	}
@@ -214,7 +222,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	// Feed properties
 	if link := parser.Atom.Link("alternate"); link != nil {
 		parser.Feed.HTMLURL, _ = href.Parse(link.Href)
-		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL, w) // resolve relative URLs against the feed URL
 	}
 	if len(parser.Atom.Title) > 0 {
 		parser.Feed.Title = parser.Atom.Title
@@ -233,17 +241,17 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	// Feed.Website properties
 	if parser.Feed.Website.FaviconURL == "" {
 		if link := parser.Atom.Link("icon"); link != nil {
-			parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, link.Href)
+			parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, link.Href, w)
 		}
 	}
 	if parser.Feed.Website.CoverURL == "" {
 		if link := parser.Atom.Link("cover"); link != nil {
-			parser.Feed.Website.CoverURL = href.ResolveHrefString(parser.Feed.URL, link.Href)
+			parser.Feed.Website.CoverURL = href.ResolveHrefString(parser.Feed.URL, link.Href, w)
 		}
 	}
 	if parser.Feed.Website.MentionsURL == "" {
 		if link := parser.Atom.Link("mentions"); link != nil {
-			parser.Feed.Website.MentionsURL = href.ResolveHrefString(parser.Feed.URL, link.Href)
+			parser.Feed.Website.MentionsURL = href.ResolveHrefString(parser.Feed.URL, link.Href, w)
 		}
 	}
 	if parser.Feed.Website.Email == "" {
@@ -268,7 +276,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	}
 
 	// Feed.Items
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
 		return nil, err
 	}
 	if len(parser.Atom.Entries) != len(parser.Feed.Items) {
@@ -278,7 +286,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 }
 
 // AtomFeedParser.Items()
-func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
 	for _, entry := range parser.Atom.Entries {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		if link := entry.InternalLink(parser.Feed.URL.URL()); link != nil {
@@ -294,13 +302,13 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 		summary := atom.First(&atom.Text{}, entry.Summary, entry.Content)
 		content := atom.First(&atom.Text{}, entry.Content, entry.Summary)
 		item.Title = entry.Title
-		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)))
-		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)))
+		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
 		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
-			fmt.Printf("markdown Atem entry.summary error: %v\n", err)
+			fmt.Fprintf(w, "markdown Atem entry.summary error: %v\n", err)
 		}
 		if item.Content, err = markdown.Convert(atom.HTML(atom.First(entry.Content, entry.Summary))); err != nil {
-			fmt.Printf("markdown Atom entry.content error: %v\n", err)
+			fmt.Fprintf(w, "markdown Atom entry.content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
@@ -312,17 +320,17 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time)
 			href, _ := href.Parse(byline.URI)
 			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: href, Name: byline.Name, Email: byline.Email})
 		}
-		if item.Attachments, err = parser.Attachments(entry, item); err != nil {
+		if item.Attachments, err = parser.Attachments(entry, item, w); err != nil {
 			return nil, err
 		}
-		item.ResolveRelativeURLs()
+		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil
 }
 
 // AtomFeedParser.Attachments()
-func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Item) (attachments []hyperfeed.Attachment, err error) {
+func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, link := range entry.Links {
 		attachment := hyperfeed.Attachment{}
 		if link.Rel != "enclosure" {
@@ -348,8 +356,11 @@ func (parser *JSONFeedParser) Ready() bool {
 }
 
 // JSONFeedParser.Parse()
-func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed, error) {
+func (parser *JSONFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
+	if w == nil {
+		w = os.Stdout
+	}
 	if !parser.Ready() {
 		return nil, ErrParserInitialization
 	}
@@ -361,7 +372,7 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	// Feed properties
 	if link := parser.JSON.HomePageURL; link != "" {
 		parser.Feed.HTMLURL, _ = href.Parse(link)
-		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL) // resolve relative URLs against the feed URL
+		parser.Feed.HTMLURL = href.ResolveHref(parser.Feed.URL, parser.Feed.HTMLURL, w) // resolve relative URLs against the feed URL
 	}
 	parser.Feed.Title = parser.JSON.Title
 	parser.Feed.Description = parser.JSON.Description
@@ -370,10 +381,10 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 
 	// Feed.Website properties
 	if parser.Feed.Website.FaviconURL == "" {
-		parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, hyperfeed.First(parser.JSON.Favicon, parser.JSON.Icon))
+		parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, hyperfeed.First(parser.JSON.Favicon, parser.JSON.Icon), w)
 	}
 	if parser.Feed.Website.CoverURL == "" {
-		parser.Feed.Website.CoverURL = href.ResolveHrefString(parser.Feed.URL, parser.JSON.Icon)
+		parser.Feed.Website.CoverURL = href.ResolveHrefString(parser.Feed.URL, parser.JSON.Icon, w)
 	}
 	if parser.Feed.Website.MentionsURL == "" {
 		// JSON Feed does not have a standard mentions field, will source from HyperGraph later
@@ -387,7 +398,7 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 	if parser.Feed.Website.Username == "" {
 		parser.Feed.Website.Username = username.Parse(parser.Feed.HTMLURL.String())
 	}
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
 		return nil, err
 	}
 	if len(parser.JSON.Items) != len(parser.Feed.Items) {
@@ -397,7 +408,7 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time) (*hyperfeed.Feed
 }
 
 // JSONFeedParser.Items()
-func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time) (items []*hyperfeed.Item, err error) {
+func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
 	for _, jsonitem := range parser.JSON.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
@@ -407,13 +418,13 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.Title = jsonitem.Title
-		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))))
-		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))))
+		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
+		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		if item.Summary, err = markdown.Convert(hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText)); err != nil {
-			fmt.Printf("markdown JSONFeed item.Summary error: %v\n", err)
+			fmt.Fprintf(w, "markdown JSONFeed item.Summary error: %v\n", err)
 		}
 		if item.Content, err = markdown.Convert(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))); err != nil {
-			fmt.Printf("markdown JSONFeed item.Content error: %v\n", err)
+			fmt.Fprintf(w, "markdown JSONFeed item.Content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
@@ -426,17 +437,17 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time)
 			favicon, _ := href.Parse(byline.Avatar)
 			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: url, Name: byline.Name, Favicon: favicon})
 		}
-		if item.Attachments, err = parser.Attachments(&jsonitem, item); err != nil {
+		if item.Attachments, err = parser.Attachments(&jsonitem, item, w); err != nil {
 			return nil, err
 		}
-		item.ResolveRelativeURLs()
+		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil
 }
 
 // JSONFeedParser.Attachments()
-func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyperfeed.Item) (attachments []hyperfeed.Attachment, err error) {
+func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, a := range jsonfeeditem.Attachments {
 		attachment := hyperfeed.Attachment{}
 		attachment.URL, _ = href.Parse(a.URL)
@@ -458,7 +469,7 @@ func (parser *NoFeedParser) Ready() bool {
 }
 
 // NoFeedParser.Parse()
-func (parser *NoFeedParser) Parse(_ time.Time) (*hyperfeed.Feed, error) {
+func (parser *NoFeedParser) Parse(_ time.Time, _ io.Writer) (*hyperfeed.Feed, error) {
 	return parser.Feed, nil
 }
 

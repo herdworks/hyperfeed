@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -72,51 +73,47 @@ func (item *Item) Identifier() string {
 }
 
 // ResolveRelativeURLs resolves any relative URLs within the item to absolute URLs
-func (item *Item) ResolveRelativeURLs() {
+func (item *Item) ResolveRelativeURLs(w io.Writer) {
 	var base href.Href
 	if item.URL != nil && item.URL.IsAbs() {
 		base = href.Href(*item.URL)
 	} else if item.Feed != nil && item.Feed.URL != nil && item.Feed.URL.IsAbs() {
 		base = *item.Feed.URL
 	} else {
-		fmt.Printf("\n\ncannot resolve relative URLs for item %q: no base URL\n\n", item.Identifier())
+		fmt.Fprintf(w, "\n\ncannot resolve relative URLs for item %q: no base URL\n\n", item.Identifier())
 		return
 	}
 	if item.URL != nil {
-		item.URL = href.ResolveHref(base, item.URL).URL()
+		item.URL = href.ResolveHref(base, item.URL, w).URL()
 	}
 	for i, h := range item.ExternalHrefs {
-		item.ExternalHrefs[i] = href.ResolveHrefString(base, h)
+		item.ExternalHrefs[i] = href.ResolveHrefString(base, h, w)
 	}
 	for i, b := range item.Bylines {
 		if b.Href != nil {
-			b.Href = href.ResolveHref(base, b.Href)
+			b.Href = href.ResolveHref(base, b.Href, w)
 			item.Bylines[i] = b
 		}
 		if b.Favicon != nil {
-			b.Favicon = href.ResolveHref(base, b.Favicon)
+			b.Favicon = href.ResolveHref(base, b.Favicon, w)
 			item.Bylines[i] = b
 		}
 	}
 	for i, img := range item.Images {
 		if img.Href != nil {
-			img.Href = href.ResolveHref(base, img.Href)
+			img.Href = href.ResolveHref(base, img.Href, w)
 		}
 		for j, src := range img.Sources {
 			if src.Href != nil {
-				src.Href = href.ResolveHref(base, src.Href)
+				src.Href = href.ResolveHref(base, src.Href, w)
 				img.Sources[j] = src
 			}
 		}
 		item.Images[i] = img
 	}
-	// for i, l := range item.Links {
-	// 	l.Href = href.ResolveHref(base, l.Href)
-	// 	item.Links[i] = l
-	// }
 	for i, a := range item.Attachments {
 		if a.URL != nil {
-			a.URL = href.ResolveHref(base, a.URL)
+			a.URL = href.ResolveHref(base, a.URL, w)
 			item.Attachments[i] = a
 		}
 	}

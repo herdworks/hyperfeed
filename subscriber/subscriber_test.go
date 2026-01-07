@@ -3,7 +3,9 @@ package subscriber
 import (
 	"context"
 	"errors"
+	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -47,6 +49,7 @@ func TestSubscriberInit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var subscriber Subscriber = Subscriber{}
 			var ctx context.Context = context.Background()
+			var w io.Writer = os.Stdout
 			var err error
 
 			// Initialize subscriber
@@ -70,7 +73,7 @@ func TestSubscriberInit(t *testing.T) {
 
 			// Load subscriptionlist (if provided)
 			if tc.uri != nil {
-				if _, err = subscriber.LoadSubscriptions(ctx, tc.uri.Path); tc.err != nil && errors.Is(err, tc.err) {
+				if _, err = subscriber.LoadSubscriptions(ctx, tc.uri.Path, w); tc.err != nil && errors.Is(err, tc.err) {
 					return // got expected error
 				} else if err != nil {
 					t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)

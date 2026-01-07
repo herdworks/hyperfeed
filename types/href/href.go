@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 )
 
@@ -72,7 +73,6 @@ func (href *Href) UnmarshalText(text []byte) (err error) {
 	if u, err = url.Parse(string(text)); err != nil {
 		return errors.Join(ErrDeserialization, err)
 	}
-	fmt.Println(u.String())
 	*href = Href(*u)
 	return nil
 }
@@ -144,22 +144,22 @@ func Parse(in any) (out *Href, err error) {
 	return (*Href)(u), err
 }
 
-func ResolveHrefString(base, ref any) string {
-	if href := ResolveHref(base, ref); href != nil {
+func ResolveHrefString(base, ref any, w io.Writer) string {
+	if href := ResolveHref(base, ref, w); href != nil {
 		return href.String()
 	}
 	return ""
 }
 
-func ResolveHref(base, ref any) *Href {
+func ResolveHref(base, ref any, w io.Writer) *Href {
 	var b, r *Href
 	var err error
 	if b, err = Parse(base); err != nil || b == nil {
-		fmt.Println(err)
+		fmt.Fprintln(w, err)
 		return nil
 	}
 	if r, err = Parse(ref); err != nil || r == nil {
-		fmt.Println(err)
+		fmt.Fprintln(w, err)
 		return nil
 	}
 	return b.ResolveReference(r)

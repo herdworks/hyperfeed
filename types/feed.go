@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"time"
 
@@ -19,7 +21,7 @@ import (
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
 	ID                 string        `json:"id,omitempty"`       // stable HyperFeed Feed identifier (normalized URL string)
-	Kind               string        `json:"kind,omitempty"`     // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
+	Kind               string        `json:"kind"`               // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
 	URL                *href.Href    `json:"url,omitempty"`      // canonical feed URL (RSS/Atom endpoint)
 	HTMLURL            *href.Href    `json:"html_url,omitempty"` // human-readable feed URL (web page)
 	Title              string        `json:"title,omitempty"`
@@ -100,15 +102,18 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 	return duplicates
 }
 
-func (feed *Feed) HyperGraphEntity(ctx context.Context, timeout int) (err error) {
+func (feed *Feed) HyperGraphEntity(ctx context.Context, timeout int, w io.Writer) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
+	if w == nil {
+		w = os.Stdout
+	}
 	if !feed.Status.LastEntityUpdateAt.IsZero() && time.Since(feed.Status.LastEntityUpdateAt) < 24*time.Hour {
 		return nil // recently updated
 	}
-	if err = document.Download(ctx, true, nil, timeout); err != nil {
+	if err = document.Download(ctx, true, nil, timeout, w); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("downloading document"), err)
 	}
-	if err = document.Scrape(ctx, true, nil, timeout); err != nil {
+	if err = document.Scrape(ctx, true, nil, timeout, w); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
 	feed.Website.Entity = document.Metadata.Entity
