@@ -2,6 +2,7 @@ package subscriber
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +19,8 @@ import (
 	href "github.com/herdworks/hyperfeed-go/types/href"
 )
 
-// ============================ Package Types =================================
+// TYPES
+// =============================================================================
 
 // Subscriber manages one or more SubscriptionLists
 type Subscriber struct {
@@ -26,6 +28,13 @@ type Subscriber struct {
 	Database *database.Database
 	Status   *Status
 }
+
+// VARIABLES
+// =============================================================================
+
+
+// METHODS
+// =============================================================================
 
 // Config holds default Feeder configuration parameters
 type Config struct {
@@ -348,4 +357,17 @@ func (status *Status) Print() string {
 	report += "-----------------------\n"
 	report += fmt.Sprintf("TOTAL:           %6v\n", status.Duration.Truncate(time.Millisecond))
 	return report
+}
+
+// Status JSON marshal method to convert time.duration to string
+func (status *Status) MarshalJSON() (jsonBytes []byte, err error) {
+	type StatusJSON Status
+	s := &struct {
+		Duration string `json:"duration,omitempty"`
+		*StatusJSON
+	}{
+		Duration: status.Duration.String(),
+		StatusJSON:    (*StatusJSON)(status),
+	}
+	return json.Marshal(s)
 }

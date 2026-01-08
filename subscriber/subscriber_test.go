@@ -2,12 +2,17 @@ package subscriber
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 )
 
 // TestSubscriberInit tests the Init and Ready methods of the Subscriber.
@@ -86,4 +91,26 @@ func TestSubscriberInit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSubscriberStatusSerialization(t *testing.T) {
+	var status Status = Status{
+		Duration:     8537 * time.Millisecond,
+		UpdatedAt:    time.Now().UTC(),
+		FeedsSkipped: hyperfeed.Counter{Count: 1},
+		FeedsFailed: hyperfeed.Counter{Count: 1},
+		FeedsFetched: hyperfeed.Counter{Count: 1},
+		ItemsFetched: hyperfeed.Counter{Count: 1},
+		ItemsDuplicate: hyperfeed.Counter{Count: 0},
+		ItemsAdded: hyperfeed.Counter{Count: 1},
+		ItemsUpdated: hyperfeed.Counter{Count: 1},
+	}
+	var jsonBytes []byte
+	var err error
+
+	// Serialize to JSON
+	if jsonBytes, err = json.MarshalIndent(&status, "", "  "); err != nil {
+		t.Fatalf("MarshalJSON returned error: %v", err)
+	}
+	fmt.Printf("%s\n", jsonBytes)
 }
