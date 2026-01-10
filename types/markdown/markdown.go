@@ -196,8 +196,8 @@ func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
 		return
 
 	case xhtml.CommentNode:
-		buf.WriteString("<!-- " + n.Data + " -->")
-		return
+		// buf.WriteString("<!-- " + n.Data + " -->")
+		return // skip comments
 	}
 
 	// fallback
