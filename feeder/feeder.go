@@ -135,6 +135,9 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 	if feeder.Feed.Status.UpdatedAt.IsZero() {
 		return true, nil // new feed
 	}
+	if feeder.Feed.Status.UpdatedAt == feeder.Feed.Status.LastCanceledAt {
+		return true, nil // last attempt was canceled; allow immediate retry
+	}
 
 	// apply cooldown
 	cooldown := feeder.Feed.Status.Cooldown(feeder.Feed.Interval)
@@ -181,27 +184,30 @@ func (feeder *Feeder) Request(ctx context.Context) (request *http.Request, err e
 }
 
 // Apply updates the feeder state based on the transporter response.
-// Implementation must update error counters, compute backoff, and persist state.
 func (feeder *Feeder) Apply(response *http.Response, w io.Writer) {
 	if w == nil {
 		w = os.Stdout
 	}
 	feeder.ApplyReset(response, w)
-	feeder.ApplyTimestamps(response, w)
+	feeder.ApplyTimestamps(response, nil, w)
 	feeder.ApplyStatusCode(response, w)
 	feeder.ApplyHeaders(response, w)
 	feeder.ApplyRateLimits(response, w)
 }
 func (feeder *Feeder) ApplyReset(response *http.Response, w io.Writer) {
-	feeder.Status.LastError = ""
+	feeder.Feed.Status.LastCanceledAt = time.Time{}
+	feeder.Feed.Status.LastError = ""
 	if response != nil && response.StatusCode >= 100 {
 		feeder.Status.FetchErrors = 0 // if we received an HTTP status code, fetch was successful
 	}
 }
-func (feeder *Feeder) ApplyTimestamps(response *http.Response, w io.Writer) {
+func (feeder *Feeder) ApplyTimestamps(response *http.Response, err error, w io.Writer) {
 	feeder.Feed.Status.UpdatedAt = time.Now().UTC()
 	if feeder.Feed.Status.CreatedAt.IsZero() {
 		feeder.Feed.Status.CreatedAt = feeder.Feed.Status.UpdatedAt
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		feeder.Feed.Status.LastCanceledAt = feeder.Feed.Status.UpdatedAt
 	}
 	if response == nil {
 		feeder.Feed.Status.LastErrorAt = feeder.Feed.Status.UpdatedAt
@@ -261,7 +267,7 @@ func (feeder *Feeder) Log(response *http.Response, err error, w io.Writer) {
 		w = os.Stdout
 	}
 	feeder.ApplyReset(response, w)
-	feeder.ApplyTimestamps(response, w)
+	feeder.ApplyTimestamps(response, err, w)
 	feeder.ApplyStatusCode(response, w)
 	feeder.ApplyRateLimits(response, w)
 	feeder.LogErrors(response, err, w)
@@ -278,6 +284,12 @@ func (feeder *Feeder) LogErrors(response *http.Response, err error, w io.Writer)
 	case errors.Is(err, ErrReadiness), errors.Is(err, ErrRequest):
 		fmt.Fprintf(w, "feed %q skipped: %v\n", feeder.Feed.URL.String(), message)
 		return
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		fmt.Fprintf(w, "feed %q canceled\n", feeder.Feed.URL.String())
+		return
+	case errors.Is(err, ErrRateLimited):
+		fmt.Fprintf(w, "feed %q rate limited: %v\n", feeder.Feed.URL.String(), message)
+		return
 	case errors.As(err, &ErrDNS):
 		fmt.Fprintf(w, "feed %q failed\n", feeder.Feed.URL.String())
 	case errors.As(err, &ErrTLSHostName), errors.As(err, &ErrTLSInvalid), errors.As(err, &ErrTLSUnknownCA):
@@ -286,9 +298,6 @@ func (feeder *Feeder) LogErrors(response *http.Response, err error, w io.Writer)
 		fmt.Fprintf(w, "feed %q failed with HTTP2 error: %v\n", feeder.Feed.URL.String(), message)
 	case errors.Is(err, ErrFetch):
 		fmt.Fprintf(w, "feed %q fetch error: %v\n", feeder.Feed.URL.String(), message)
-	case errors.Is(err, ErrRateLimited):
-		fmt.Fprintf(w, "feed %q rate limited: %v\n", feeder.Feed.URL.String(), message)
-		return
 	case errors.Is(err, ErrResponse):
 		fmt.Fprintf(w, "feed %q failed\n", feeder.Feed.URL.String())
 	default:

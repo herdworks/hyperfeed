@@ -30,6 +30,10 @@ type Status struct {
 	// LastErrorAt is only set on fetches that return 4xx or 5xx status codes.
 	LastErrorAt time.Time `json:"last_error_at"`
 
+	// LastCanceledAt is when we most recently had a fetch canceled (timeout, context cancel, etc).
+	// LastCanceledAt is only set on fetches that are canceled.
+	LastCanceledAt time.Time `json:"last_canceled_at"`
+
 	// LastError stores the last error message encountered during fetch attempts.
 	// LastError is set on every fetch; if the fetch is successful, LastError is cleared.
 	LastError string `json:"last_error"`

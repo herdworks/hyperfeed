@@ -219,19 +219,6 @@ func (subscriber *Subscriber) ResolveFeeds(ctx context.Context, feeds []*hyperfe
 	return feeds, nil
 }
 
-// func (subscriber *Subscriber) GraphFeeds(ctx context.Context, feeds []*hyperfeed.Feed) ([]*hyperfeed.Feed, error) {
-// 	var jobs sync.WaitGroup = sync.WaitGroup{}
-// 	jobs.Add(len(feeds))
-// 	for _, feed := range feeds {
-// 		go func(f *hyperfeed.Feed) {
-// 			defer jobs.Done()
-// 			f.HyperGraphEntity(ctx)
-// 		}(feed)
-// 	}
-// 	jobs.Wait()
-// 	return feeds, nil
-// }
-
 // SaveSubscriptionList persists the SubscriptionList to the database
 func (subscriber *Subscriber) SaveSubscriptionList(ctx context.Context, subscriptions *hyperfeed.SubscriptionList) (err error) {
 	if err = subscriber.Database.PingContext(ctx); err != nil {
@@ -302,7 +289,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			ff.Tick(cancellation, client, timelinePosition, w) // ignore tick errors; they are recorded in f.Feed.Status
 			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
 			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
-				if e = ff.Feed.HyperGraphEntity(ctx, timeout, w); e != nil {
+				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
 					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
 				}

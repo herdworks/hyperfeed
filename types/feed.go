@@ -102,7 +102,7 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 	return duplicates
 }
 
-func (feed *Feed) HyperGraphEntity(ctx context.Context, timeout int, w io.Writer) (err error) {
+func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer) (err error) {
 	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
 	if w == nil {
 		w = os.Stdout
