@@ -3,10 +3,12 @@ package feeder
 import (
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
@@ -145,7 +147,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = rssitem.GUID.Value
 		item.URL = rss.LinkURL(rssitem.Links)
-		item.Title = rssitem.Title
+		item.Title = html.UnescapeString(strings.TrimSpace(rssitem.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
@@ -301,7 +303,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
 		summary := atom.First(&atom.Text{}, entry.Summary, entry.Content)
 		content := atom.First(&atom.Text{}, entry.Content, entry.Summary)
-		item.Title = entry.Title
+		item.Title = html.UnescapeString(strings.TrimSpace(entry.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
 		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
@@ -417,7 +419,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		}
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
-		item.Title = jsonitem.Title
+		item.Title = html.UnescapeString(strings.TrimSpace(jsonitem.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		if item.Summary, err = markdown.Convert(hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText)); err != nil {
