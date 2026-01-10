@@ -1,14 +1,17 @@
 package markdown
 
+// Convert HTML to Apple Extended Markdown format.
+
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"golang.org/x/net/html"
+	xhtml "golang.org/x/net/html"
 )
 
 type Markup struct {
@@ -70,23 +73,23 @@ var (
 )
 
 func Convert(htmlInput string) (out string, err error) {
-	var node *html.Node
+	var node *xhtml.Node
 	var buf bytes.Buffer
-	if node, err = html.Parse(strings.NewReader(htmlInput)); err != nil {
+	if node, err = xhtml.Parse(strings.NewReader(htmlInput)); err != nil {
 		return "", err
 	}
 	walk(&buf, node, 0, true)
 	return buf.String(), nil
 }
 
-func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
+func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
 	switch n.Type {
 
-	case html.TextNode:
+	case xhtml.TextNode:
 		var prefix, suffix string
 
 		// Normalize CR/LF/Tabs
-		text := n.Data
+		text := html.UnescapeString(n.Data)
 		text = strings.ReplaceAll(text, "\r", "")
 		text = strings.ReplaceAll(text, "\t", " ")
 		text = strings.ReplaceAll(text, "\n", " ")
@@ -103,7 +106,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		}
 		buf.WriteString(escape(text))
 		return
-	case html.ElementNode:
+	case xhtml.ElementNode:
 		// skipped tags
 		if slices.Contains(skippedTags, n.Data) {
 			return
@@ -192,7 +195,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		}
 		return
 
-	case html.CommentNode:
+	case xhtml.CommentNode:
 		buf.WriteString("<!-- " + n.Data + " -->")
 		return
 	}
@@ -203,7 +206,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 	}
 }
 
-func a(buf *bytes.Buffer, n *html.Node, extended bool) {
+func a(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	var href string = ""
 	var inner bytes.Buffer
 	if has(n, "img") && len(children(n)) == 1 {
@@ -234,7 +237,7 @@ func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 	buf.WriteString("[" + text + "](" + href + ")")
 }
 
-func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
+func blockquote(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	var quote bytes.Buffer
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(&quote, c, 0, extended)
@@ -245,7 +248,7 @@ func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
 	buf.WriteString("\n")
 }
 
-func img(buf *bytes.Buffer, n *html.Node, extended bool) {
+func img(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	var alt string
 	var src string
 	var srcset string
@@ -285,11 +288,11 @@ func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 	}
 }
 
-func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
+func ol(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 	indent := strings.Repeat("  ", depth)
 	counter := 1
 	for li := n.FirstChild; li != nil; li = li.NextSibling {
-		if li.Type != html.ElementNode || li.Data != "li" {
+		if li.Type != xhtml.ElementNode || li.Data != "li" {
 			continue
 		}
 
@@ -297,7 +300,7 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 		item.WriteString(indent + strconv.Itoa(counter) + ". ")
 
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+			if c.Type == xhtml.ElementNode && (c.Data == "ul" || c.Data == "ol") {
 				continue
 			}
 			walk(&item, c, depth, extended)
@@ -307,9 +310,9 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 		buf.WriteString(line + "\n")
 
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && c.Data == "ul" {
+			if c.Type == xhtml.ElementNode && c.Data == "ul" {
 				ul(buf, c, depth+1, extended)
-			} else if c.Type == html.ElementNode && c.Data == "ol" {
+			} else if c.Type == xhtml.ElementNode && c.Data == "ol" {
 				ol(buf, c, depth+1, extended)
 			}
 		}
@@ -319,12 +322,12 @@ func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
+func ul(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 	indent := strings.Repeat("  ", depth)
 	bullet := "* "
 
 	for li := n.FirstChild; li != nil; li = li.NextSibling {
-		if li.Type != html.ElementNode || li.Data != "li" {
+		if li.Type != xhtml.ElementNode || li.Data != "li" {
 			continue
 		}
 
@@ -333,7 +336,7 @@ func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 
 		// write only inline content first
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+			if c.Type == xhtml.ElementNode && (c.Data == "ul" || c.Data == "ol") {
 				continue
 			}
 			walk(&item, c, depth, extended)
@@ -345,7 +348,7 @@ func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 
 		// now render nested lists
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == html.ElementNode && c.Data == "ul" {
+			if c.Type == xhtml.ElementNode && c.Data == "ul" {
 				ul(buf, c, depth+1, extended)
 			} else if c.Data == "ol" {
 				ol(buf, c, depth+1, extended)
@@ -356,7 +359,7 @@ func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func pre(buf *bytes.Buffer, n *html.Node) {
+func pre(buf *bytes.Buffer, n *xhtml.Node) {
 	var inner bytes.Buffer
 	if !newline(buf) {
 		buf.WriteString("\n")
@@ -398,14 +401,14 @@ func whitespaced(buf *bytes.Buffer) bool {
 	return bs[len(bs)-1] == ' ' || bs[len(bs)-1] == '\n' || bs[len(bs)-1] == '\t'
 }
 
-func preformatted(buf *bytes.Buffer, n *html.Node) {
+func preformatted(buf *bytes.Buffer, n *xhtml.Node) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		switch {
-		case c.Type == html.TextNode:
+		case c.Type == xhtml.TextNode:
 			buf.WriteString(c.Data)
-		case c.Type == html.ElementNode && c.Data == "br":
+		case c.Type == xhtml.ElementNode && c.Data == "br":
 			buf.WriteString("\n")
-		case c.Type == html.ElementNode:
+		case c.Type == xhtml.ElementNode:
 			preformatted(buf, c)
 		default:
 			continue
@@ -413,10 +416,10 @@ func preformatted(buf *bytes.Buffer, n *html.Node) {
 	}
 }
 
-func children(n *html.Node) []*html.Node {
-	var nodes []*html.Node
+func children(n *xhtml.Node) []*xhtml.Node {
+	var nodes []*xhtml.Node
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type != html.ElementNode {
+		if c.Type != xhtml.ElementNode {
 			continue
 		}
 		nodes = append(nodes, c)
@@ -424,9 +427,9 @@ func children(n *html.Node) []*html.Node {
 	return nodes
 }
 
-func has(n *html.Node, tag string) bool {
+func has(n *xhtml.Node, tag string) bool {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.ElementNode && c.Data == tag {
+		if c.Type == xhtml.ElementNode && c.Data == tag {
 			return true
 		}
 		if has(c, tag) {

@@ -31,6 +31,10 @@ func TestConvertOrderedList(t *testing.T) {
 			name:   "Example post with sup element(s)",
 			source: "testdata/5.html",
 		},
+		{
+			name:   "Example post with numerical HTML character entities",
+			source: "testdata/6.html",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
