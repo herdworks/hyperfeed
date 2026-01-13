@@ -5,13 +5,12 @@ package markdown
 import (
 	"bytes"
 	"fmt"
-	"html"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	xhtml "golang.org/x/net/html"
+	html "golang.org/x/net/html"
 )
 
 type Markup struct {
@@ -73,27 +72,31 @@ var (
 )
 
 func Convert(htmlInput string) (out string, err error) {
-	var node *xhtml.Node
+	var node *html.Node
 	var buf bytes.Buffer
-	if node, err = xhtml.Parse(strings.NewReader(htmlInput)); err != nil {
+	if node, err = html.Parse(strings.NewReader(clean(htmlInput))); err != nil {
 		return "", err
 	}
 	walk(&buf, node, 0, true)
-	return buf.String(), nil
+	return strings.TrimSpace(buf.String()), nil
 }
 
-func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
+func clean(in string) (out string) {
+	out = in
+	out = strings.ReplaceAll(out, "\r\n", "")
+	out = strings.ReplaceAll(out, "\r", "")
+	out = strings.ReplaceAll(out, "\n", "")
+	out = html.UnescapeString(out)
+	return out
+}
+
+func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 	switch n.Type {
 
-	case xhtml.TextNode:
+	case html.TextNode:
 		var prefix, suffix string
 
-		// Normalize CR/LF/Tabs
-		text := html.UnescapeString(n.Data)
-		text = strings.ReplaceAll(text, "\r", "")
-		text = strings.ReplaceAll(text, "\t", " ")
-		text = strings.ReplaceAll(text, "\n", " ")
-		text = strings.ReplaceAll(text, "\u00a0", " ")
+		text := n.Data
 		if !newline(buf) && extended && strings.HasPrefix(text, " ") {
 			prefix = " "
 		}
@@ -106,7 +109,7 @@ func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
 		}
 		buf.WriteString(escape(text))
 		return
-	case xhtml.ElementNode:
+	case html.ElementNode:
 		// skipped tags
 		if slices.Contains(skippedTags, n.Data) {
 			return
@@ -175,7 +178,7 @@ func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
 			ol(buf, n, indent, extended)
 			return
 		case "pre":
-			pre(buf, n)
+			codeblock(buf, n)
 			return
 		}
 
@@ -195,18 +198,20 @@ func walk(buf *bytes.Buffer, n *xhtml.Node, indent int, extended bool) {
 		}
 		return
 
-	case xhtml.CommentNode:
-		// buf.WriteString("<!-- " + n.Data + " -->")
-		return // skip comments
+	case html.CommentNode:
+		if strings.ToLower(strings.TrimSpace(n.Data)) == "more" {
+			fmt.Printf("\n\n<!-- more comment detection! -->\n\n")
+		}
+		return
 	}
 
 	// fallback
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		walk(buf, c, indent, extended)
+		walk(buf, c, indent, extended) // RECURSION
 	}
 }
 
-func a(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
+func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 	var href string = ""
 	var inner bytes.Buffer
 	if has(n, "img") && len(children(n)) == 1 {
@@ -237,7 +242,7 @@ func a(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	buf.WriteString("[" + text + "](" + href + ")")
 }
 
-func blockquote(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
+func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
 	var quote bytes.Buffer
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(&quote, c, 0, extended)
@@ -248,7 +253,7 @@ func blockquote(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	buf.WriteString("\n")
 }
 
-func img(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
+func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 	var alt string
 	var src string
 	var srcset string
@@ -288,11 +293,11 @@ func img(buf *bytes.Buffer, n *xhtml.Node, extended bool) {
 	}
 }
 
-func ol(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
+func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	indent := strings.Repeat("  ", depth)
 	counter := 1
 	for li := n.FirstChild; li != nil; li = li.NextSibling {
-		if li.Type != xhtml.ElementNode || li.Data != "li" {
+		if li.Type != html.ElementNode || li.Data != "li" {
 			continue
 		}
 
@@ -300,7 +305,7 @@ func ol(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 		item.WriteString(indent + strconv.Itoa(counter) + ". ")
 
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == xhtml.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
 				continue
 			}
 			walk(&item, c, depth, extended)
@@ -310,9 +315,9 @@ func ol(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 		buf.WriteString(line + "\n")
 
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == xhtml.ElementNode && c.Data == "ul" {
+			if c.Type == html.ElementNode && c.Data == "ul" {
 				ul(buf, c, depth+1, extended)
-			} else if c.Type == xhtml.ElementNode && c.Data == "ol" {
+			} else if c.Type == html.ElementNode && c.Data == "ol" {
 				ol(buf, c, depth+1, extended)
 			}
 		}
@@ -322,12 +327,12 @@ func ol(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func ul(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
+func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	indent := strings.Repeat("  ", depth)
 	bullet := "* "
 
 	for li := n.FirstChild; li != nil; li = li.NextSibling {
-		if li.Type != xhtml.ElementNode || li.Data != "li" {
+		if li.Type != html.ElementNode || li.Data != "li" {
 			continue
 		}
 
@@ -336,7 +341,7 @@ func ul(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 
 		// write only inline content first
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == xhtml.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
 				continue
 			}
 			walk(&item, c, depth, extended)
@@ -348,7 +353,7 @@ func ul(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 
 		// now render nested lists
 		for c := li.FirstChild; c != nil; c = c.NextSibling {
-			if c.Type == xhtml.ElementNode && c.Data == "ul" {
+			if c.Type == html.ElementNode && c.Data == "ul" {
 				ul(buf, c, depth+1, extended)
 			} else if c.Data == "ol" {
 				ol(buf, c, depth+1, extended)
@@ -359,17 +364,49 @@ func ul(buf *bytes.Buffer, n *xhtml.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func pre(buf *bytes.Buffer, n *xhtml.Node) {
+func pre(buf *bytes.Buffer, n *html.Node) {
 	var inner bytes.Buffer
 	if !newline(buf) {
 		buf.WriteString("\n")
 	}
 	buf.WriteString("^[\n")
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		preformatted(&inner, c) // ignore extensions
+		preformatted(&inner, c, 0) // ignore extensions
 	}
 	buf.Write(bytes.ReplaceAll(inner.Bytes(), []byte("]"), []byte("\\]")))
 	buf.WriteString("\n](kind: \"pre\")\n\n")
+}
+
+func codeblock(buf *bytes.Buffer, n *html.Node) {
+	var inner bytes.Buffer
+	if !newline(buf) {
+		buf.WriteString("\n")
+	}
+	buf.WriteString("```")
+	if lang := codelang(n); lang != "" {
+		buf.WriteString(lang)
+	}
+	buf.WriteString("\n")
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		preformatted(&inner, c, 0) // ignore extensions
+	}
+	buf.Write(inner.Bytes())
+	if !newline(buf) {
+		buf.WriteString("\n")
+	}
+	buf.WriteString("```\n\n")
+}
+func codelang(n *html.Node) (lang string) {
+	for _, a := range n.Attr {
+		if a.Key == "class" && strings.HasPrefix(a.Val, "language-") {
+			lang = strings.TrimPrefix(a.Val, "language-")
+			return lang
+		}
+	}
+	if l := codelang(n.FirstChild); l != "" {
+		return l
+	}
+	return ""
 }
 
 func escape(s string) (r string) {
@@ -392,7 +429,7 @@ func newline(buf *bytes.Buffer) bool {
 	return bs[len(bs)-1] == '\n'
 }
 
-// whitespace checks if the last character in the buffer is whitespace
+// whitespaced checks if the last character in the buffer is whitespace
 func whitespaced(buf *bytes.Buffer) bool {
 	bs := buf.Bytes()
 	if len(bs) == 0 {
@@ -401,25 +438,25 @@ func whitespaced(buf *bytes.Buffer) bool {
 	return bs[len(bs)-1] == ' ' || bs[len(bs)-1] == '\n' || bs[len(bs)-1] == '\t'
 }
 
-func preformatted(buf *bytes.Buffer, n *xhtml.Node) {
+func preformatted(buf *bytes.Buffer, n *html.Node, level int) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		switch {
-		case c.Type == xhtml.TextNode:
+		case c.Type == html.TextNode:
 			buf.WriteString(c.Data)
-		case c.Type == xhtml.ElementNode && c.Data == "br":
+		case c.Type == html.ElementNode && c.Data == "br":
 			buf.WriteString("\n")
-		case c.Type == xhtml.ElementNode:
-			preformatted(buf, c)
+		case c.Type == html.ElementNode:
+			preformatted(buf, c, level)
 		default:
 			continue
 		}
 	}
 }
 
-func children(n *xhtml.Node) []*xhtml.Node {
-	var nodes []*xhtml.Node
+func children(n *html.Node) []*html.Node {
+	var nodes []*html.Node
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type != xhtml.ElementNode {
+		if c.Type != html.ElementNode {
 			continue
 		}
 		nodes = append(nodes, c)
@@ -427,9 +464,9 @@ func children(n *xhtml.Node) []*xhtml.Node {
 	return nodes
 }
 
-func has(n *xhtml.Node, tag string) bool {
+func has(n *html.Node, tag string) bool {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == xhtml.ElementNode && c.Data == tag {
+		if c.Type == html.ElementNode && c.Data == tag {
 			return true
 		}
 		if has(c, tag) {

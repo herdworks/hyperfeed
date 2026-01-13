@@ -1,0 +1,190 @@
+&lt;pre class=&quot;language-javascript&quot;&gt;&lt;code
+class=&quot;language-javascript&quot;&gt;&lt;span class=&quot;highlight-line&quot;&gt;&lt;span
+class=&quot;token keyword&quot;&gt;const&lt;/span&gt; form &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; document&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;getElementById&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;my-form&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+keyword&quot;&gt;const&lt;/span&gt; input &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; document&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;getElementById&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;program_name&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+keyword&quot;&gt;const&lt;/span&gt; errorMessage &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; document&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;getElementById&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;program_name-error&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// IMPORTANT: 
+set this attribute in JS, that way it&#39;s a&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// progressive
+enhancement (ie: if JS isn&#39;t available the&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// native form
+validation will still work).&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;form&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;setAttribute&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;novalidate&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;token
+string&quot;&gt;&quot;&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+keyword&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;token
+function&quot;&gt;validateInput&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+keyword&quot;&gt;const&lt;/span&gt; isValid &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;checkValidity&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; errorMessage&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;textContent &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; isValid &lt;span class=&quot;token
+operator&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;token
+string&quot;&gt;&quot;&quot;&lt;/span&gt; &lt;span class=&quot;token
+operator&quot;&gt;:&lt;/span&gt; input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;validationMessage&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+keyword&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;isValid&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;removeAttribute&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;aria-invalid&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;token
+keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;setAttribute&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;aria-invalid&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;token
+string&quot;&gt;&quot;true&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// Validate on
+blur (when user leaves the field)&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;addEventListener&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;blur&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;,&lt;/span&gt; validateInput&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// Clear
+errors as user types&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;addEventListener&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;input&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+operator&quot;&gt;=&gt;&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+keyword&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;checkValidity&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; errorMessage&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;textContent &lt;span class=&quot;token
+operator&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;token
+string&quot;&gt;&quot;&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; input&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;removeAttribute&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;aria-invalid&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token comment&quot;&gt;// Handle form
+submit&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;form&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;addEventListener&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+string&quot;&gt;&quot;submit&quot;&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+parameter&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+operator&quot;&gt;=&gt;&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+keyword&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+operator&quot;&gt;!&lt;/span&gt;form&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;checkValidity&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;{&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; e&lt;span class=&quot;token
+punctuation&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;token
+function&quot;&gt;preventDefault&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token comment&quot;&gt;// Update
+validation state for all fields&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+function&quot;&gt;validateInput&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt; &lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;/span&gt;&lt;br /&gt;&lt;span
+class=&quot;highlight-line&quot;&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;token
+punctuation&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;

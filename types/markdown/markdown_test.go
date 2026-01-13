@@ -35,6 +35,14 @@ func TestConvertOrderedList(t *testing.T) {
 			name:   "Example post with numerical HTML character entities",
 			source: "testdata/6.html",
 		},
+		{
+			name:   "Pluralistic MESS",
+			source: "testdata/7.html",
+		},
+		{
+			name:   "HTMHell",
+			source: "testdata/htmhell.html",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -48,6 +56,8 @@ func TestConvertOrderedList(t *testing.T) {
 				t.Fatalf("Convert returned error: %v", err)
 			}
 			fmt.Println(markdownString)
+			fmt.Println()
+			fmt.Println()
 		})
 	}
 }
