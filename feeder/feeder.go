@@ -15,7 +15,6 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
 )
@@ -26,8 +25,6 @@ import (
 // Feeder manages a Feed.
 type Feeder struct {
 	*hyperfeed.Feed
-
-	Database *database.Database
 }
 
 // Config captures tunable knobs for feeder HTTP client behavior.
@@ -61,7 +58,6 @@ var (
 	ErrRequest        = errors.New("request error")
 	ErrFetch          = errors.New("fetch error")
 	ErrResponse       = errors.New("response error")
-	ErrDatabase       = errors.New("database error")
 	ErrDNS            *net.DNSError
 	ErrTLSHostName    x509.HostnameError
 	ErrTLSInvalid     x509.CertificateInvalidError
@@ -322,100 +318,6 @@ func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, timel
 	}
 	// feeder.Feed = parser.Feed
 	return nil
-}
-
-// Save persists the current feed and status to the database
-func (feeder *Feeder) SaveFeed(ctx context.Context, _ io.Writer) (err error) {
-	if err = feeder.Database.PingContext(ctx); err != nil {
-		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
-	}
-	if err = feeder.Database.UpsertRow(ctx, &feeder.Feed.Website); err != nil {
-		return errors.Join(ErrDatabase, errors.New("upserting website"), err)
-	}
-	if err = feeder.Database.UpsertRow(ctx, feeder.Feed); err != nil {
-		return errors.Join(ErrDatabase, errors.New("upserting feed"), err)
-	}
-	return nil
-}
-func (feeder *Feeder) SaveItems(ctx context.Context, w io.Writer) (err error) {
-	if w == nil {
-		w = os.Stdout
-	}
-	if err = feeder.Database.PingContext(ctx); err != nil {
-		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
-	}
-	for _, item := range feeder.Items {
-		if err = feeder.Database.UpsertRow(ctx, item); err != nil {
-			return errors.Join(ErrDatabase, errors.New("upserting item"), err)
-		}
-		for _, byline := range item.Bylines {
-			if err = feeder.Database.UpsertRow(ctx, &byline); err != nil {
-				return errors.Join(ErrDatabase, errors.New("upserting byline"), err)
-			}
-			columns := []string{"feed_id", "item_id", "byline_id"}
-			values := []any{item.Feed.Identifier(), item.Identifier(), byline.Identifier()}
-			if err = feeder.Database.RelateRows(ctx, "item_bylines", columns, values); err != nil {
-				return errors.Join(ErrDatabase, errors.New("inserting item-byline relation"), err)
-			}
-		}
-		for _, link := range item.Links {
-			if err = feeder.Database.UpsertRow(ctx, link); err != nil {
-				fmt.Fprintf(w, "link: %q\n", link)
-				return errors.Join(ErrDatabase, errors.New("upserting link"), err)
-			}
-			columns := []string{"website_id", "feed_id", "item_id", "link_id"}
-			values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier()}
-			if err = feeder.Database.RelateRows(ctx, "item_links", columns, values); err != nil {
-				return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)
-			}
-		}
-		for _, image := range item.Images {
-			image.FeedID = item.Feed.Identifier()
-			image.WebsiteID = item.Feed.Website.Identifier()
-			if err = feeder.Database.InsertRow(ctx, image); err != nil {
-				fmt.Fprintf(w, "image.item_id: %q\n", image.ItemID)
-				return errors.Join(ErrDatabase, errors.New("inserting image"), err)
-			}
-		}
-		for _, attachment := range item.Attachments {
-			attachment.FeedID = item.Feed.Identifier()
-			attachment.WebsiteID = item.Feed.Website.Identifier()
-			if err = feeder.Database.UpsertRow(ctx, &attachment); err != nil {
-				fmt.Fprintf(w, "attachment.item_id: %v\n", attachment.ItemID)
-				fmt.Fprintf(w, "attachment.feed_id: %v\n", attachment.FeedID)
-				fmt.Fprintf(w, "attachment.website_id: %v\n", attachment.WebsiteID)
-				return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
-			}
-		}
-	}
-	return nil
-}
-func (feeder *Feeder) AddedItems(ctx context.Context, feed *hyperfeed.Feed, w io.Writer) (int, int, error) {
-	var expected int = len(feed.Items) - len(feed.DuplicateItems())
-	var addedCount int = 0
-	var addedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND added_at = ?;`
-	var updatedCount int = 0
-	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE feed_id = ? AND updated_at = ? AND added_at != ?;`
-	var err error
-	if w == nil {
-		w = os.Stdout
-	}
-	if len(feed.Items) == 0 {
-		return 0, 0, nil
-	}
-	if err = feeder.Database.PingContext(ctx); err != nil {
-		return 0, 0, errors.Join(ErrDatabase, errors.New("pinging database"), err)
-	}
-	if err = feeder.Database.QueryRowContext(ctx, addedQuery, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&addedCount); err != nil {
-		return 0, 0, errors.Join(ErrDatabase, errors.New("counting new items"), err)
-	}
-	if err = feeder.Database.QueryRowContext(ctx, updatedQuery, feed.ID, feed.Status.UpdatedAt.UTC().Format(time.RFC3339), feed.Status.UpdatedAt.UTC().Format(time.RFC3339)).Scan(&updatedCount); err != nil {
-		return 0, 0, errors.Join(ErrDatabase, errors.New("counting modified items"), err)
-	}
-	if addedCount+updatedCount != expected {
-		fmt.Fprintf(w, "feed %q expected %d added items, got %d\n", feed.URL.String(), expected, addedCount+updatedCount)
-	}
-	return addedCount, updatedCount, nil
 }
 
 // FUNCTIONS

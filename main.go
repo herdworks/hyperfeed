@@ -8,7 +8,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"time"
 
 	"github.com/herdworks/hyperfeed-go/subscriber"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
@@ -34,7 +33,6 @@ func main() {
 	var w io.Writer = os.Stdout
 	var logfile string
 	var err error
-	var offset time.Time = time.Time{} // zero time
 
 	// Parse command line arguments
 	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
@@ -78,7 +76,7 @@ func main() {
 			fmt.Printf("Error loading subscriber: %v\n", err)
 			os.Exit(1)
 		} else {
-			if err = subscriber.SaveFeeds(ctx, feeds, os.Stdout); err != nil {
+			if err = subscriber.SaveFeeds(ctx, os.Stdout, feeds); err != nil {
 				fmt.Printf("Error saving feeds: %v\n", err)
 				os.Exit(1)
 			}
@@ -97,7 +95,7 @@ func main() {
 
 	// Refresh feeds
 	if slices.Contains(args, "refresh") {
-		if err = subscriber.Refresh(ctx, offset, feeds, timeout, w); err != nil {
+		if err = subscriber.Refresh(ctx, feeds, timeout, w); err != nil {
 			fmt.Printf("Error refreshing subscriber: %v\n", err)
 			os.Exit(1)
 		}

@@ -291,6 +291,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
 	for _, entry := range parser.Atom.Entries {
 		item := &hyperfeed.Item{Feed: parser.Feed}
+		item.GUID = entry.ID
 		if link := entry.InternalLink(parser.Feed.URL.URL()); link != nil {
 			item.URL, _ = url.Parse(link.Href)
 		}

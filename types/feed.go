@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 
 // Feed represents a single RSS/Atom feed.
 type Feed struct {
+	*DatabaseRecord
+
 	ID                 string        `json:"id,omitempty"`       // stable HyperFeed Feed identifier (normalized URL string)
 	Kind               string        `json:"kind"`               // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
 	URL                *href.Href    `json:"url,omitempty"`      // canonical feed URL (RSS/Atom endpoint)
@@ -125,23 +128,15 @@ func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer)
 	return nil
 }
 
-// DatabaseReadable interface methods
-func (*Feed) DatabaseView() string {
-	return "feeds_view"
-}
-func (*Feed) DatabaseViewIdentifier() string {
-	return "id"
-}
+// DatabaseRecord methods
 func (*Feed) DatabaseObject() string {
 	return "feed"
 }
-
-// DatabaseWritable interface methods
 func (*Feed) DatabaseTable() string {
 	return "feeds"
 }
-func (*Feed) DatabaseTableIdentifier() string {
-	return "id"
+func (*Feed) DatabaseView() string {
+	return "feeds_view"
 }
 func (*Feed) DatabaseInsertColumns() []string {
 	return []string{
@@ -159,32 +154,32 @@ func (*Feed) DatabaseInsertColumns() []string {
 	}
 }
 func (feed *Feed) DatabaseInsertValues() (values []any) {
-	values = append(values, feed.Identifier())       // id
-	values = append(values, feed.Kind)               // kind
-	values = append(values, feed.URL.URL().String()) // url
+	values = append(values, sql.Named("id", feed.Identifier()))       // id
+	values = append(values, sql.Named("kind", feed.Kind))               // kind
+	values = append(values, sql.Named("url", feed.URL.URL().String())) // url
 	if feed.HTMLURL != nil {
-		values = append(values, feed.HTMLURL.URL().String()) // html_url
+		values = append(values, sql.Named("html_url", feed.HTMLURL.URL().String())) // html_url
 	} else {
-		values = append(values, nil) // html_url
+		values = append(values, sql.Named("html_url", nil)) // html_url
 	}
-	values = append(values, feed.Title)             // title
-	values = append(values, feed.Description)       // description
-	values = append(values, feed.Language)          // language
-	values = append(values, feed.Interval.String()) // interval
+	values = append(values, sql.Named("title", feed.Title))             // title
+	values = append(values, sql.Named("description", feed.Description))       // description
+	values = append(values, sql.Named("language", feed.Language))          // language
+	values = append(values, sql.Named("interval", feed.Interval.String())) // interval
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
-		values = append(values, string(statusBytes)) // status
+		values = append(values, sql.Named("status", string(statusBytes))) // status
 	} else {
-		values = append(values, "{}") // status
+		values = append(values, sql.Named("status", "{}")) // status
 	}
-	values = append(values, feed.SubscriptionListID) // subscriptionlist_id
+	values = append(values, sql.Named("subscriptionlist_id", feed.SubscriptionListID)) // subscriptionlist_id
 	if len(feed.Website.HTMLURL) > 0 {
-		values = append(values, feed.Website.Identifier()) // website_id
+		values = append(values, sql.Named("website_id", feed.Website.Identifier())) // website_id
 	} else {
-		values = append(values, nil) // website_id
+		values = append(values, sql.Named("website_id", nil)) // website_id
 	}
 	return values
 }
-func (feed *Feed) DatabaseUpdatesSet() []string {
+func (feed *Feed) DatabaseUpdatesSet(_ []string) []string {
 	return []string{
 		"url = excluded.url",
 		"kind = excluded.kind",

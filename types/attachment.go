@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -21,6 +22,8 @@ import (
 // - duration_in_seconds (JSON Feed, podcast extensions) -> Duration
 // - labels/tags (non-standard, commonly present in extensions) -> Labels
 type Attachment struct {
+	*DatabaseRecord
+
 	ID       string     `json:"id,omitempty"` // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
 	URL      *href.Href `json:"url,omitempty"`
 	Title    string     `json:"title,omitempty"`
@@ -54,20 +57,14 @@ func (attachment *Attachment) Identifier() string {
 	}
 	return attachment.ID
 }
-func (*Attachment) DatabaseView() (name string) {
-	return "attachments_view"
-}
-func (*Attachment) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*Attachment) DatabaseObject() string {
 	return "attachment"
 }
 func (*Attachment) DatabaseTable() string {
 	return "attachments"
 }
-func (*Attachment) DatabaseTableIdentifier() string {
-	return "id"
+func (*Attachment) DatabaseView() (name string) {
+	return "attachments_view"
 }
 func (*Attachment) DatabaseInsertColumns() (columns []string) {
 	return []string{
@@ -84,29 +81,17 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 	}
 }
 func (attachment *Attachment) DatabaseInsertValues() (values []any) {
-	values = append(values, attachment.Identifier())
-	values = append(values, attachment.URL.String())
-	values = append(values, attachment.Title)
-	values = append(values, attachment.Size)
-	values = append(values, attachment.Duration)
-	values = append(values, attachment.Mimetype)
-	values = append(values, strings.Join(attachment.Labels, ", "))
-	values = append(values, attachment.ItemID)
-	values = append(values, attachment.FeedID)
-	values = append(values, attachment.WebsiteID)
+	values = append(values, sql.Named("id", attachment.Identifier()))
+	values = append(values, sql.Named("url", attachment.URL.String()))
+	values = append(values, sql.Named("title", attachment.Title))
+	values = append(values, sql.Named("size", attachment.Size))
+	values = append(values, sql.Named("duration", attachment.Duration))
+	values = append(values, sql.Named("mimetype", attachment.Mimetype))
+	values = append(values, sql.Named("labels", strings.Join(attachment.Labels, ", ")))
+	values = append(values, sql.Named("item_id", attachment.ItemID))
+	values = append(values, sql.Named("feed_id", attachment.FeedID))
+	values = append(values, sql.Named("website_id", attachment.WebsiteID))
 	return values
-}
-func (attachment *Attachment) DatabaseUpdatesSet() []string {
-	return []string{
-		"title = excluded.title",
-		"size = excluded.size",
-		"duration = excluded.duration",
-		"mimetype = excluded.mimetype",
-		"labels = excluded.labels",
-		"item_id = excluded.item_id",
-		"feed_id = excluded.feed_id",
-		"website_id = excluded.website_id",
-	}
 }
 func (attachment *Attachment) Hash() string {
 	return fmt.Sprintf(

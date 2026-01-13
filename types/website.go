@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 // TYPES
 // =============================================================================
 type Website struct {
+	*DatabaseRecord
 	hypergraph.Entity
 
 	ID     string  `json:"id"`
@@ -36,21 +38,14 @@ func (website *Website) Identifier() string {
 	}
 	return website.ID
 }
-
-func (*Website) DatabaseView() string {
-	return "websites_view"
-}
-func (*Website) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*Website) DatabaseObject() string {
 	return "website"
 }
 func (*Website) DatabaseTable() string {
 	return "websites"
 }
-func (*Website) DatabaseTableIdentifier() string {
-	return "id"
+func (*Website) DatabaseView() string {
+	return "websites_view"
 }
 func (*Website) DatabaseInsertColumns() []string {
 	return []string{
@@ -68,25 +63,25 @@ func (*Website) DatabaseInsertColumns() []string {
 	}
 }
 func (website *Website) DatabaseInsertValues() (values []any) {
-	values = append(values, website.Identifier())
-	values = append(values, website.HTMLURL)
-	values = append(values, website.FaviconURL)
-	values = append(values, website.CoverURL)
-	values = append(values, website.MentionsURL)
-	values = append(values, website.Email)
-	values = append(values, website.Name)
-	values = append(values, website.Username)
-	values = append(values, website.Description)
-	values = append(values, website.Verified)
+	values = append(values, sql.Named("id", website.Identifier()))
+	values = append(values, sql.Named("html_url", website.HTMLURL))
+	values = append(values, sql.Named("favicon_url", website.FaviconURL))
+	values = append(values, sql.Named("cover_url", website.CoverURL))
+	values = append(values, sql.Named("mentions_url", website.MentionsURL))
+	values = append(values, sql.Named("email", website.Email))
+	values = append(values, sql.Named("name", website.Name))
+	values = append(values, sql.Named("username", website.Username))
+	values = append(values, sql.Named("description", website.Description))
+	values = append(values, sql.Named("verified", website.Verified))
 	if website.Status == nil {
-		values = append(values, "{}")
+		values = append(values, sql.Named("status", "{}"))
 	} else {
 		statusBytes, _ := json.Marshal(website.Status)
-		values = append(values, string(statusBytes))
+		values = append(values, sql.Named("status", string(statusBytes)))
 	}
 	return values
 }
-func (website *Website) DatabaseUpdatesSet() []string {
+func (website *Website) DatabaseUpdatesSet(_ []string) []string {
 	return []string{
 		"[html_url] = [excluded].[html_url]",
 		"[favicon_url] = [excluded].[favicon_url]",

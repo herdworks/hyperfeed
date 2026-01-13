@@ -3,6 +3,7 @@ package hyperfeed
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,6 +16,8 @@ import (
 
 // HyperLink represents an external link found in an item.
 type HyperLink struct {
+	*DatabaseRecord
+
 	ID        string     `json:"id,omitempty"`
 	Href      *href.Href `json:"href,omitempty"`
 	WebsiteID string     `json:"website_id,omitempty"` // back-reference to parent website
@@ -69,20 +72,14 @@ func (link *HyperLink) Identifier() string {
 	return link.ID
 }
 
-func (*HyperLink) DatabaseView() string {
-	return "links_view"
-}
-func (*HyperLink) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*HyperLink) DatabaseObject() string {
 	return "link"
 }
 func (*HyperLink) DatabaseTable() string {
 	return "links"
 }
-func (*HyperLink) DatabaseTableIdentifier() string {
-	return "id"
+func (*HyperLink) DatabaseView() string {
+	return "links_view"
 }
 func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
 	return []string{
@@ -92,17 +89,10 @@ func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
 	}
 }
 func (link *HyperLink) DatabaseInsertValues() (args []any) {
-	args = append(args, link.Identifier())
-	args = append(args, link.Href.String())
-	args = append(args, link.WebsiteID)
+	args = append(args, sql.Named("id", link.Identifier()))
+	args = append(args, sql.Named("href", link.Href.String()))
+	args = append(args, sql.Named("website_id", link.WebsiteID))
 	return args
-}
-
-func (*HyperLink) DatabaseUpdatesSet() []string {
-	return []string{
-		"href = excluded.href",
-		"website_id = excluded.website_id",
-	}
 }
 
 func (link *HyperLink) Hash() string {

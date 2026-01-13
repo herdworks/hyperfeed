@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,6 +16,8 @@ import (
 
 // Item represents an entry within a feed.
 type Item struct {
+	*DatabaseRecord
+
 	ID  string   `json:"id,omitempty"`
 	URL *url.URL `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
 
@@ -145,20 +148,14 @@ func (item *Item) TimelineAt(timelinePosition time.Time) (ts time.Time) {
 	return timelinePosition.Add(1 * time.Minute) // nudge item into timeline
 }
 
-func (*Item) DatabaseView() string {
-	return "items_view"
-}
-func (*Item) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*Item) DatabaseObject() string {
 	return "item"
 }
 func (*Item) DatabaseTable() string {
 	return "items"
 }
-func (*Item) DatabaseTableIdentifier() string {
-	return "id"
+func (*Item) DatabaseView() string {
+	return "items_view"
 }
 func (*Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
@@ -179,31 +176,31 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 	}
 }
 func (item *Item) DatabaseInsertValues() (args []any) {
-	args = append(args, item.Identifier())
+	args = append(args, sql.Named("id", item.Identifier()))
 	if item.URL != nil {
-		args = append(args, item.URL.String())
+		args = append(args, sql.Named("url", item.URL.String()))
 	} else {
-		args = append(args, nil)
+		args = append(args, sql.Named("url", nil))
 	}
 	if len(item.ExternalHrefs) > 0 {
-		args = append(args, fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", ")))
+		args = append(args, sql.Named("external_hrefs", fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", "))))
 	} else {
-		args = append(args, "[]")
+		args = append(args, sql.Named("external_hrefs", "[]"))
 	}
-	args = append(args, item.Title)
-	args = append(args, strings.TrimSpace(item.Summary))
-	args = append(args, strings.TrimSpace(item.Content))
-	args = append(args, item.PublishedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.ModifiedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.AddedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.UpdatedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.GUID)
-	args = append(args, item.FeedAt.UTC().Format(time.RFC3339))
-	args = append(args, item.Feed.Identifier())
-	args = append(args, item.Feed.Website.Identifier())
+	args = append(args, sql.Named("title", item.Title))
+	args = append(args, sql.Named("summary", strings.TrimSpace(item.Summary)))
+	args = append(args, sql.Named("content", strings.TrimSpace(item.Content)))
+	args = append(args, sql.Named("published_at", item.PublishedAt.UTC().Format(time.RFC3339)))
+	args = append(args, sql.Named("modified_at", item.ModifiedAt.UTC().Format(time.RFC3339)))
+	args = append(args, sql.Named("added_at", item.AddedAt.UTC().Format(time.RFC3339)))
+	args = append(args, sql.Named("updated_at", item.UpdatedAt.UTC().Format(time.RFC3339)))
+	args = append(args, sql.Named("guid", item.GUID))
+	args = append(args, sql.Named("feed_at", item.FeedAt.UTC().Format(time.RFC3339)))
+	args = append(args, sql.Named("feed_id", item.Feed.Identifier()))
+	args = append(args, sql.Named("website_id", item.Feed.Website.Identifier()))
 	return args
 }
-func (item *Item) DatabaseUpdatesSet() []string {
+func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 	return []string{
 		"url = excluded.url",
 		"external_hrefs = excluded.external_hrefs",

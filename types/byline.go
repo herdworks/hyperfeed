@@ -1,6 +1,7 @@
 package hyperfeed
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 
@@ -12,6 +13,8 @@ import (
 // =============================================================================
 
 type Byline struct {
+	*DatabaseRecord
+
 	ID      string     `json:"id,omitempty"` // stable HyperFeed Byline identifier (e.g. hash of URL+name+email)
 	Href    *href.Href `json:"href,omitempty"`
 	Name    string     `json:"name,omitempty"`
@@ -47,20 +50,14 @@ func (byline *Byline) Identifier() string {
 	return byline.ID
 }
 
-func (*Byline) DatabaseView() string {
-	return "bylines_view"
-}
-func (*Byline) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*Byline) DatabaseObject() string {
 	return "byline"
 }
 func (*Byline) DatabaseTable() string {
 	return "bylines"
 }
-func (*Byline) DatabaseTableIdentifier() string {
-	return "id"
+func (*Byline) DatabaseView() string {
+	return "bylines_view"
 }
 func (*Byline) DatabaseInsertColumns() []string {
 	return []string{
@@ -71,18 +68,11 @@ func (*Byline) DatabaseInsertColumns() []string {
 	}
 }
 func (byline *Byline) DatabaseInsertValues() (values []any) {
-	values = append(values, byline.Identifier())
-	values = append(values, byline.Href.String())
-	values = append(values, byline.Name)
-	values = append(values, byline.Email)
+	values = append(values, sql.Named("id", byline.Identifier()))
+	values = append(values, sql.Named("href", byline.Href.String()))
+	values = append(values, sql.Named("name", byline.Name))
+	values = append(values, sql.Named("email", byline.Email))
 	return values
-}
-func (byline *Byline) DatabaseUpdatesSet() []string {
-	return []string{
-		"[href] = excluded.href",
-		"[name] = excluded.name",
-		"[email] = excluded.email",
-	}
 }
 
 func (byline *Byline) Hash() string {

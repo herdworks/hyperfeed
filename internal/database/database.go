@@ -51,8 +51,9 @@ type DatabaseWritable interface {
 	DatabaseTable() string           // TABLE name
 	DatabaseTableIdentifier() string // primary key column selector
 	DatabaseInsertColumns() []string // columns for INSERT/UPSERT statements
+	DatabaseInsertParameters([]string) []string // placeholders for INSERT/UPSERT statements
 	DatabaseInsertValues() []any     // values for INSERT/UPSERT statements
-	DatabaseUpdatesSet() []string    // columns and placeholders for UPSERT statements
+	DatabaseUpdatesSet([]string) []string    // columns and placeholders for UPSERT statements
 }
 type DatabaseHashable interface {
 	Hash() string
@@ -64,6 +65,7 @@ type DatabaseHashable interface {
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrConfig         = errors.New("database configuration invalid")
+	ErrTransaction    = errors.New("database transaction error")
 	// TODO: replace errors.New() and fmt.Errorf() with error variables
 )
 
@@ -229,11 +231,29 @@ func (db *Database) Vacuum(ctx context.Context) error {
 	return db.Exec(ctx, "VACUUM")
 }
 
+func (db *Database) BeginTransaction(ctx context.Context, options *sql.TxOptions) (tx *sql.Tx, err error) {
+	return db.DB.BeginTx(ctx, options)
+}
+func (db *Database) EndTransaction(tx *sql.Tx, err error) error {
+	if err != nil {
+		return tx.Rollback()
+	}
+	return nil
+}
+
 // ============================ Database CRUD methods ==========================
 
 func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
-	var query string = db.SelectStatement(row)
-	var result *sql.Row = db.DB.QueryRowContext(ctx, query, row.Identifier())
+	var query string = fmt.Sprintf(
+		"SELECT %s FROM %s WHERE %s = :identifier;",
+		row.DatabaseObject(),
+		row.DatabaseView(),
+		row.DatabaseViewIdentifier(),
+	)
+	var args []any = []any{
+		sql.Named("id", row.Identifier()),
+	}
+	var result *sql.Row = db.DB.QueryRowContext(ctx, query, args...)
 	var jsonBytes []byte
 	if err = result.Scan(&jsonBytes); errors.Is(err, sql.ErrNoRows) {
 		return nil // no rows found is not an error for this method
@@ -245,74 +265,57 @@ func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
 	}
 	return nil
 }
-func (db *Database) InsertRow(ctx context.Context, row DatabaseRow) (err error) {
-	_, err = db.DB.ExecContext(ctx, db.InsertStatement(row), row.DatabaseInsertValues()...)
+func (db *Database) InsertRow(ctx context.Context, transaction *sql.Tx, row DatabaseRow) (err error) {
+	var query string = fmt.Sprintf(
+		"INSERT OR IGNORE INTO %s (%s) VALUES (%s);",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(row.DatabaseInsertParameters(row.DatabaseInsertColumns()), ", "),
+	)
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	}
 	return err
 }
-func (db *Database) UpsertRow(ctx context.Context, row DatabaseRow) (err error) {
-	_, err = db.DB.ExecContext(ctx, db.UpsertStatement(row), row.DatabaseInsertValues()...)
+
+func (db *Database) UpsertRow(ctx context.Context, transaction *sql.Tx, row DatabaseRow) (err error) {
+	var query string = fmt.Sprintf(
+		"INSERT INTO %s (%s)\nVALUES (%s)\nON CONFLICT DO UPDATE SET %s;",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(row.DatabaseInsertParameters(row.DatabaseInsertColumns()), ", "),
+		strings.Join(row.DatabaseUpdatesSet(row.DatabaseInsertColumns()), ", "),
+	)
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	}
 	return err
 }
-func (db *Database) RelateRows(ctx context.Context, table string, columns []string, values []any) (err error) {
+func (db *Database) RelateRows(ctx context.Context, transaction *sql.Tx, table string, columns []string, values []any) (err error) {
+	var params []string
 	if len(columns) != len(values) {
 		return fmt.Errorf("relation mismatch (%d values for %d columns)", len(values), len(columns))
 	}
-	_, err = db.DB.ExecContext(ctx, db.RelationStatement(table, columns), values...)
+	for range columns {
+		params = append(params, "?")
+	}
+	query := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, values...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, values...)
+	}
 	return err
 }
 
 // ============================ Helper Methods ===================================
-func (Database) SelectAllStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"SELECT %s FROM %s;",
-		row.DatabaseObject(),
-		row.DatabaseView(),
-	)
-}
 
-func (Database) SelectStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"SELECT %s FROM %s WHERE %s = ?;",
-		row.DatabaseObject(),
-		row.DatabaseView(),
-		row.DatabaseViewIdentifier(),
-	)
-}
-
-func (Database) InsertStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"INSERT OR IGNORE INTO %s(%s) VALUES(%s);",
-		row.DatabaseTable(),
-		strings.Join(row.DatabaseInsertColumns(), ", "),
-		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
-	)
-}
-
-func (Database) UpsertStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"INSERT INTO %s(%s) VALUES(%s) ON CONFLICT DO UPDATE SET %s;",
-		row.DatabaseTable(),
-		strings.Join(row.DatabaseInsertColumns(), ", "),
-		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
-		strings.Join(row.DatabaseUpdatesSet(), ", "),
-	)
-}
-
-func (Database) RelationStatement(table string, columns []string) string {
-	var params []string
-	for range columns {
-		params = append(params, "?")
-	}
-	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
-}
-
-func (Database) WriteParameters(columns []string) (params []string) {
-	for range columns {
-		params = append(params, "?")
-	}
-	return params
-}
-
+// Databse.RecordsMatch()
+// TODO: For testing purposes only?
 func (Database) RecordsMatch(a, b DatabaseRow) bool {
 	if a == nil || b == nil {
 		return false
@@ -322,9 +325,9 @@ func (Database) RecordsMatch(a, b DatabaseRow) bool {
 
 func ListRecords[T DatabaseRow](ctx context.Context, db *Database) (records []T, err error) {
 	var kind T
-	query := db.SelectAllStatement(kind)
-	rows, err := db.DB.QueryContext(ctx, query)
-	if err != nil {
+	var query string = fmt.Sprintf("SELECT %s FROM %s;", kind.DatabaseObject(), kind.DatabaseView())
+	var rows *sql.Rows
+	if rows, err = db.DB.QueryContext(ctx, query); err != nil {
 		return nil, fmt.Errorf("database record list query: %w", err)
 	}
 	defer rows.Close()
@@ -343,4 +346,34 @@ func ListRecords[T DatabaseRow](ctx context.Context, db *Database) (records []T,
 		return nil, fmt.Errorf("database record list rows: %w", err)
 	}
 	return records, nil
+}
+
+func LastRecord[T DatabaseRow](ctx context.Context, db *Database, orderedBy string, order string) (record *T, err error) {
+	var kind T
+	var sql string = fmt.Sprintf(
+		"SELECT %s FROM %s ORDER BY %s %s LIMIT 1;",
+		kind.DatabaseObject(),
+		kind.DatabaseView(),
+		orderedBy,
+		order,
+	)
+	rows, err := db.DB.QueryContext(ctx, sql)
+	if err != nil {
+		return nil, fmt.Errorf("database record list query: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var recordBytes []byte
+		if err = rows.Scan(&recordBytes); err != nil {
+			return nil, fmt.Errorf("database record list scan: %w", err)
+		}
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			return nil, fmt.Errorf("database record list unmarshal: %w", err)
+		}
+		return record, nil
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("database record list rows: %w", err)
+	}
+	return nil, fmt.Errorf("no matching records")
 }

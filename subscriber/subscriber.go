@@ -2,13 +2,16 @@ package subscriber
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -155,7 +158,7 @@ func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptio
 	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
 		return nil, err
 	}
-	if err = subscriber.SaveFeeds(ctx, feeds, w); err != nil {
+	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
 		return nil, err
 	}
 	return feeds, nil
@@ -224,33 +227,267 @@ func (subscriber *Subscriber) SaveSubscriptionList(ctx context.Context, subscrip
 	if err = subscriber.Database.PingContext(ctx); err != nil {
 		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
 	}
-	if err = subscriber.Database.UpsertRow(ctx, subscriptions); err != nil {
+	if err = subscriber.Database.UpsertRow(ctx, nil, subscriptions); err != nil {
 		return errors.Join(ErrDatabase, errors.New("upserting subscription list"), err)
 	}
 	return nil
 }
 
-// SaveFeeds persists the provided feeds to the database
-// NOTE: Subscriber.SaveFeeds saves feeds only; it does not save associated Websites
-func (subscriber *Subscriber) SaveFeeds(ctx context.Context, feeds []*hyperfeed.Feed, _ io.Writer) (err error) {
-	if err = subscriber.Database.PingContext(ctx); err != nil {
-		return errors.Join(ErrDatabase, errors.New("pinging database"), err)
+func (subscriber *Subscriber) SaveWebsites(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
+	var tx *sql.Tx
+	var count map[string]int = map[string]int{}
+	if tx, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+		return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
 	}
+	defer subscriber.Database.EndTransaction(tx, err)
 	for _, feed := range feeds {
-		if err = subscriber.Database.UpsertRow(ctx, feed); err != nil {
+		if err = subscriber.Database.UpsertRow(ctx, tx, &feed.Website); err != nil {
+			return errors.Join(ErrDatabase, errors.New("upserting website"), err)
+		}
+		count[feed.Website.Identifier()] += 1
+	}
+	fmt.Fprintf(w, "websites written: %d\n", len(slices.Collect(maps.Keys(count))))
+	return tx.Commit()
+}
+func (subscriber *Subscriber) SaveFeeds(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
+	var tx *sql.Tx
+	var count int = 0
+	if tx, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+		return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+	}
+	defer subscriber.Database.EndTransaction(tx, err)
+	for _, feed := range feeds {
+		if err = subscriber.Database.UpsertRow(ctx, tx, feed); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting feed"), err)
 		}
+		count++
 	}
+	fmt.Fprintf(w, "feeds written: %d\n", count)
+	return tx.Commit()
+}
+func (subscriber *Subscriber) SaveItems(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			if err = subscriber.Database.UpsertRow(ctx, transaction, item); err != nil {
+				return errors.Join(ErrDatabase, errors.New("upserting item"), err)
+			}
+			count++
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("upserting item"), err)
+		}
+		if dups := feed.DuplicateItems(); len(dups) > 0 {
+			fmt.Printf("feed %q has %d duplicate items\n", feed.URL.String(), len(dups))
+			for _, d := range dups {
+				fmt.Printf("\t%s: %s\n", d.Identifier(), d.URL.String())
+			}
+			subscriber.Status.ItemsDuplicate.Increment(len(dups))
+		}
+	}
+	fmt.Fprintf(w, "items written: %d\n", count)
 	return nil
+}
+func (subscriber *Subscriber) SaveBylines(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, byline := range item.Bylines {
+				if err = subscriber.Database.UpsertRow(ctx, transaction, &byline); err != nil {
+					return errors.Join(ErrDatabase, errors.New("upserting byline"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("upserting byline"), err)
+		}
+	}
+	fmt.Fprintf(w, "bylines written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveBylineRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, byline := range item.Bylines {
+				columns := []string{"feed_id", "item_id", "byline_id"}
+				values := []any{item.Feed.Identifier(), item.Identifier(), byline.Identifier()}
+				if err = subscriber.Database.RelateRows(ctx, transaction, "item_bylines", columns, values); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting item-byline relation"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("inserting item-byline relation"), err)
+		}
+	}
+	fmt.Fprintf(w, "byline relations written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveLinks(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, link := range item.Links {
+				if err = subscriber.Database.InsertRow(ctx, transaction, link); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting link"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("inserting link"), err)
+		}
+	}
+	fmt.Fprintf(w, "links written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, link := range item.Links {
+				columns := []string{"website_id", "feed_id", "item_id", "link_id"}
+				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier()}
+				if err = subscriber.Database.RelateRows(ctx, transaction, "item_links", columns, values); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)
+		}
+	}
+	fmt.Fprintf(w, "link relations written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, image := range item.Images {
+				image.FeedID = item.Feed.Identifier()
+				image.WebsiteID = item.Feed.Website.Identifier()
+				if err = subscriber.Database.InsertRow(ctx, transaction, image); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting image"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("inserting image"), err)
+		}
+	}
+	fmt.Fprintf(w, "images written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, attachment := range item.Attachments {
+				attachment.FeedID = item.Feed.Identifier()
+				attachment.WebsiteID = item.Feed.Website.Identifier()
+				if err = subscriber.Database.UpsertRow(ctx, transaction, &attachment); err != nil {
+					return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
+		}
+	}
+	fmt.Fprintf(w, "attachments written: %d\n", count)
+	return nil
+}
+
+func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writer, since time.Time) (int, int, error) {
+	var addedCount int = 0
+	var addedQuery string = `SELECT COUNT(*) FROM items WHERE added_at = updated_at AND added_at > ?;`
+	var updatedCount int = 0
+	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE added_at != updated_at AND updated_at > ?;`
+	var args []any = []any{since.UTC().Format(time.RFC3339)}
+	var err error
+	if w == nil {
+		w = os.Stdout
+	}
+	if err = subscriber.Database.QueryRowContext(ctx, addedQuery, args...).Scan(&addedCount); err != nil {
+		return 0, 0, errors.Join(ErrDatabase, errors.New("counting new items"), err)
+	}
+	if err = subscriber.Database.QueryRowContext(ctx, updatedQuery, args...).Scan(&updatedCount); err != nil {
+		return 0, 0, errors.Join(ErrDatabase, errors.New("counting updated items"), err)
+	}
+	return addedCount, updatedCount, nil
 }
 
 // Refresh refreshes all subscribed feeds concurrently
 // TODO: can this be split up into smaller methods for testability?
-func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time.Time, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
+func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
 	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
+	var timelinePosition time.Time = time.Time{}
 	subscriber.Status = &Status{UpdatedAt: time.Now().UTC()}
 	ticker, cancellation = errgroup.WithContext(ctx)
 	if w == nil {
@@ -276,12 +513,15 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 		}
 	}
 
+	// Determine timeline position based on newest item in database
+	if i, err := database.LastRecord[*hyperfeed.Item](ctx, subscriber.Database, "feed_at", "DESC"); err == nil && i != nil {
+		timelinePosition = (*i).FeedAt.UTC()
+		fmt.Fprintf(w, "setting timeline position to newest item at %v\n", timelinePosition)
+	}
+
 	// Refresh all feeds concurrently
 	for _, feed := range feeds {
-		ff := &feeder.Feeder{
-			Feed:     feed,
-			Database: subscriber.Database,
-		}
+		ff := &feeder.Feeder{Feed: feed}
 		if ff.Feed.Interval == 0 {
 			ff.Feed.Interval = 5 * time.Minute // default interval
 		}
@@ -295,12 +535,6 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 				}
 				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()
 			}
-			if e = ff.SaveFeed(ctx, w); e != nil {
-				return errors.Join(ErrSubscriber, e)
-			}
-			if e = ff.SaveItems(ctx, w); e != nil {
-				return errors.Join(ErrSubscriber, e)
-			}
 			if ff.Feed.Status.Fetched() {
 				subscriber.Status.FeedsFetched.Increment(1)
 			}
@@ -310,19 +544,45 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, timelinePosition time
 			if ff.Feed.Status.Failed() {
 				subscriber.Status.FeedsFailed.Increment(1)
 			}
-			if a, u, err := ff.AddedItems(ctx, ff.Feed, w); err == nil {
-				subscriber.Status.ItemsAdded.Increment(a)
-				subscriber.Status.ItemsUpdated.Increment(u)
-			} else {
-				return errors.Join(ErrSubscriber, err)
-			}
-			if dups := ff.Feed.DuplicateItems(); len(dups) > 0 {
-				subscriber.Status.ItemsDuplicate.Increment(len(dups))
-			}
 			return nil
 		})
 	}
 	if err = ticker.Wait(); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "fetch complete in %v\n", time.Since(start).Truncate(time.Millisecond))
+	if err = subscriber.SaveWebsites(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
+		return err
+	} else {
+		if a, u, err := subscriber.RefreshedItemCounts(ctx, w, start); err != nil {
+			fmt.Fprintf(w, "error counting refreshed items: %v\n", err)
+		} else {
+			subscriber.Status.ItemsAdded.Increment(a)
+			subscriber.Status.ItemsUpdated.Increment(u)
+		}
+	}
+	if err = subscriber.SaveBylines(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveBylineRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinks(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveImages(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
 		return err
 	}
 	subscriber.Status.Duration = time.Since(start)
@@ -342,7 +602,7 @@ func (status *Status) Print() string {
 	report += fmt.Sprintf("Items Updated:   %6d\n", status.ItemsUpdated.Count)
 	report += fmt.Sprintf("Items Added:     %6d\n", status.ItemsAdded.Count)
 	report += "-----------------------\n"
-	report += fmt.Sprintf("TOTAL:           %6v\n", status.Duration.Truncate(time.Millisecond))
+	report += fmt.Sprintf("TOTAL:          %7v\n", status.Duration.Truncate(time.Millisecond))
 	return report
 }
 
@@ -358,3 +618,5 @@ func (status *Status) MarshalJSON() (jsonBytes []byte, err error) {
 	}
 	return json.Marshal(s)
 }
+
+

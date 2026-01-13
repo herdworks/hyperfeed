@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,8 @@ import (
 
 // Image represents an image associated with a feed or item.
 type Image struct {
+	*DatabaseRecord
+
 	ID        string     `json:"id,omitempty"`
 	Href      *href.Href `json:"href,omitempty"`
 	Sources   []ImageSrc `json:"sources,omitempty"`
@@ -101,20 +104,14 @@ func (image *Image) Identifier() string {
 	return image.ID
 }
 
-func (*Image) DatabaseView() string {
-	return "images_view"
-}
-func (*Image) DatabaseViewIdentifier() string {
-	return "id"
-}
 func (*Image) DatabaseObject() string {
 	return "image"
 }
 func (*Image) DatabaseTable() string {
 	return "images"
 }
-func (*Image) DatabaseTableIdentifier() string {
-	return "id"
+func (*Image) DatabaseView() string {
+	return "images_view"
 }
 func (image *Image) DatabaseInsertColumns() (columns []string) {
 	return []string{
@@ -132,37 +129,22 @@ func (image *Image) DatabaseInsertColumns() (columns []string) {
 	}
 }
 func (image *Image) DatabaseInsertValues() (args []any) {
-	args = append(args, image.Identifier())
-	args = append(args, image.Href.String())
+	args = append(args, sql.Named("id", image.Identifier()))
+	args = append(args, sql.Named("href", image.Href.String()))
 	if jsonBytes, err := json.Marshal(image.Sources); err == nil {
-		args = append(args, string(jsonBytes))
+		args = append(args, sql.Named("sources", string(jsonBytes)))
 	} else {
-		args = append(args, "[]")
+		args = append(args, sql.Named("sources", "[]"))
 	}
-	args = append(args, image.Title)
-	args = append(args, strings.TrimSpace(image.Alt))
-	args = append(args, strings.TrimSpace(image.Caption))
-	args = append(args, image.Width)
-	args = append(args, image.Height)
-	args = append(args, image.ItemID)
-	args = append(args, image.FeedID)
-	args = append(args, image.WebsiteID)
+	args = append(args, sql.Named("title", image.Title))
+	args = append(args, sql.Named("alt", strings.TrimSpace(image.Alt)))
+	args = append(args, sql.Named("caption", strings.TrimSpace(image.Caption)))
+	args = append(args, sql.Named("width", image.Width))
+	args = append(args, sql.Named("height", image.Height))
+	args = append(args, sql.Named("item_id", image.ItemID))
+	args = append(args, sql.Named("feed_id", image.FeedID))
+	args = append(args, sql.Named("website_id", image.WebsiteID))
 	return args
-}
-
-func (*Image) DatabaseUpdatesSet() []string {
-	return []string{
-		"href = excluded.href",
-		"sources = excluded.sources",
-		"title = excluded.title",
-		"alt = excluded.alt",
-		"caption = excluded.caption",
-		"width = excluded.width",
-		"height = excluded.height",
-		"item_id = excluded.item_id",
-		"feed_id = excluded.feed_id",
-		"website_id = excluded.website_id",
-	}
 }
 
 func (image *Image) Hash() string {
