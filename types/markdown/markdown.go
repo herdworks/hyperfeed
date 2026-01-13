@@ -397,6 +397,9 @@ func codeblock(buf *bytes.Buffer, n *html.Node) {
 	buf.WriteString("```\n\n")
 }
 func codelang(n *html.Node) (lang string) {
+	if n == nil {
+		return ""
+	}
 	for _, a := range n.Attr {
 		if a.Key == "class" && strings.HasPrefix(a.Val, "language-") {
 			lang = strings.TrimPrefix(a.Val, "language-")
