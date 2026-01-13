@@ -35,7 +35,6 @@ var (
 		"h5":     {Tag: "h5", Prefix: "##### ", Suffix: "\n\n"},
 		"h6":     {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
 		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
-		"code":   {Tag: "code", Prefix: "`", Suffix: "`"},
 		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
 		"em":     {Tag: "em", Prefix: "_", Suffix: "_ "},
 		"i":      {Tag: "i", Prefix: "_", Suffix: "_ "},
@@ -74,20 +73,22 @@ var (
 func Convert(htmlInput string) (out string, err error) {
 	var node *html.Node
 	var buf bytes.Buffer
-	if node, err = html.Parse(strings.NewReader(clean(htmlInput))); err != nil {
+	if node, err = html.Parse(strings.NewReader(unescaped(htmlInput))); err != nil {
 		return "", err
 	}
 	walk(&buf, node, 0, true)
 	return strings.TrimSpace(buf.String()), nil
 }
 
-func clean(in string) (out string) {
-	out = in
-	out = strings.ReplaceAll(out, "\r\n", "")
-	out = strings.ReplaceAll(out, "\r", "")
-	out = strings.ReplaceAll(out, "\n", "")
-	out = html.UnescapeString(out)
-	return out
+// unescaped returns the unescaped version of in if it appears to be fully escaped HTML
+func unescaped(in string) string {
+	if strings.Contains(in, "<") { 
+		return in
+	}
+	if !(strings.Contains(in, "&lt;") || strings.Contains(in, "&#60;") || strings.Contains(in, "&#x3c;")) { 
+		return in
+	}
+	return html.UnescapeString(in)
 }
 
 func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
@@ -177,8 +178,11 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		case "ol":
 			ol(buf, n, indent, extended)
 			return
+		case "code":
+			code(buf, n)
+			return
 		case "pre":
-			codeblock(buf, n)
+			pre(buf, n)
 			return
 		}
 
@@ -364,20 +368,24 @@ func ul(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
 	buf.WriteString("\n")
 }
 
-func pre(buf *bytes.Buffer, n *html.Node) {
+func code(buf *bytes.Buffer, n *html.Node) {
 	var inner bytes.Buffer
-	if !newline(buf) {
-		buf.WriteString("\n")
-	}
-	buf.WriteString("^[\n")
+	buf.WriteString("`")
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		preformatted(&inner, c, 0) // ignore extensions
+		switch c.Type {
+		case html.TextNode:
+			inner.WriteString(c.Data)
+		case html.ElementNode:
+			inner.WriteString(plaintext(c)) // ignore extensions
+		default:
+			continue
+		}
 	}
-	buf.Write(bytes.ReplaceAll(inner.Bytes(), []byte("]"), []byte("\\]")))
-	buf.WriteString("\n](kind: \"pre\")\n\n")
+	buf.WriteString(inner.String())
+	buf.WriteString("`")
 }
 
-func codeblock(buf *bytes.Buffer, n *html.Node) {
+func pre(buf *bytes.Buffer, n *html.Node) {
 	var inner bytes.Buffer
 	if !newline(buf) {
 		buf.WriteString("\n")
@@ -454,6 +462,12 @@ func preformatted(buf *bytes.Buffer, n *html.Node, level int) {
 			continue
 		}
 	}
+}
+
+func plaintext(n *html.Node) (text string) {
+	var inner bytes.Buffer
+	html.Render(&inner, n)
+	return inner.String()
 }
 
 func children(n *html.Node) []*html.Node {

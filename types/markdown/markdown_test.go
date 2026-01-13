@@ -43,6 +43,10 @@ func TestConvertOrderedList(t *testing.T) {
 			name:   "HTMHell",
 			source: "testdata/htmhell.html",
 		},
+		{
+			name:   "GoMakeThings",
+			source: "testdata/gomakethings.html",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
