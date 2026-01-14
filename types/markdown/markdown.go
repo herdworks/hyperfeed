@@ -170,7 +170,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 			blockquote(buf, n, extended)
 			return
 		case "img":
-			img(buf, n, extended)
+			img(buf, n, false)
 			return
 		case "ul":
 			ul(buf, n, indent, extended)
