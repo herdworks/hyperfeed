@@ -589,7 +589,9 @@ SELECT
         'mimetype', [attachments].[mimetype],
         'title', [attachments].[title],
         'labels', [attachments].[labels],
-        'item_id', [attachments].[item_id]
+        'item_id', [attachments].[item_id],
+        'feed_id', [attachments].[feed_id],
+        'website_id', [attachments].[website_id]
     ) as 'attachment',
     [attachments].[id],
     [attachments].[url],
