@@ -112,12 +112,12 @@ CREATE INDEX IF NOT EXISTS items_published_at_index ON items([published_at] DESC
 CREATE INDEX IF NOT EXISTS items_modified_at_index ON items([modified_at] DESC);
 CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
 CREATE INDEX IF NOT EXISTS items_updated_at_index ON items([updated_at] DESC);
-CREATE INDEX IF NOT EXISTS items_feed_id_feed_at_id_desc ON items(feed_id, feed_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS items_feed_id_feed_at_id_desc ON items(feed_id, feed_at DESC, id DESC); -- website feed index
 CREATE INDEX IF NOT EXISTS items_feed_at_index_asc ON items([feed_at] ASC);
 CREATE INDEX IF NOT EXISTS items_feed_at_index_desc ON items([feed_at] DESC);
 CREATE INDEX IF NOT EXISTS items_feed_at_id_desc ON items(feed_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items(feed_at DESC, published_at DESC, added_at DESC);
-
+CREATE INDEX IF NOT EXISTS items_website_id_feed_at_desc ON items(website_id, feed_at DESC); -- feed frequency index
 
 -- Bylines table
 CREATE TABLE IF NOT EXISTS bylines (
