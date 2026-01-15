@@ -422,6 +422,11 @@ SELECT
                 SELECT json_group_array(json([images_view].[image]))
                 FROM [images_view]
                 WHERE [images_view].[item_id] = [items].[id]
+            ), json('[]')),
+            'attachments', COALESCE((
+                SELECT json_group_array(json([attachments_view].[attachment]))
+                FROM [attachments_view]
+                WHERE [attachments_view].[item_id] = [items].[id]
             ), json('[]'))
         ),
         'feed', COALESCE((
