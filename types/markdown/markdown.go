@@ -203,10 +203,10 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		return
 
 	case html.CommentNode:
-		if strings.ToLower(strings.TrimSpace(n.Data)) == "more" {
-			fmt.Printf("\n\n<!-- more comment detection! -->\n\n")
-		}
-		return
+		// if strings.ToLower(strings.TrimSpace(n.Data)) == "more" {
+		// 	fmt.Printf("\n\n<!-- more comment detection! -->\n\n")
+		// }
+		return // no-op
 	}
 
 	// fallback
