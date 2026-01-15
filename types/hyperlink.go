@@ -30,7 +30,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 	var err error
 	if item.URL != nil {
 		document.Href = item.URL.String()
-		if h,e := href.Parse(item.URL.String()); e == nil {
+		if h, e := href.Parse(item.URL.String()); e == nil {
 			l := &HyperLink{Href: h}
 			if item.Feed != nil {
 				l.WebsiteID = item.Feed.Website.Identifier()

@@ -35,7 +35,6 @@ type Subscriber struct {
 // VARIABLES
 // =============================================================================
 
-
 // METHODS
 // =============================================================================
 
@@ -265,7 +264,7 @@ func (subscriber *Subscriber) SaveFeeds(ctx context.Context, w io.Writer, feeds 
 	fmt.Fprintf(w, "feeds written: %d\n", count)
 	return tx.Commit()
 }
-func (subscriber *Subscriber) SaveItems(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveItems(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -296,7 +295,7 @@ func (subscriber *Subscriber) SaveItems(ctx context.Context, w io.Writer, feeds 
 	fmt.Fprintf(w, "items written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveBylines(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveBylines(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -322,7 +321,7 @@ func (subscriber *Subscriber) SaveBylines(ctx context.Context, w io.Writer, feed
 	fmt.Fprintf(w, "bylines written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveBylineRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveBylineRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -350,7 +349,7 @@ func (subscriber *Subscriber) SaveBylineRelations(ctx context.Context, w io.Writ
 	fmt.Fprintf(w, "byline relations written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveLinks(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveLinks(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -376,7 +375,7 @@ func (subscriber *Subscriber) SaveLinks(ctx context.Context, w io.Writer, feeds 
 	fmt.Fprintf(w, "links written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -404,7 +403,7 @@ func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer
 	fmt.Fprintf(w, "link relations written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -432,7 +431,7 @@ func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds
 	fmt.Fprintf(w, "images written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) { 
+func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
 	for _, feed := range feeds {
@@ -613,10 +612,8 @@ func (status *Status) MarshalJSON() (jsonBytes []byte, err error) {
 		Duration string `json:"duration,omitempty"`
 		*StatusJSON
 	}{
-		Duration: status.Duration.String(),
-		StatusJSON:    (*StatusJSON)(status),
+		Duration:   status.Duration.String(),
+		StatusJSON: (*StatusJSON)(status),
 	}
 	return json.Marshal(s)
 }
-
-

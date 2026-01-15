@@ -164,4 +164,3 @@ func ResolveHref(base, ref any, w io.Writer) *Href {
 	}
 	return b.ResolveReference(r)
 }
-

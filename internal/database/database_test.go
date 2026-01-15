@@ -177,10 +177,10 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 				t.Fatalf("pre-test row and reader should differ;\n\trow:    %#v\n\treader: %#v", tc.writer, tc.reader)
 			}
 			// Test upsert
-			if err = db.UpsertRow(ctx, tc.writer); err != nil {
+			if err = db.UpsertRow(ctx, nil, tc.writer); err != nil {
 				t.Fatalf("insert feed: %v", err)
 			}
-			if err = db.UpsertRow(ctx, tc.writer); err != nil {
+			if err = db.UpsertRow(ctx, nil, tc.writer); err != nil {
 				t.Fatalf("insert feed: %v", err)
 			}
 			// Test read

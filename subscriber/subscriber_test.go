@@ -95,15 +95,15 @@ func TestSubscriberInit(t *testing.T) {
 
 func TestSubscriberStatusSerialization(t *testing.T) {
 	var status Status = Status{
-		Duration:     8537 * time.Millisecond,
-		UpdatedAt:    time.Now().UTC(),
-		FeedsSkipped: hyperfeed.Counter{Count: 1},
-		FeedsFailed: hyperfeed.Counter{Count: 1},
-		FeedsFetched: hyperfeed.Counter{Count: 1},
-		ItemsFetched: hyperfeed.Counter{Count: 1},
+		Duration:       8537 * time.Millisecond,
+		UpdatedAt:      time.Now().UTC(),
+		FeedsSkipped:   hyperfeed.Counter{Count: 1},
+		FeedsFailed:    hyperfeed.Counter{Count: 1},
+		FeedsFetched:   hyperfeed.Counter{Count: 1},
+		ItemsFetched:   hyperfeed.Counter{Count: 1},
 		ItemsDuplicate: hyperfeed.Counter{Count: 0},
-		ItemsAdded: hyperfeed.Counter{Count: 1},
-		ItemsUpdated: hyperfeed.Counter{Count: 1},
+		ItemsAdded:     hyperfeed.Counter{Count: 1},
+		ItemsUpdated:   hyperfeed.Counter{Count: 1},
 	}
 	var jsonBytes []byte
 	var err error

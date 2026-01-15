@@ -154,16 +154,16 @@ func (*Feed) DatabaseInsertColumns() []string {
 	}
 }
 func (feed *Feed) DatabaseInsertValues() (values []any) {
-	values = append(values, sql.Named("id", feed.Identifier()))       // id
-	values = append(values, sql.Named("kind", feed.Kind))               // kind
+	values = append(values, sql.Named("id", feed.Identifier()))        // id
+	values = append(values, sql.Named("kind", feed.Kind))              // kind
 	values = append(values, sql.Named("url", feed.URL.URL().String())) // url
 	if feed.HTMLURL != nil {
 		values = append(values, sql.Named("html_url", feed.HTMLURL.URL().String())) // html_url
 	} else {
 		values = append(values, sql.Named("html_url", nil)) // html_url
 	}
-	values = append(values, sql.Named("title", feed.Title))             // title
-	values = append(values, sql.Named("description", feed.Description))       // description
+	values = append(values, sql.Named("title", feed.Title))                // title
+	values = append(values, sql.Named("description", feed.Description))    // description
 	values = append(values, sql.Named("language", feed.Language))          // language
 	values = append(values, sql.Named("interval", feed.Interval.String())) // interval
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {

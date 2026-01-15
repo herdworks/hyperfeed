@@ -48,12 +48,12 @@ type DatabaseReadable interface {
 	DatabaseObject() string         // JSON object selector is a json_object(...) expression or a column name that returns JSON
 }
 type DatabaseWritable interface {
-	DatabaseTable() string           // TABLE name
-	DatabaseTableIdentifier() string // primary key column selector
-	DatabaseInsertColumns() []string // columns for INSERT/UPSERT statements
+	DatabaseTable() string                      // TABLE name
+	DatabaseTableIdentifier() string            // primary key column selector
+	DatabaseInsertColumns() []string            // columns for INSERT/UPSERT statements
 	DatabaseInsertParameters([]string) []string // placeholders for INSERT/UPSERT statements
-	DatabaseInsertValues() []any     // values for INSERT/UPSERT statements
-	DatabaseUpdatesSet([]string) []string    // columns and placeholders for UPSERT statements
+	DatabaseInsertValues() []any                // values for INSERT/UPSERT statements
+	DatabaseUpdatesSet([]string) []string       // columns and placeholders for UPSERT statements
 }
 type DatabaseHashable interface {
 	Hash() string
