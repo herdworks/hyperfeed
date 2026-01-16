@@ -150,10 +150,10 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item.Title = html.UnescapeString(strings.TrimSpace(rssitem.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
-		if item.Summary, err = markdown.Convert(hyperfeed.First(rssitem.Description, rssitem.ContentEncoded)); err != nil {
+		if item.Summary, err = markdown.Convert(rssitem.Description); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.description error: %v\n", err)
 		}
-		if item.Content, err = markdown.Convert(rss.HTML(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description))); err != nil {
+		if item.Content, err = markdown.Convert(rss.HTML(rssitem.ContentEncoded)); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.content:encoded error: %v\n", err)
 		}
 		item.Comments, _ = url.Parse(rssitem.Comments)
@@ -302,15 +302,15 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		}
 		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
-		summary := atom.First(&atom.Text{}, entry.Summary, entry.Content)
-		content := atom.First(&atom.Text{}, entry.Content, entry.Summary)
+		summary := atom.First(&atom.Text{}, entry.Summary)
+		content := atom.First(&atom.Text{}, entry.Content)
 		item.Title = html.UnescapeString(strings.TrimSpace(entry.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
 		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
-			fmt.Fprintf(w, "markdown Atem entry.summary error: %v\n", err)
+			fmt.Fprintf(w, "markdown Atom entry.summary error: %v\n", err)
 		}
-		if item.Content, err = markdown.Convert(atom.HTML(atom.First(entry.Content, entry.Summary))); err != nil {
+		if item.Content, err = markdown.Convert(atom.HTML(content)); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
@@ -423,10 +423,10 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		item.Title = html.UnescapeString(strings.TrimSpace(jsonitem.Title))
 		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
-		if item.Summary, err = markdown.Convert(hyperfeed.First(jsonitem.Summary, jsonitem.ContentHTML, jsonitem.ContentText)); err != nil {
+		if item.Summary, err = markdown.Convert(jsonitem.Summary); err != nil {
 			fmt.Fprintf(w, "markdown JSONFeed item.Summary error: %v\n", err)
 		}
-		if item.Content, err = markdown.Convert(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))); err != nil {
+		if item.Content, err = markdown.Convert(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText))); err != nil {
 			fmt.Fprintf(w, "markdown JSONFeed item.Content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
