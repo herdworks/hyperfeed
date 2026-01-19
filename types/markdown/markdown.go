@@ -59,6 +59,8 @@ var (
 		"dfn",
 		"ins",
 		"samp",
+		"video",
+		"audio",
 	}
 	wrapperTags = []string{
 		"html", "head", "body", "header", "nav", "main", "section", "article", "footer",
@@ -188,11 +190,16 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 
 		// preserved literal HTML
 		if slices.Contains(preservedTags, n.Data) {
-			buf.WriteString("<" + n.Data + ">")
-			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				walk(buf, c, indent, extended)
-			}
-			buf.WriteString("</" + n.Data + ">")
+			buf.WriteString(plaintext(n))
+			// buf.WriteString("<" + n.Data)
+			// for _, a := range n.Attr {
+			// 	buf.WriteString(fmt.Sprintf(` %s='%s'`, a.Key, a.Val))
+			// }
+			// buf.WriteString(">")
+			// for c := n.FirstChild; c != nil; c = c.NextSibling {
+			// 	walk(buf, c, indent, extended)
+			// }
+			// buf.WriteString("</" + n.Data + ">")
 			return
 		}
 
@@ -219,8 +226,7 @@ func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 	var href string = ""
 	var inner bytes.Buffer
 	if has(n, "img") && len(children(n)) == 1 {
-		// if the link contains only an image, skip link rendering and render the child image
-		walk(buf, n.FirstChild, 0, extended)
+		img(buf, children(n)[0], false)
 		return
 	}
 	for _, a := range n.Attr {
@@ -288,12 +294,12 @@ func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 		}
 	}
 	if !newline(buf) {
-		buf.WriteString("\n\n")
+		buf.WriteString("\n")
 	}
 	if extended {
-		buf.WriteString(fmt.Sprintf("^[%s](%s)\n\n", alt, strings.Join(attributes, ", ")))
+		buf.WriteString(fmt.Sprintf("^[%s](%s)\n", alt, strings.Join(attributes, ", ")))
 	} else {
-		buf.WriteString(fmt.Sprintf("![%s](%s)\n\n", alt, src))
+		buf.WriteString(fmt.Sprintf("![%s](%s)\n", alt, src))
 	}
 }
 
