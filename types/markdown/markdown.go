@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	html "golang.org/x/net/html"
 )
@@ -36,8 +38,8 @@ var (
 		"h6":     {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
 		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
 		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
-		"em":     {Tag: "em", Prefix: "_", Suffix: "_ "},
-		"i":      {Tag: "i", Prefix: "_", Suffix: "_ "},
+		"em":     {Tag: "em", Prefix: "_", Suffix: "_"},
+		"i":      {Tag: "i", Prefix: "_", Suffix: "_"},
 		"del":    {Tag: "del", Prefix: "~~", Suffix: "~~"},
 		"strike": {Tag: "strike", Prefix: "~~", Suffix: "~~"},
 		"s":      {Tag: "s", Prefix: "~~", Suffix: "~~"},
@@ -93,23 +95,25 @@ func unescaped(in string) string {
 	return html.UnescapeString(in)
 }
 
+// walk recursively converts an HTML node and its children into Markdown
 func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 	switch n.Type {
 
 	case html.TextNode:
 		var prefix, suffix string
+		var newline bool = isNewline(buf)
 
 		text := n.Data
-		if !newline(buf) && extended && strings.HasPrefix(text, " ") {
+		if strings.TrimSpace(text) == "" {
+			return
+		}
+		if !newline && hasWhitespacePrefix(text) {
 			prefix = " "
 		}
 		if strings.HasSuffix(text, " ") {
 			suffix = " "
 		}
 		text = fmt.Sprintf("%s%s%s", prefix, strings.Join(strings.Fields(text), " "), suffix)
-		if strings.TrimSpace(text) == "" {
-			return
-		}
 		buf.WriteString(escape(text))
 		return
 	case html.ElementNode:
@@ -124,6 +128,9 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 				buf.WriteString(markup.Replacement)
 				return
 			}
+			if !leftFlanking(buf) {
+				buf.WriteString(" ")
+			}
 			if markup.Prefix != "" {
 				buf.WriteString(markup.Prefix)
 			}
@@ -131,7 +138,11 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 				walk(buf, c, indent, extended)
 			}
 			if markup.Suffix != "" {
+				truncateTrailing(buf, " ")
 				buf.WriteString(markup.Suffix)
+			}
+			if !rightFlankingNode(n.NextSibling) {
+				buf.WriteString(" ")
 			}
 			return
 		}
@@ -216,13 +227,13 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		return // no-op
 	}
 
-	// fallback
+	// walk children...
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(buf, c, indent, extended) // RECURSION
 	}
 }
 
-func a(buf *bytes.Buffer, n *html.Node, extended bool) {
+func a(buf *bytes.Buffer, n *html.Node, _ bool) {
 	var href string = ""
 	var inner bytes.Buffer
 	if has(n, "img") && len(children(n)) == 1 {
@@ -237,19 +248,21 @@ func a(buf *bytes.Buffer, n *html.Node, extended bool) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(&inner, c, 0, false)
 	}
-	text := strings.TrimSpace(inner.String())
-	if text == "" && href != "" {
-		// if no link text, use the domain as text? – Codex
-		href = strings.TrimPrefix(href, "https://")
-		href = strings.TrimPrefix(href, "http://")
-		parts := strings.Split(href, "/")
-		text = parts[0]
+	// if text == "" && href != "" {
+	// 	// if no link text, use the domain as text?
+	// 	href = strings.TrimPrefix(href, "https://")
+	// 	href = strings.TrimPrefix(href, "http://")
+	// 	parts := strings.Split(href, "/")
+	// 	text = parts[0]
+	// }
+	// if href == "" {
+	// 	buf.WriteString(text)
+	// 	return
+	// }
+	buf.WriteString("[" + strings.TrimSpace(inner.String()) + "](" + href + ")")
+	if !rightFlankingNode(n.NextSibling) {
+		buf.WriteString(" ")
 	}
-	if href == "" {
-		buf.WriteString(text)
-		return
-	}
-	buf.WriteString("[" + text + "](" + href + ")")
 }
 
 func blockquote(buf *bytes.Buffer, n *html.Node, extended bool) {
@@ -293,13 +306,13 @@ func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 			}
 		}
 	}
-	if !newline(buf) {
-		buf.WriteString("\n")
+	if !isNewline(buf) {
+		buf.WriteString("\n\n")
 	}
 	if extended {
-		buf.WriteString(fmt.Sprintf("^[%s](%s)\n", alt, strings.Join(attributes, ", ")))
+		buf.WriteString(fmt.Sprintf("^[%s](%s)\n\n", alt, strings.Join(attributes, ", ")))
 	} else {
-		buf.WriteString(fmt.Sprintf("![%s](%s)\n", alt, src))
+		buf.WriteString(fmt.Sprintf("![%s](%s)\n\n", alt, src))
 	}
 }
 
@@ -393,7 +406,7 @@ func code(buf *bytes.Buffer, n *html.Node) {
 
 func pre(buf *bytes.Buffer, n *html.Node) {
 	var inner bytes.Buffer
-	if !newline(buf) {
+	if !isNewline(buf) {
 		buf.WriteString("\n")
 	}
 	buf.WriteString("```")
@@ -405,7 +418,7 @@ func pre(buf *bytes.Buffer, n *html.Node) {
 		preformatted(&inner, c, 0) // ignore extensions
 	}
 	buf.Write(inner.Bytes())
-	if !newline(buf) {
+	if !isNewline(buf) {
 		buf.WriteString("\n")
 	}
 	buf.WriteString("```\n\n")
@@ -437,13 +450,44 @@ func escape(s string) (r string) {
 	return r
 }
 
-// newline checks if the last character in the buffer is a newline
-func newline(buf *bytes.Buffer) bool {
-	bs := buf.Bytes()
-	if len(bs) == 0 {
+// firstByte returns the first byte in the buffer or a zero byte if the buffer is empty
+func firstByte(buf *bytes.Buffer) byte {
+	if buf == nil {
+		return 0
+	}
+	b := buf.Bytes()
+	if len(b) == 0 {
+		return 0
+	}
+	return b[0]
+}
+
+// lastByte returns the last byte in the buffer or a zero byte if the buffer is empty
+func lastByte(buf *bytes.Buffer) byte {
+	if buf == nil {
+		return 0
+	}
+	b := buf.Bytes()
+	if len(b) == 0 {
+		return 0
+	}
+	return b[len(b)-1]
+}
+
+// isNewline checks if the last character in the buffer is a new line
+func isNewline(buf *bytes.Buffer) bool {
+	return lastByte(buf) == '\n'
+}
+
+// hasWhitespacePrefix checks if the first character in the buffer is whitespace
+func hasWhitespacePrefix(s string) bool {
+	if len(s) == 0 { 
+		return false
+	}
+	if r, _ := utf8.DecodeRuneInString(s); unicode.IsSpace(r) {
 		return true
 	}
-	return bs[len(bs)-1] == '\n'
+	return false	
 }
 
 // whitespaced checks if the last character in the buffer is whitespace
@@ -498,3 +542,61 @@ func has(n *html.Node, tag string) bool {
 	}
 	return false
 }
+
+func truncateTrailing(buf *bytes.Buffer, cutset string) {
+	if buf == nil || buf.Len() == 0 {
+		return // no-op for empty buffers
+	}
+	bs := buf.Bytes()
+	if !strings.ContainsAny(string(bs[len(bs)-1]), cutset) {
+		return // no-op if last character is not in cutset
+	}
+	trimmed := bytes.TrimRight(bs, cutset)
+	buf.Truncate(len(trimmed))
+}
+
+func leftFlanking(buf *bytes.Buffer) bool {
+	var b []byte
+	var last rune
+	if b = buf.Bytes(); len(b) == 0 {
+		return true
+	} else {
+		last, _ = utf8.DecodeLastRune(b)
+	}
+	if unicode.IsSpace(last) || last == '\u00a0' {
+		return true
+	} else if unicode.IsPunct(last) {
+		return true
+	}
+	return false
+}
+
+func rightFlanking(b []byte) bool {
+	var next rune
+	if b == nil || len(b) == 0 {
+		return true
+	} else {
+		next, _ = utf8.DecodeRune(b)
+	}
+	// if next == '\u00a0' {
+	// 	fmt.Printf("%q contains a &nbsp;!\n", b)
+	// }
+	if unicode.IsSpace(next) || next == '\u00a0' {
+		return true
+	} else if unicode.IsPunct(next) {
+		return true
+	}
+	// if bytes.Contains(b, []byte("in June")) {
+	// 	fmt.Printf("%q is not right flanking\n", b)
+	// }
+	return false
+}
+func rightFlankingNode(n *html.Node) bool {
+	if n == nil || n.Type != html.TextNode {
+		return true
+	}
+	return rightFlanking([]byte(n.Data))
+}
+
+
+
