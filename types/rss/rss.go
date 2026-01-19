@@ -248,8 +248,11 @@ func (r *RSS) Link() string {
 		return ""
 	}
 	for _, link := range r.Channel.Links {
-		if link.Rel == "self" || link.Type == "application/rss+xml" {
+		if strings.ToLower(link.Rel) == "self" || link.Type == "application/rss+xml" {
 			continue // skip self-referencing feed links
+		}
+		if strings.ToLower(link.Rel) == "hub" {
+			continue // skip WebSub links (https://www.w3.org/TR/websub/)
 		}
 		if link.Href != "" && link.Href != r.Origin.String() {
 			return link.Href
