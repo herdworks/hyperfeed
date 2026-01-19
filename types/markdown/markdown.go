@@ -110,7 +110,7 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		if !newline && hasWhitespacePrefix(text) {
 			prefix = " "
 		}
-		if strings.HasSuffix(text, " ") {
+		if hasWhitespaceSuffix(text) {
 			suffix = " "
 		}
 		text = fmt.Sprintf("%s%s%s", prefix, strings.Join(strings.Fields(text), " "), suffix)
@@ -485,6 +485,18 @@ func hasWhitespacePrefix(s string) bool {
 		return false
 	}
 	if r, _ := utf8.DecodeRuneInString(s); unicode.IsSpace(r) {
+		return true
+	}
+	return false	
+}
+
+// hasWhitespaceSuffix checks if the last character in the buffer is whitespace
+func hasWhitespaceSuffix(s string) bool {
+	if len(s) == 0 { 
+		return false
+	}
+	r, _ := utf8.DecodeLastRuneInString(s)
+	if unicode.IsSpace(r) {
 		return true
 	}
 	return false	
