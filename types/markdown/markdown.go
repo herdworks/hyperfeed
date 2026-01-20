@@ -61,8 +61,6 @@ var (
 		"dfn",
 		"ins",
 		"samp",
-		"video",
-		"audio",
 	}
 	wrapperTags = []string{
 		"html", "head", "body", "header", "nav", "main", "section", "article", "footer",
@@ -185,6 +183,12 @@ func walk(buf *bytes.Buffer, n *html.Node, indent int, extended bool) {
 		case "img":
 			img(buf, n, false)
 			return
+		case "video":
+			video(buf, n, false)
+			return
+		case "audio":
+			audio(buf, n, false)
+			return
 		case "ul":
 			ul(buf, n, indent, extended)
 			return
@@ -244,6 +248,9 @@ func a(buf *bytes.Buffer, n *html.Node, _ bool) {
 		if a.Key == "href" {
 			href = a.Val
 		}
+	}
+	if !leftFlanking(buf) {
+		buf.WriteString(" ")
 	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(&inner, c, 0, false)
@@ -314,6 +321,16 @@ func img(buf *bytes.Buffer, n *html.Node, extended bool) {
 	} else {
 		buf.WriteString(fmt.Sprintf("![%s](%s)\n\n", alt, src))
 	}
+}
+
+func video(buf *bytes.Buffer, n *html.Node, _ bool) {
+	buf.WriteString(fmt.Sprintf("%s\n\n", plaintext(n)))
+	// TODO
+}
+
+func audio(buf *bytes.Buffer, n *html.Node, _ bool) {
+	buf.WriteString(fmt.Sprintf("%s\n\n", plaintext(n)))
+	// TODO
 }
 
 func ol(buf *bytes.Buffer, n *html.Node, depth int, extended bool) {
@@ -577,6 +594,8 @@ func leftFlanking(buf *bytes.Buffer) bool {
 	}
 	if unicode.IsSpace(last) || last == '\u00a0' {
 		return true
+	} else if last == '\u2013' || last == '\u2014' {
+		return false // en-dash or em-dash
 	} else if unicode.IsPunct(last) {
 		return true
 	}
@@ -590,21 +609,22 @@ func rightFlanking(b []byte) bool {
 	} else {
 		next, _ = utf8.DecodeRune(b)
 	}
-	// if next == '\u00a0' {
-	// 	fmt.Printf("%q contains a &nbsp;!\n", b)
-	// }
 	if unicode.IsSpace(next) || next == '\u00a0' {
 		return true
+	} else if next == '\u2013' || next == '\u2014' {
+		return false // en-dash or em-dash
 	} else if unicode.IsPunct(next) {
 		return true
 	}
-	// if bytes.Contains(b, []byte("in June")) {
-	// 	fmt.Printf("%q is not right flanking\n", b)
-	// }
 	return false
 }
 func rightFlankingNode(n *html.Node) bool {
-	if n == nil || n.Type != html.TextNode {
+	if n == nil {
+		return true
+	}
+	if n.Type == html.ElementNode && n.Data == "a" {
+		return false
+	} else if n.Type != html.TextNode {
 		return true
 	}
 	return rightFlanking([]byte(n.Data))
