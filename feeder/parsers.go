@@ -506,6 +506,7 @@ func NewFeedParser(feed *hyperfeed.Feed, bytes []byte) (parser FeedParser, err e
 		feed.Kind = "atom"
 		parser = &AtomFeedParser{Bytes: bytes, Feed: feed}
 	case jsonfeed.Detected(bytes):
+		feed.Kind = "jsonfeed"
 		parser = &JSONFeedParser{Bytes: bytes, Feed: feed}
 	}
 	return parser, nil

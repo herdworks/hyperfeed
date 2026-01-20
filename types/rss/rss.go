@@ -291,12 +291,12 @@ func (item *Item) IsPodcastEpisode() bool {
 			return true
 		}
 	}
-	if len(GetExtensionProperties(item.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
-		return true
-	}
-	if len(GetExtensionProperties(item.Extensions, ExtensionNamespacePodcastIndex)) > 0 {
-		return true
-	}
+	// if len(GetExtensionProperties(item.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
+	// 	return true
+	// }
+	// if len(GetExtensionProperties(item.Extensions, ExtensionNamespacePodcastIndex)) > 0 {
+	// 	return true
+	// }
 	return false
 }
 

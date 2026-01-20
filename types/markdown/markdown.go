@@ -92,9 +92,7 @@ func Convert(htmlInput string) (out string, err error) {
 func noop(in string) bool {
 	if in == "" {
 		return true
-	} else if !(strings.Contains(in, "<") && strings.Contains(in, "</")) {
-		return true
-	} else if !(strings.Contains(in, "&lt;") && strings.Contains(in, "&lt;/")) {
+	} else if !(strings.Contains(in, "<") && strings.Contains(in, "</")) || !(strings.Contains(in, "&lt;") && strings.Contains(in, "&lt;/")) {
 		return true
 	}
 	return false
