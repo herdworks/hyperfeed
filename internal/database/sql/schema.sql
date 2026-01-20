@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [title] TEXT,
     [description] TEXT,
     [language] TEXT,
+    [is_podcast] INTEGER DEFAULT 0 CHECK ([is_podcast] IN (0, 1)),
     [interval] TEXT,
     [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
 
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS items (
     [title] TEXT,
     [summary] TEXT,
     [content] TEXT,
+    [is_podcast_episode] INTEGER DEFAULT 0 CHECK ([is_podcast_episode] IN (0, 1)),
 
     PRIMARY KEY ([id])
 );
@@ -317,6 +319,7 @@ SELECT
         'title', [feeds].[title],
         'description', [feeds].[description],
         'language', [feeds].[language],
+        'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
         'website', COALESCE(
             (
                 SELECT json_object(
@@ -376,6 +379,7 @@ SELECT
         ), json('[]')),
         'summary', [items].[summary],
         'content', [items].[content],
+        'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
         'images', COALESCE((
             SELECT json_group_array(json([images_view].[image]))
             FROM [images_view]
@@ -418,6 +422,7 @@ SELECT
             ), json('[]')),
             'summary', [items].[summary],
             'content', [items].[content],
+            'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
             'images', COALESCE((
                 SELECT json_group_array(json([images_view].[image]))
                 FROM [images_view]
@@ -439,6 +444,7 @@ SELECT
                     'title', [feeds].[title],
                     'description', [feeds].[description],
                     'language', [feeds].[language],
+                    'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
                     'website', json(NULL),
                     'status', json([feeds].[status]),
                     'subscriptionlist_id', [feeds].[subscriptionlist_id]

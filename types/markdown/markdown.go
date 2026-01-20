@@ -76,11 +76,28 @@ var (
 func Convert(htmlInput string) (out string, err error) {
 	var node *html.Node
 	var buf bytes.Buffer
+	if noop(htmlInput) {
+		return strings.TrimSpace(htmlInput), nil
+	}
 	if node, err = html.Parse(strings.NewReader(unescaped(htmlInput))); err != nil {
 		return "", err
 	}
 	walk(&buf, node, 0, true)
 	return strings.TrimSpace(buf.String()), nil
+}
+
+// noop checks if an incoming string should be left unmodified
+//
+// true if no html tags are present
+func noop(in string) bool {
+	if in == "" {
+		return true
+	} else if !(strings.Contains(in, "<") && strings.Contains(in, "</")) {
+		return true
+	} else if !(strings.Contains(in, "&lt;") && strings.Contains(in, "&lt;/")) {
+		return true
+	}
+	return false
 }
 
 // unescaped returns the unescaped version of in if it appears to be fully escaped HTML

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // jsonfeed.Feed represents a JSONFeed document as defined by https://jsonfeed.org/version/1.1
@@ -86,6 +87,29 @@ func (feed *Feed) FeedVersion() string {
 	default:
 		return "unknown"
 	}
+}
+
+func (feed *Feed) IsPodcast() bool {
+	for _, item := range feed.Items {
+		if item.IsPodcastEpisode() {
+			return true
+		}
+	}
+	return false
+}
+
+func (item *Item) IsPodcastEpisode() bool {
+	if item == nil {
+		return false
+	}
+	for _, attachment := range item.Attachments {
+		if strings.HasPrefix(attachment.MimeType, "audio/") || strings.HasPrefix(attachment.MimeType, "video/") {
+			return true
+		} else if attachment.DurationInSeconds > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // FUNCTIONS

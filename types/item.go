@@ -29,14 +29,15 @@ type Item struct {
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`   // when we last updated the item in our database
 	FeedAt      time.Time `json:"feed_at,omitempty"`      // default feed order timestamp
 
-	Title       string       `json:"title,omitempty"`
-	Bylines     []Byline     `json:"bylines,omitempty"`
-	Summary     string       `json:"summary,omitempty"`
-	Content     string       `json:"content,omitempty"`
-	Images      []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
-	Links       []*HyperLink `json:"links,omitempty"`
-	Categories  []string     `json:"categories,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"` // RSS enclosures, JSONFeed attachments
+	Title            string       `json:"title,omitempty"`
+	Bylines          []Byline     `json:"bylines,omitempty"`
+	Summary          string       `json:"summary,omitempty"`
+	Content          string       `json:"content,omitempty"`
+	Images           []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
+	Links            []*HyperLink `json:"links,omitempty"`
+	Categories       []string     `json:"categories,omitempty"`
+	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, JSONFeed attachments
+	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
 
 	// Comments is a URL pointing to a comments page for the item.
 	Comments *url.URL `json:"comments,omitempty"`
@@ -165,6 +166,7 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 		"title",
 		"summary",
 		"content",
+		"is_podcast_episode",
 		"published_at",
 		"modified_at",
 		"added_at",
@@ -190,6 +192,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("title", item.Title))
 	args = append(args, sql.Named("summary", strings.TrimSpace(item.Summary)))
 	args = append(args, sql.Named("content", strings.TrimSpace(item.Content)))
+	args = append(args, sql.Named("is_podcast_episode", item.IsPodcastEpisode))
 	args = append(args, sql.Named("published_at", item.PublishedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("modified_at", item.ModifiedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("added_at", item.AddedAt.UTC().Format(time.RFC3339)))
@@ -207,6 +210,7 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 		"title = excluded.title",
 		"summary = excluded.summary",
 		"content = excluded.content",
+		"is_podcast_episode = excluded.is_podcast_episode",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
 		"website_id = excluded.website_id",

@@ -270,6 +270,49 @@ func (r *RSS) Link() string {
 	return r.Origin.ResolveReference(&url.URL{Path: "/"}).String()
 }
 
+func (r *RSS) IsPodcast() bool {
+	if len(GetExtensionProperties(r.Channel.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
+		return true
+	}
+	for _, item := range r.Channel.Items {
+		if item.IsPodcastEpisode() {
+			return true
+		}
+	}
+	return false
+}
+
+func (item *Item) IsPodcastEpisode() bool {
+	if item == nil {
+		return false
+	}
+	for _, enclosure := range item.Enclosures {
+		if strings.HasPrefix(enclosure.Type, "audio/") || strings.HasPrefix(enclosure.Type, "video/") {
+			return true
+		}
+	}
+	if len(GetExtensionProperties(item.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
+		return true
+	}
+	if len(GetExtensionProperties(item.Extensions, ExtensionNamespacePodcastIndex)) > 0 {
+		return true
+	}
+	return false
+}
+
+func (item *Item) PodcastDescription() string {
+	if item == nil {
+		return ""
+	}
+	if desc := GetExtensionProperty(item.Extensions, ExtensionNamespaceItunesPodcast, "summary"); desc != nil {
+		return desc.Text
+	}
+	if desc := GetExtensionProperty(item.Extensions, ExtensionNamespaceItunesPodcast, "subtitle"); desc != nil {
+		return desc.Text
+	}
+	return item.Description
+}
+
 // ParseAuthor extracts name and email from an RSS author string.
 //
 // NOTE: <author> elements are not well-defined in RSS 2.0 and may contain just an email, just a name, or both in various formats.
@@ -312,8 +355,8 @@ func LinkURL(links []Link) *url.URL {
 }
 
 func HTML(text string) string {
-	if text != "" && !htmlTagPattern.MatchString(text) {
-		return fmt.Sprintf("<p>%s</p>", text)
-	}
+	// if text != "" && !htmlTagPattern.MatchString(text) {
+	// 	return fmt.Sprintf("<p>%s</p>", text)
+	// }
 	return text
 }

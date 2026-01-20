@@ -30,6 +30,7 @@ type Feed struct {
 	Title              string        `json:"title,omitempty"`
 	Description        string        `json:"description,omitempty"`
 	Language           string        `json:"language,omitempty"`
+	IsPodcast          bool          `json:"is_podcast,omitempty"`
 	Metadata           Metadata      `json:"metadata,omitempty"` // Non-standard/extension properties
 	Interval           time.Duration `json:"interval,omitempty"` // fetch interval in minutes
 	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
@@ -147,6 +148,7 @@ func (*Feed) DatabaseInsertColumns() []string {
 		"title",
 		"description",
 		"language",
+		"is_podcast",
 		"interval",
 		"status",
 		"subscriptionlist_id",
@@ -165,6 +167,7 @@ func (feed *Feed) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("title", feed.Title))                // title
 	values = append(values, sql.Named("description", feed.Description))    // description
 	values = append(values, sql.Named("language", feed.Language))          // language
+	values = append(values, sql.Named("is_podcast", feed.IsPodcast))       // is_podcast
 	values = append(values, sql.Named("interval", feed.Interval.String())) // interval
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
 		values = append(values, sql.Named("status", string(statusBytes))) // status
@@ -187,6 +190,7 @@ func (feed *Feed) DatabaseUpdatesSet(_ []string) []string {
 		"title = excluded.title",
 		"description = excluded.description",
 		"language = excluded.language",
+		"is_podcast = excluded.is_podcast",
 		"interval = excluded.interval",
 		"status = excluded.status",
 		// never update subscriptionlist_id

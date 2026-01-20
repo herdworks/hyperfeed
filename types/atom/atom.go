@@ -133,6 +133,27 @@ func (atom *Atom) Link(rel string) (link *Link) {
 	return link
 }
 
+func (atom *Atom) IsPodcast() bool {
+	for _, item := range atom.Entries {
+		if item.IsPodcastEpisode() {
+			return true
+		}
+	}
+	return false
+}
+
+func (entry *Entry) IsPodcastEpisode() bool {
+	if entry == nil {
+		return false
+	}
+	for _, link := range entry.Links {
+		if strings.HasPrefix(link.Type, "audio/") || strings.HasPrefix(link.Type, "video/") {
+			return true
+		}
+	}
+	return false
+}
+
 // Entry.Link()
 func (entry *Entry) Link(rel string) *Link {
 	for _, l := range entry.Links {

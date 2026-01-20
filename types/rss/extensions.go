@@ -20,6 +20,9 @@ const (
 	// iTunes Podcasts: https://podcasters.apple.com/support/823-podcast-requirements
 	ExtensionNamespaceItunesPodcast string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 
+	// PodcastIndex // "Podcasting 2.0"
+	ExtensionNamespacePodcastIndex string = "https://podcastindex.org/namespace/1.0"
+
 	// Google Play Podcasts
 	// https://www.google.com/schemas/play-podcasts/1.0/play-podcasts.xsd
 	// https://support.google.com/podcast-publishers/answer/9889544?visit_id=638961521969445342-2535738675&rd=1
@@ -101,7 +104,16 @@ func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 // 	return authors
 // }
 
-func GetExtensionMetadata(extensions []Extension, namespace string, name string) *Extension {
+func GetExtensionProperties(extensions []Extension, namespace string) (properties []*Extension) {
+	for _, ext := range extensions {
+		if ext.XMLName.Space == namespace {
+			properties = append(properties, &ext)
+		}
+	}
+	return properties
+}
+
+func GetExtensionProperty(extensions []Extension, namespace string, name string) *Extension {
 	for _, ext := range extensions {
 		if ext.XMLName.Space == namespace && ext.XMLName.Local == name {
 			return &ext
@@ -111,19 +123,23 @@ func GetExtensionMetadata(extensions []Extension, namespace string, name string)
 }
 
 func GetItunesMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceItunesPodcast, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceItunesPodcast, name)
+}
+
+func GetPodcastIndexMetadata(extensions []Extension, name string) *Extension {
+	return GetExtensionProperty(extensions, ExtensionNamespacePodcastIndex, name)
 }
 
 func GetYahooMediaRSSMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceYahooMediaRSS, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceYahooMediaRSS, name)
 }
 
 func GetRSSContentMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceRSSContent, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceRSSContent, name)
 }
 
 func GetDublinCoreMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceDublicCoreMetadata, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceDublicCoreMetadata, name)
 }
 
 func GetItunesOwner(metadata []Extension) (author string) {

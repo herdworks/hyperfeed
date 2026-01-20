@@ -169,6 +169,10 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		if item.Attachments, err = parser.Attachments(&rssitem, item, w); err != nil {
 			return nil, err
 		}
+		if rssitem.IsPodcastEpisode() {
+			item.IsPodcastEpisode = true
+			parser.Feed.IsPodcast = true
+		}
 		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
@@ -326,6 +330,10 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		if item.Attachments, err = parser.Attachments(entry, item, w); err != nil {
 			return nil, err
 		}
+		if entry.IsPodcastEpisode() {
+			item.IsPodcastEpisode = true
+			parser.Feed.IsPodcast = true
+		}
 		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
@@ -442,6 +450,10 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		}
 		if item.Attachments, err = parser.Attachments(&jsonitem, item, w); err != nil {
 			return nil, err
+		}
+		if jsonitem.IsPodcastEpisode() {
+			item.IsPodcastEpisode = true
+			parser.Feed.IsPodcast = true
 		}
 		item.ResolveRelativeURLs(w)
 		items = append(items, item)
