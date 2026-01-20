@@ -164,7 +164,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item.FeedAt = item.TimelineAt(timelinePosition)
 		if byline := rss.GetDublinCoreCreator(rssitem.Extensions); byline != "" {
 			name, email := rss.ParseAuthor(byline)
-			item.Bylines = append(item.Bylines, hyperfeed.Byline{Name: name, Email: email})
+			item.Bylines = append(item.Bylines, hyperfeed.Byline{Name: strings.TrimSpace(name), Email: email})
 		}
 		if item.Attachments, err = parser.Attachments(&rssitem, item, w); err != nil {
 			return nil, err
@@ -321,7 +321,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		item.FeedAt = item.TimelineAt(timelinePosition)
 		for _, byline := range append(entry.Authors, entry.Contributors...) {
 			href, _ := href.Parse(byline.URI)
-			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: href, Name: byline.Name, Email: byline.Email})
+			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: href, Name: strings.TrimSpace(byline.Name), Email: byline.Email})
 		}
 		if item.Attachments, err = parser.Attachments(entry, item, w); err != nil {
 			return nil, err
@@ -438,7 +438,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		for _, byline := range jsonitem.Authors {
 			url, _ := href.Parse(byline.URL)
 			favicon, _ := href.Parse(byline.Avatar)
-			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: url, Name: byline.Name, Favicon: favicon})
+			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: url, Name: strings.TrimSpace(byline.Name), Favicon: favicon})
 		}
 		if item.Attachments, err = parser.Attachments(&jsonitem, item, w); err != nil {
 			return nil, err
