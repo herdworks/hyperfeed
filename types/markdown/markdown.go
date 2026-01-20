@@ -45,6 +45,7 @@ var (
 		"s":      {Tag: "s", Prefix: "~~", Suffix: "~~"},
 		"br":     {Tag: "br", Replacement: "\n\n"},
 		"hr":     {Tag: "hr", Replacement: "---\n\n"},
+		"figcaption": {Tag: "figcaption", Prefix: "", Suffix: "\n\n"},
 	}
 	extensionTags = map[string]ExtendedMarkup{
 		"abbr":  {Tag: "abbr", Attributes: map[string]string{"kind": "abbr"}},
