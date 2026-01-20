@@ -30,21 +30,21 @@ type ExtendedMarkup struct {
 var (
 	headerPattern *regexp.Regexp = regexp.MustCompile(`(?m)^#(\s+)`)
 	markupTags                   = map[string]Markup{
-		"h1":     {Tag: "h1", Prefix: "# ", Suffix: "\n\n"},
-		"h2":     {Tag: "h2", Prefix: "## ", Suffix: "\n\n"},
-		"h3":     {Tag: "h3", Prefix: "### ", Suffix: "\n\n"},
-		"h4":     {Tag: "h4", Prefix: "#### ", Suffix: "\n\n"},
-		"h5":     {Tag: "h5", Prefix: "##### ", Suffix: "\n\n"},
-		"h6":     {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
-		"p":      {Tag: "p", Prefix: "", Suffix: "\n\n"},
-		"strong": {Tag: "strong", Prefix: "**", Suffix: "**"},
-		"em":     {Tag: "em", Prefix: "_", Suffix: "_"},
-		"i":      {Tag: "i", Prefix: "_", Suffix: "_"},
-		"del":    {Tag: "del", Prefix: "~~", Suffix: "~~"},
-		"strike": {Tag: "strike", Prefix: "~~", Suffix: "~~"},
-		"s":      {Tag: "s", Prefix: "~~", Suffix: "~~"},
-		"br":     {Tag: "br", Replacement: "\n\n"},
-		"hr":     {Tag: "hr", Replacement: "---\n\n"},
+		"h1":         {Tag: "h1", Prefix: "# ", Suffix: "\n\n"},
+		"h2":         {Tag: "h2", Prefix: "## ", Suffix: "\n\n"},
+		"h3":         {Tag: "h3", Prefix: "### ", Suffix: "\n\n"},
+		"h4":         {Tag: "h4", Prefix: "#### ", Suffix: "\n\n"},
+		"h5":         {Tag: "h5", Prefix: "##### ", Suffix: "\n\n"},
+		"h6":         {Tag: "h6", Prefix: "###### ", Suffix: "\n\n"},
+		"p":          {Tag: "p", Prefix: "", Suffix: "\n\n"},
+		"strong":     {Tag: "strong", Prefix: "**", Suffix: "**"},
+		"em":         {Tag: "em", Prefix: "_", Suffix: "_"},
+		"i":          {Tag: "i", Prefix: "_", Suffix: "_"},
+		"del":        {Tag: "del", Prefix: "~~", Suffix: "~~"},
+		"strike":     {Tag: "strike", Prefix: "~~", Suffix: "~~"},
+		"s":          {Tag: "s", Prefix: "~~", Suffix: "~~"},
+		"br":         {Tag: "br", Replacement: "\n\n"},
+		"hr":         {Tag: "hr", Replacement: "---\n\n"},
 		"figcaption": {Tag: "figcaption", Prefix: "", Suffix: "\n\n"},
 	}
 	extensionTags = map[string]ExtendedMarkup{
@@ -85,10 +85,10 @@ func Convert(htmlInput string) (out string, err error) {
 
 // unescaped returns the unescaped version of in if it appears to be fully escaped HTML
 func unescaped(in string) string {
-	if strings.Contains(in, "<") { 
+	if strings.Contains(in, "<") {
 		return in
 	}
-	if !(strings.Contains(in, "&lt;") || strings.Contains(in, "&#60;") || strings.Contains(in, "&#x3c;")) { 
+	if !(strings.Contains(in, "&lt;") || strings.Contains(in, "&#60;") || strings.Contains(in, "&#x3c;")) {
 		return in
 	}
 	return html.UnescapeString(in)
@@ -256,17 +256,6 @@ func a(buf *bytes.Buffer, n *html.Node, _ bool) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		walk(&inner, c, 0, false)
 	}
-	// if text == "" && href != "" {
-	// 	// if no link text, use the domain as text?
-	// 	href = strings.TrimPrefix(href, "https://")
-	// 	href = strings.TrimPrefix(href, "http://")
-	// 	parts := strings.Split(href, "/")
-	// 	text = parts[0]
-	// }
-	// if href == "" {
-	// 	buf.WriteString(text)
-	// 	return
-	// }
 	buf.WriteString("[" + strings.TrimSpace(inner.String()) + "](" + href + ")")
 	if !rightFlankingNode(n.NextSibling) {
 		buf.WriteString(" ")
@@ -499,25 +488,25 @@ func isNewline(buf *bytes.Buffer) bool {
 
 // hasWhitespacePrefix checks if the first character in the buffer is whitespace
 func hasWhitespacePrefix(s string) bool {
-	if len(s) == 0 { 
+	if len(s) == 0 {
 		return false
 	}
 	if r, _ := utf8.DecodeRuneInString(s); unicode.IsSpace(r) {
 		return true
 	}
-	return false	
+	return false
 }
 
 // hasWhitespaceSuffix checks if the last character in the buffer is whitespace
 func hasWhitespaceSuffix(s string) bool {
-	if len(s) == 0 { 
+	if len(s) == 0 {
 		return false
 	}
 	r, _ := utf8.DecodeLastRuneInString(s)
 	if unicode.IsSpace(r) {
 		return true
 	}
-	return false	
+	return false
 }
 
 // whitespaced checks if the last character in the buffer is whitespace
@@ -630,6 +619,3 @@ func rightFlankingNode(n *html.Node) bool {
 	}
 	return rightFlanking([]byte(n.Data))
 }
-
-
-
