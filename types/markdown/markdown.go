@@ -76,7 +76,7 @@ var (
 func Convert(htmlInput string) (out string, err error) {
 	var node *html.Node
 	var buf bytes.Buffer
-	if noop(htmlInput) {
+	if !containsMarkup(htmlInput) {
 		return strings.TrimSpace(htmlInput), nil
 	}
 	if node, err = html.Parse(strings.NewReader(unescaped(htmlInput))); err != nil {
@@ -86,13 +86,29 @@ func Convert(htmlInput string) (out string, err error) {
 	return strings.TrimSpace(buf.String()), nil
 }
 
-// noop checks if an incoming string should be left unmodified
+// containsMarkup checks if an incoming string contains HTML markup
 //
-// true if no html tags are present
-func noop(in string) bool {
+// returns true if html tags are present
+//
+// NOTE: we could just check for "<" (opening tags) + "</" (closing tags), 
+//       or "<" + "/>" to  void elements, but the trailing "/" is optional in HTML5 void elements;
+//       so we check for the commong void elements explicitly.
+func containsMarkup(in string) bool {
 	if in == "" {
 		return true
-	} else if !((strings.Contains(in, "<") && strings.Contains(in, "</")) || (strings.Contains(in, "&lt;") && strings.Contains(in, "&lt;/"))) {
+	} else if strings.Contains(in, "<") && strings.Contains(in, "</") {
+		return true
+	} else if strings.Contains(in, "&lt;") && strings.Contains(in, "&lt;/") {
+		return true
+	} else if strings.Contains(in, "<br") || strings.Contains(in, "&lt;br") {
+		return true
+	} else if strings.Contains(in, "<img") || strings.Contains(in, "&lt;img") {
+		return true
+	} else if strings.Contains(in, "<source") || strings.Contains(in, "&lt;source") {
+		return true
+	} else if strings.Contains(in, "<embed") || strings.Contains(in, "&lt;embed") {
+		return true
+	} else if strings.Contains(in, "<param") || strings.Contains(in, "&lt;param") {
 		return true
 	}
 	return false
