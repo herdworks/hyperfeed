@@ -3,6 +3,8 @@ package rss
 import (
 	"encoding/xml"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 // Extension preserves any XML element outside the core spec during parsing.
@@ -130,6 +132,10 @@ func GetPodcastIndexMetadata(extensions []Extension, name string) *Extension {
 	return GetExtensionProperty(extensions, ExtensionNamespacePodcastIndex, name)
 }
 
+func GetGooglePlayMetadata(extensions []Extension, name string) *Extension {
+	return GetExtensionProperty(extensions, ExtensionNamespaceGooglePlayPodcasts, name)
+}
+
 func GetYahooMediaRSSMetadata(extensions []Extension, name string) *Extension {
 	return GetExtensionProperty(extensions, ExtensionNamespaceYahooMediaRSS, name)
 }
@@ -154,6 +160,55 @@ func GetItunesOwner(metadata []Extension) (author string) {
 	}
 	return fmt.Sprintf("%s <%s>", name, email)
 }
+
+func GetPodcastEpisodeDurationSeconds(item *Item) (seconds int) {
+	var duration *Extension
+	if duration = GetItunesMetadata(item.Extensions, "duration"); duration != nil {	
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetPodcastIndexMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetYahooMediaRSSMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetGooglePlayMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	}
+	return 0
+}
+func GetItunesDurationSeconds(duration *Extension) (seconds int) {
+	if duration == nil {
+		return 0
+	}
+	switch d := GetItunesDurationDigits(duration.Text); len(d) {
+	case 3:
+		// HH:MM:SS format
+		seconds += d[0] * 3600
+		seconds += d[1] * 60
+		seconds += d[2]
+		return seconds
+	case 2:
+		// MM:SS format
+		seconds += d[0] * 60
+		seconds += d[1]
+		return seconds
+	case 1:
+		// SS format
+		return d[0]
+	default: 
+		return 0
+	}
+}
+
+func GetItunesDurationDigits(duration string) (parts []int) {
+	for _, part := range strings.Split(duration, ":") {
+		if p, err := strconv.Atoi(part); err != nil {
+			return []int{0}
+		} else {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
 
 func GetDublinCoreCreator(metadata []Extension) (creator string) {
 	if creatorMetadata := GetDublinCoreMetadata(metadata, "creator"); creatorMetadata != nil {

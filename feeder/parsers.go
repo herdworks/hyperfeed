@@ -192,10 +192,8 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 		if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
 			return nil, err
 		}
-		if duration := rss.GetItunesMetadata(rssitem.Extensions, "duration"); duration != nil {
-			if v, err := time.Parse("15:04:05", duration.Text); err == nil {
-				attachment.Duration = int64(v.Hour()*3600 + v.Minute()*60 + v.Second()) // duration in seconds
-			}
+		if duration := rss.GetPodcastEpisodeDurationSeconds(rssitem); duration > 0 {
+			attachment.Duration = int64(duration)
 		}
 		attachment.Mimetype = enclosure.Type
 		attachment.ItemID = item.Identifier()
