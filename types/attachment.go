@@ -28,6 +28,7 @@ type Attachment struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Enclosure   bool       `json:"enclosure,omitempty"`
+	Rank        int        `json:"rank,omitempty"`
 	Size        int64      `json:"size,omitempty"`     // bytes
 	Duration    int64      `json:"duration,omitempty"` // seconds
 	Height      int        `json:"height,omitempty"`
@@ -88,6 +89,7 @@ func ParseItemMedia(item *Item, htmlBytes []byte, w io.Writer) (attachments []At
 		var attachment Attachment = Attachment{
 			Title:   media.Title,
 			Description:     media.Description,
+			Rank:    media.Index,
 			ItemID:  item.Identifier(),
 			FeedID:  item.Feed.Identifier(),
 			WebsiteID: item.Feed.Website.Identifier(),
@@ -140,6 +142,7 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 		"title",
 		"description",
 		"enclosure",
+		"rank",
 		"size",
 		"duration",
 		"height",
@@ -166,6 +169,7 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("title", attachment.Title))
 	values = append(values, sql.Named("description", attachment.Description))
 	values = append(values, sql.Named("enclosure", attachment.Enclosure))
+	values = append(values, sql.Named("rank", attachment.Rank))
 	values = append(values, sql.Named("size", attachment.Size))
 	values = append(values, sql.Named("duration", attachment.Duration))
 	values = append(values, sql.Named("height", attachment.Height))

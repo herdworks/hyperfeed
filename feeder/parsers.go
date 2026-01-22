@@ -181,7 +181,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 // RSSFeedParser.Attachments()
 func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, enclosure := range rssitem.Enclosures {
-		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
 		if attachment.Href, err = href.Parse(enclosure.URL); err != nil {
 			return nil, err
 		}
@@ -339,7 +339,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 // AtomFeedParser.Attachments()
 func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, link := range entry.Links {
-		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
 		if link.Rel != "enclosure" {
 			continue
 		}
@@ -461,7 +461,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 // JSONFeedParser.Attachments()
 func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, a := range jsonfeeditem.Attachments {
-		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
 		attachment.Href, _ = href.Parse(a.URL)
 		attachment.Title = a.Title
 		attachment.Size = int64(a.SizeInBytes)
