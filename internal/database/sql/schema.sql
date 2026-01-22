@@ -147,67 +147,57 @@ CREATE INDEX IF NOT EXISTS links_id_index ON links([id]);
 CREATE INDEX IF NOT EXISTS links_href_index ON links([href]);
 CREATE INDEX IF NOT EXISTS links_website_id_index ON links([website_id]);
 
--- Images table
-CREATE TABLE IF NOT EXISTS images (
-    [id] TEXT UNIQUE DEFAULT( lower(hex(randomblob(4))) ),
-    [href] TEXT NOT NULL,
-    [sources] TEXT NOT NULL DEFAULT '[]', -- JSON array of ImageSource objects
-    [title] TEXT,
-    [alt] TEXT,
-    [caption] TEXT,
-    [width] INTEGER,
-    [height] INTEGER,
-
-    [item_id] TEXT NOT NULL REFERENCES items([id]),
-    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
-    [website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
-
-    PRIMARY KEY ([id])
-);
-CREATE INDEX IF NOT EXISTS images_href_index ON images([href]);
-CREATE INDEX IF NOT EXISTS images_item_id_index ON images([item_id]);
-CREATE INDEX IF NOT EXISTS images_feed_id_index ON images([feed_id]);
-CREATE INDEX IF NOT EXISTS images_website_id_index ON images([website_id]);
-
 -- Attachments table
 CREATE TABLE IF NOT EXISTS attachments (
     [id] TEXT NOT NULL DEFAULT( lower(hex(randomblob(4))) ),
-    [url] TEXT,
-    [size] INTEGER,
-    [duration] INTEGER,
+
+    -- uris
+    [href] TEXT,
+    [sources] TEXT NOT NULL DEFAULT '[]', -- JSON array of source objects
+    [poster] TEXT,
+
+    -- metadata
     [mimetype] TEXT,
     [title] TEXT,
-    [labels] TEXT,
+    [description] TEXT,
+    [enclosure] INTEGER DEFAULT 0 CHECK ([enclosure] IN (0, 1)),
 
+    -- details
+    [width] INTEGER,
+    [height] INTEGER,
+    [size] INTEGER,
+    [duration] INTEGER,
+
+    -- references
     [item_id] TEXT NOT NULL REFERENCES items([id]),
     [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
     [website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
 
-    PRIMARY KEY ([url],[item_id]) -- Composite PK
+    PRIMARY KEY ([href],[item_id]) -- Composite PK
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
-CREATE INDEX IF NOT EXISTS attachments_url_index ON attachments([url]);
+CREATE INDEX IF NOT EXISTS attachments_href_index ON attachments([href]);
 CREATE INDEX IF NOT EXISTS attachments_item_id_index ON attachments([item_id]);
 CREATE INDEX IF NOT EXISTS attachments_feed_id_index ON attachments([feed_id]);
 CREATE INDEX IF NOT EXISTS attachments_website_id_index ON attachments([website_id]);
 
--- Cache table
-CREATE TABLE IF NOT EXISTS cache (
-    [url] TEXT PRIMARY KEY, -- source url
-    [uri] TEXT, -- cache file uri
-    [type] TEXT, -- mimetype
-    [size_in_bytes] INTEGER, -- size of cached data
-    [updated_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- last update time
-    [fetched_at] TIMESTAMP, -- last fetch time
-    [http_etag] TEXT, -- HTTP ETag
-    [http_last_modified] TEXT, -- HTTP Last-Modified
-    [http_expires_at] TIMESTAMP, -- HTTP Expires
-    [http_status_code] INTEGER, -- HTTP status code of last fetch
-    [bytes] BLOB -- cached data
-);
-CREATE INDEX IF NOT EXISTS cache_url_index ON cache ([url]);
-CREATE INDEX IF NOT EXISTS cache_type_index ON cache ([type]);
-CREATE INDEX IF NOT EXISTS cache_http_expires_at_index ON cache ([http_expires_at]);
+-- -- Cache table
+-- CREATE TABLE IF NOT EXISTS cache (
+--     [url] TEXT PRIMARY KEY, -- source url
+--     [uri] TEXT, -- cache file uri
+--     [type] TEXT, -- mimetype
+--     [size_in_bytes] INTEGER, -- size of cached data
+--     [updated_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- last update time
+--     [fetched_at] TIMESTAMP, -- last fetch time
+--     [http_etag] TEXT, -- HTTP ETag
+--     [http_last_modified] TEXT, -- HTTP Last-Modified
+--     [http_expires_at] TIMESTAMP, -- HTTP Expires
+--     [http_status_code] INTEGER, -- HTTP status code of last fetch
+--     [bytes] BLOB -- cached data
+-- );
+-- CREATE INDEX IF NOT EXISTS cache_url_index ON cache ([url]);
+-- CREATE INDEX IF NOT EXISTS cache_type_index ON cache ([type]);
+-- CREATE INDEX IF NOT EXISTS cache_http_expires_at_index ON cache ([http_expires_at]);
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS metadata (
@@ -380,10 +370,10 @@ SELECT
         'summary', [items].[summary],
         'content', [items].[content],
         'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
-        'images', COALESCE((
-            SELECT json_group_array(json([images_view].[image]))
-            FROM [images_view]
-            WHERE [images_view].[item_id] = [items].[id]
+        'attachments', COALESCE((
+            SELECT json_group_array(json([attachments_view].[attachment]))
+            FROM [attachments_view]
+            WHERE [attachments_view].[item_id] = [items].[id]
         ), json('[]'))
     ) AS [item],
     [items].[id],
@@ -423,11 +413,6 @@ SELECT
             'summary', [items].[summary],
             'content', [items].[content],
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
-            'images', COALESCE((
-                SELECT json_group_array(json([images_view].[image]))
-                FROM [images_view]
-                WHERE [images_view].[item_id] = [items].[id]
-            ), json('[]')),
             'attachments', COALESCE((
                 SELECT json_group_array(json([attachments_view].[attachment]))
                 FROM [attachments_view]
@@ -559,49 +544,29 @@ FROM
     [bylines]
 ;
 
--- ImagesView
-CREATE VIEW IF NOT EXISTS images_view AS
-SELECT
-    json_object(
-        'id', [images].[id],
-        'href', [images].[href],
-        'sources', json([images].[sources]),
-        'title', [images].[title],
-        'alt', [images].[alt],
-        'caption', [images].[caption],
-        'width', [images].[width],
-        'height', [images].[height],
-        'item_id', [images].[item_id],
-        'feed_id', [images].[feed_id],
-        'website_id', [images].[website_id]
-    ) as 'image',
-    [images].[id],
-    [images].[href],
-    [images].[item_id],
-    [images].[feed_id],
-    [images].[website_id]
-FROM
-    [images]
-;
-
 -- AttachmentsView
 CREATE VIEW IF NOT EXISTS attachments_view AS
 SELECT
     json_object(
         'id', [attachments].[id],
-        'url', [attachments].[url],
-        'size', [attachments].[size],
-        'duration', [attachments].[duration],
+        'href', [attachments].[href],
+        'sources', json([attachments].[sources]),
+        'poster', [attachments].[poster],
         'mimetype', [attachments].[mimetype],
         'title', [attachments].[title],
-        'labels', [attachments].[labels],
+        'description', [attachments].[description],
+        'enclosure', CASE WHEN [attachments].[enclosure] = 1 THEN json('true') ELSE json('false') END,
+        'size', [attachments].[size],
+        'duration', [attachments].[duration],
         'item_id', [attachments].[item_id],
         'feed_id', [attachments].[feed_id],
         'website_id', [attachments].[website_id]
     ) as 'attachment',
     [attachments].[id],
-    [attachments].[url],
-    [attachments].[item_id]
+    [attachments].[href],
+    [attachments].[item_id],
+    [attachments].[feed_id],
+    [attachments].[website_id]
 FROM
     [attachments]
 ;

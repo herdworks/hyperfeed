@@ -403,34 +403,34 @@ func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer
 	fmt.Fprintf(w, "link relations written: %d\n", count)
 	return nil
 }
-func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
-	var transaction *sql.Tx
-	var count int = 0
-	for _, feed := range feeds {
-		if !feed.Status.Fetched() || feed.Status.Skipped() {
-			continue
-		}
-		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
-			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
-		}
-		defer subscriber.Database.EndTransaction(transaction, err)
-		for _, item := range feed.Items {
-			for _, image := range item.Images {
-				image.FeedID = item.Feed.Identifier()
-				image.WebsiteID = item.Feed.Website.Identifier()
-				if err = subscriber.Database.InsertRow(ctx, transaction, image); err != nil {
-					return errors.Join(ErrDatabase, errors.New("inserting image"), err)
-				}
-				count++
-			}
-		}
-		if err = transaction.Commit(); err != nil {
-			return errors.Join(ErrDatabase, errors.New("inserting image"), err)
-		}
-	}
-	fmt.Fprintf(w, "images written: %d\n", count)
-	return nil
-}
+// func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
+// 	var transaction *sql.Tx
+// 	var count int = 0
+// 	for _, feed := range feeds {
+// 		if !feed.Status.Fetched() || feed.Status.Skipped() {
+// 			continue
+// 		}
+// 		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+// 			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+// 		}
+// 		defer subscriber.Database.EndTransaction(transaction, err)
+// 		for _, item := range feed.Items {
+// 			for _, image := range item.Images {
+// 				image.FeedID = item.Feed.Identifier()
+// 				image.WebsiteID = item.Feed.Website.Identifier()
+// 				if err = subscriber.Database.InsertRow(ctx, transaction, image); err != nil {
+// 					return errors.Join(ErrDatabase, errors.New("inserting image"), err)
+// 				}
+// 				count++
+// 			}
+// 		}
+// 		if err = transaction.Commit(); err != nil {
+// 			return errors.Join(ErrDatabase, errors.New("inserting image"), err)
+// 		}
+// 	}
+// 	fmt.Fprintf(w, "images written: %d\n", count)
+// 	return nil
+// }
 func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
@@ -578,9 +578,9 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
 		return err
 	}
-	if err = subscriber.SaveImages(ctx, w, feeds); err != nil {
-		return err
-	}
+	// if err = subscriber.SaveImages(ctx, w, feeds); err != nil {
+	// 	return err
+	// }
 	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
 		return err
 	}

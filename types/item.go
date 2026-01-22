@@ -33,10 +33,9 @@ type Item struct {
 	Bylines          []Byline     `json:"bylines,omitempty"`
 	Summary          string       `json:"summary,omitempty"`
 	Content          string       `json:"content,omitempty"`
-	Images           []*Image     `json:"images,omitempty"` // associated images (e.g. cover images, thumbnails)
 	Links            []*HyperLink `json:"links,omitempty"`
+	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, Atom enclosure Links, JSONFeed attachments, and scraped media (images, videos, audio, documents, and other files)
 	Categories       []string     `json:"categories,omitempty"`
-	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, JSONFeed attachments
 	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
 
 	// Comments is a URL pointing to a comments page for the item.
@@ -103,22 +102,16 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 			item.Bylines[i] = b
 		}
 	}
-	for i, img := range item.Images {
-		if img.Href != nil {
-			img.Href = href.ResolveHref(base, img.Href, w)
+	for i, a := range item.Attachments {
+		if a.Href != nil {
+			a.Href = href.ResolveHref(base, a.Href, w)
+			item.Attachments[i] = a
 		}
-		for j, src := range img.Sources {
+		for i, src := range a.Sources {
 			if src.Href != nil {
 				src.Href = href.ResolveHref(base, src.Href, w)
-				img.Sources[j] = src
+				a.Sources[i] = src
 			}
-		}
-		item.Images[i] = img
-	}
-	for i, a := range item.Attachments {
-		if a.URL != nil {
-			a.URL = href.ResolveHref(base, a.URL, w)
-			item.Attachments[i] = a
 		}
 	}
 }

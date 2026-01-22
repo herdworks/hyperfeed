@@ -148,7 +148,6 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item.GUID = rssitem.GUID.Value
 		item.URL = rss.LinkURL(rssitem.Links)
 		item.Title = html.UnescapeString(strings.TrimSpace(rssitem.Title))
-		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		if item.Summary, err = markdown.Convert(rssitem.Description); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.description error: %v\n", err)
@@ -180,10 +179,10 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 }
 
 // RSSFeedParser.Attachments()
-func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
+func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, enclosure := range rssitem.Enclosures {
-		attachment := hyperfeed.Attachment{}
-		if attachment.URL, err = href.Parse(enclosure.URL); err != nil {
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
+		if attachment.Href, err = href.Parse(enclosure.URL); err != nil {
 			return nil, err
 		}
 		if enclosure.Length == "" {
@@ -201,6 +200,8 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
+	mediaAttachments := hyperfeed.ParseItemMedia(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
+	attachments = append(attachments, mediaAttachments...)
 	return attachments, nil
 }
 
@@ -304,15 +305,12 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		}
 		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
-		summary := atom.First(&atom.Text{}, entry.Summary)
-		content := atom.First(&atom.Text{}, entry.Content)
 		item.Title = html.UnescapeString(strings.TrimSpace(entry.Title))
-		item.Images = hyperfeed.ParseImages(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
-		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(content.Body, summary.Body)), w)
-		if item.Summary, err = markdown.Convert(summary.Body); err != nil {
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w)
+		if item.Summary, err = markdown.Convert(entry.Summary.Body); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.summary error: %v\n", err)
 		}
-		if item.Content, err = markdown.Convert(atom.HTML(content)); err != nil {
+		if item.Content, err = markdown.Convert(atom.HTML(entry.Content)); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.content error: %v\n", err)
 		}
 		item.Comments = nil // Atom entries do not have a comments field
@@ -339,13 +337,13 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 }
 
 // AtomFeedParser.Attachments()
-func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
+func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, link := range entry.Links {
-		attachment := hyperfeed.Attachment{}
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
 		if link.Rel != "enclosure" {
 			continue
 		}
-		attachment.URL, _ = href.Parse(link.Href)
+		attachment.Href, _ = href.Parse(link.Href)
 		attachment.Title = link.Title
 		attachment.Size = int64(link.Length)
 		attachment.Mimetype = link.Type
@@ -356,6 +354,8 @@ func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Ite
 		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
+	mediaAttachments := hyperfeed.ParseItemMedia(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w)
+	attachments = append(attachments, mediaAttachments...)
 	return attachments, nil
 }
 
@@ -427,7 +427,6 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.Title = html.UnescapeString(strings.TrimSpace(jsonitem.Title))
-		item.Images = hyperfeed.ParseImages(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		if item.Summary, err = markdown.Convert(jsonitem.Summary); err != nil {
 			fmt.Fprintf(w, "markdown JSONFeed item.Summary error: %v\n", err)
@@ -460,10 +459,10 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 }
 
 // JSONFeedParser.Attachments()
-func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyperfeed.Item, _ io.Writer) (attachments []hyperfeed.Attachment, err error) {
+func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyperfeed.Item, w io.Writer) (attachments []hyperfeed.Attachment, err error) {
 	for _, a := range jsonfeeditem.Attachments {
-		attachment := hyperfeed.Attachment{}
-		attachment.URL, _ = href.Parse(a.URL)
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true}
+		attachment.Href, _ = href.Parse(a.URL)
 		attachment.Title = a.Title
 		attachment.Size = int64(a.SizeInBytes)
 		attachment.Mimetype = a.MimeType
@@ -473,6 +472,8 @@ func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyp
 		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
+	mediaAttachments := hyperfeed.ParseItemMedia(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonfeeditem.ContentHTML, jsonfeeditem.ContentText, jsonfeeditem.Summary))), w)
+	attachments = append(attachments, mediaAttachments...)
 	return attachments, nil
 }
 

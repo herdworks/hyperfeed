@@ -73,8 +73,8 @@ type Entry struct {
 	Updated      TimeStamp `xml:"updated"`
 	Authors      []*Author `xml:"author"`
 	Contributors []*Author `xml:"contributor"` // extension from golang.org/x/tools/blog/atom
-	Summary      *Text     `xml:"summary"`
-	Content      *Text     `xml:"content"`
+	Summary      Text     `xml:"summary"`
+	Content      Text     `xml:"content"`
 }
 
 type Link struct {
@@ -246,10 +246,7 @@ func First(values ...*Text) *Text {
 	return values[0]
 }
 
-func HTML(text *Text) string {
-	if text == nil {
-		return ""
-	}
+func HTML(text Text) string {
 	if text.Type == "html" || text.Type == "xhtml" {
 		return text.Body
 	}
