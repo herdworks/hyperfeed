@@ -38,8 +38,8 @@ type Attachment struct {
 }
 
 type Source struct {
-	Mimetype string     `json:"mimetype,omitempty"`
-	Href     *href.Href `json:"href,omitempty"`
+	Mimetype string     `json:"mimetype"`
+	Href     *href.Href `json:"href"`
 	Width    int        `json:"width,omitempty"`
 	Height   int        `json:"height,omitempty"`
 	Container string    `json:"container,omitempty"`
