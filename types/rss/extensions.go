@@ -163,7 +163,7 @@ func GetItunesOwner(metadata []Extension) (author string) {
 
 func GetPodcastEpisodeDurationSeconds(item *Item) (seconds int) {
 	var duration *Extension
-	if duration = GetItunesMetadata(item.Extensions, "duration"); duration != nil {	
+	if duration = GetItunesMetadata(item.Extensions, "duration"); duration != nil {
 		return GetItunesDurationSeconds(duration)
 	} else if duration = GetPodcastIndexMetadata(item.Extensions, "duration"); duration != nil {
 		return GetItunesDurationSeconds(duration)
@@ -193,7 +193,7 @@ func GetItunesDurationSeconds(duration *Extension) (seconds int) {
 	case 1:
 		// SS format
 		return d[0]
-	default: 
+	default:
 		return 0
 	}
 }
@@ -208,7 +208,6 @@ func GetItunesDurationDigits(duration string) (parts []int) {
 	}
 	return parts
 }
-
 
 func GetDublinCoreCreator(metadata []Extension) (creator string) {
 	if creatorMetadata := GetDublinCoreMetadata(metadata, "creator"); creatorMetadata != nil {

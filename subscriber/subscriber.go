@@ -38,6 +38,112 @@ type Subscriber struct {
 // METHODS
 // =============================================================================
 
+// Refresh refreshes all subscribed feeds concurrently
+func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
+	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
+	var ticker *errgroup.Group
+	var cancellation context.Context
+	var start time.Time = time.Now().UTC()
+	var timelinePosition time.Time = time.Time{}
+	subscriber.Status = &Status{UpdatedAt: time.Now().UTC()}
+	ticker, cancellation = errgroup.WithContext(ctx)
+	if w == nil {
+		w = os.Stdout
+	}
+
+	// TODO: do we need to open the database here, or can we just check if it is already open?
+	if err = subscriber.Database.Open(ctx); err == nil {
+		defer subscriber.Database.Close()
+	} else {
+		return err
+	}
+
+	// Resolve provided feeds with state from database
+	if feeds, err = subscriber.ResolveFeeds(ctx, feeds); err != nil {
+		return err
+	}
+
+	// If no feeds provided, load all feeds in database
+	if len(feeds) == 0 {
+		if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
+			return err
+		}
+	}
+
+	// Determine timeline position based on newest item in database
+	if i, err := database.LastRecord[*hyperfeed.Item](ctx, subscriber.Database, "feed_at", "DESC"); err == nil && i != nil {
+		timelinePosition = (*i).FeedAt.UTC()
+		fmt.Fprintf(w, "setting timeline position to newest item at %v\n", timelinePosition)
+	}
+
+	// Refresh all feeds concurrently
+	for _, feed := range feeds {
+		ff := &feeder.Feeder{Feed: feed}
+		if ff.Feed.Interval == 0 {
+			ff.Feed.Interval = 5 * time.Minute // default interval
+		}
+		ticker.Go(func() (e error) {
+			ff.Tick(cancellation, client, timelinePosition, w) // ignore tick errors; they are recorded in f.Feed.Status
+			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
+			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
+				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
+					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
+					ff.Feed.Status.LastEntityError = e.Error()
+				}
+				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()
+			}
+			if ff.Feed.Status.Fetched() {
+				subscriber.Status.FeedsFetched.Increment(1)
+			}
+			if ff.Feed.Status.Skipped() {
+				subscriber.Status.FeedsSkipped.Increment(1)
+			}
+			if ff.Feed.Status.Failed() {
+				subscriber.Status.FeedsFailed.Increment(1)
+			}
+			return nil
+		})
+	}
+	if err = ticker.Wait(); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "fetch complete in %v\n", time.Since(start).Truncate(time.Millisecond))
+	if err = subscriber.SaveWebsites(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
+		return err
+	} else {
+		if a, u, err := subscriber.RefreshedItemCounts(ctx, w, start); err != nil {
+			fmt.Fprintf(w, "error counting refreshed items: %v\n", err)
+		} else {
+			subscriber.Status.ItemsAdded.Increment(a)
+			subscriber.Status.ItemsUpdated.Increment(u)
+		}
+	}
+	if err = subscriber.SaveBylines(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveBylineRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinks(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
+		return err
+	}
+	subscriber.Status.Duration = time.Since(start)
+	fmt.Fprintln(w, subscriber.Status.Print())
+	return nil
+}
+
 // Config holds default Feeder configuration parameters
 type Config struct {
 	// DatabasePath is the filepath to the database used to persist feed and item state
@@ -403,34 +509,7 @@ func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer
 	fmt.Fprintf(w, "link relations written: %d\n", count)
 	return nil
 }
-// func (subscriber *Subscriber) SaveImages(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
-// 	var transaction *sql.Tx
-// 	var count int = 0
-// 	for _, feed := range feeds {
-// 		if !feed.Status.Fetched() || feed.Status.Skipped() {
-// 			continue
-// 		}
-// 		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
-// 			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
-// 		}
-// 		defer subscriber.Database.EndTransaction(transaction, err)
-// 		for _, item := range feed.Items {
-// 			for _, image := range item.Images {
-// 				image.FeedID = item.Feed.Identifier()
-// 				image.WebsiteID = item.Feed.Website.Identifier()
-// 				if err = subscriber.Database.InsertRow(ctx, transaction, image); err != nil {
-// 					return errors.Join(ErrDatabase, errors.New("inserting image"), err)
-// 				}
-// 				count++
-// 			}
-// 		}
-// 		if err = transaction.Commit(); err != nil {
-// 			return errors.Join(ErrDatabase, errors.New("inserting image"), err)
-// 		}
-// 	}
-// 	fmt.Fprintf(w, "images written: %d\n", count)
-// 	return nil
-// }
+
 func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
@@ -477,116 +556,6 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 		return 0, 0, errors.Join(ErrDatabase, errors.New("counting updated items"), err)
 	}
 	return addedCount, updatedCount, nil
-}
-
-// Refresh refreshes all subscribed feeds concurrently
-// TODO: can this be split up into smaller methods for testability?
-func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
-	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
-	var ticker *errgroup.Group
-	var cancellation context.Context
-	var start time.Time = time.Now().UTC()
-	var timelinePosition time.Time = time.Time{}
-	subscriber.Status = &Status{UpdatedAt: time.Now().UTC()}
-	ticker, cancellation = errgroup.WithContext(ctx)
-	if w == nil {
-		w = os.Stdout
-	}
-
-	// TODO: do we need to open the database here, or can we just check if it is already open?
-	if err = subscriber.Database.Open(ctx); err == nil {
-		defer subscriber.Database.Close()
-	} else {
-		return err
-	}
-
-	// Resolve provided feeds with state from database
-	if feeds, err = subscriber.ResolveFeeds(ctx, feeds); err != nil {
-		return err
-	}
-
-	// If no feeds provided, load all feeds in database
-	if len(feeds) == 0 {
-		if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
-			return err
-		}
-	}
-
-	// Determine timeline position based on newest item in database
-	if i, err := database.LastRecord[*hyperfeed.Item](ctx, subscriber.Database, "feed_at", "DESC"); err == nil && i != nil {
-		timelinePosition = (*i).FeedAt.UTC()
-		fmt.Fprintf(w, "setting timeline position to newest item at %v\n", timelinePosition)
-	}
-
-	// Refresh all feeds concurrently
-	for _, feed := range feeds {
-		ff := &feeder.Feeder{Feed: feed}
-		if ff.Feed.Interval == 0 {
-			ff.Feed.Interval = 5 * time.Minute // default interval
-		}
-		ticker.Go(func() (e error) {
-			ff.Tick(cancellation, client, timelinePosition, w) // ignore tick errors; they are recorded in f.Feed.Status
-			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
-			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
-				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
-					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
-					ff.Feed.Status.LastEntityError = e.Error()
-				}
-				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()
-			}
-			if ff.Feed.Status.Fetched() {
-				subscriber.Status.FeedsFetched.Increment(1)
-			}
-			if ff.Feed.Status.Skipped() {
-				subscriber.Status.FeedsSkipped.Increment(1)
-			}
-			if ff.Feed.Status.Failed() {
-				subscriber.Status.FeedsFailed.Increment(1)
-			}
-			return nil
-		})
-	}
-	if err = ticker.Wait(); err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "fetch complete in %v\n", time.Since(start).Truncate(time.Millisecond))
-	if err = subscriber.SaveWebsites(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
-		return err
-	} else {
-		if a, u, err := subscriber.RefreshedItemCounts(ctx, w, start); err != nil {
-			fmt.Fprintf(w, "error counting refreshed items: %v\n", err)
-		} else {
-			subscriber.Status.ItemsAdded.Increment(a)
-			subscriber.Status.ItemsUpdated.Increment(u)
-		}
-	}
-	if err = subscriber.SaveBylines(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveBylineRelations(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveLinks(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
-		return err
-	}
-	// if err = subscriber.SaveImages(ctx, w, feeds); err != nil {
-	// 	return err
-	// }
-	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
-		return err
-	}
-	subscriber.Status.Duration = time.Since(start)
-	fmt.Fprintln(w, subscriber.Status.Print())
-	return nil
 }
 
 // ======================= SubscriptionStatus Methods =========================

@@ -90,9 +90,10 @@ func Convert(htmlInput string) (out string, err error) {
 //
 // returns true if html tags are present
 //
-// NOTE: we could just check for "<" (opening tags) + "</" (closing tags), 
-//       or "<" + "/>" to  void elements, but the trailing "/" is optional in HTML5 void elements;
-//       so we check for the commong void elements explicitly.
+// NOTE: we could just check for "<" (opening tags) + "</" (closing tags),
+//
+//	or "<" + "/>" to  void elements, but the trailing "/" is optional in HTML5 void elements;
+//	so we check for the commong void elements explicitly.
 func containsMarkup(in string) bool {
 	if in == "" {
 		return true

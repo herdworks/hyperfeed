@@ -20,14 +20,15 @@ import (
 type Attachment struct {
 	*DatabaseRecord
 
-	ID          string     `json:"id,omitempty"` // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
+	ID          string     `json:"id,omitempty"`   // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
 	Href        *href.Href `json:"href,omitempty"` // default URL of the attachment
 	Sources     []Source   `json:"sources,omitempty"`
-	Poster      *href.Href `json:"poster,omitempty"` // poster image for audio/video attachments
+	Poster      *href.Href `json:"poster,omitempty"`   // poster image for audio/video attachments
 	Mimetype    string     `json:"mimetype,omitempty"` // MIME type
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Enclosure   bool       `json:"enclosure,omitempty"`
+	Download    bool       `json:"download,omitempty"`
 	Rank        int        `json:"rank,omitempty"`
 	Size        int64      `json:"size,omitempty"`     // bytes
 	Duration    int64      `json:"duration,omitempty"` // seconds
@@ -39,11 +40,11 @@ type Attachment struct {
 }
 
 type Source struct {
-	Mimetype string     `json:"mimetype"`
-	Href     *href.Href `json:"href"`
-	Width    int        `json:"width,omitempty"`
-	Height   int        `json:"height,omitempty"`
-	Container string    `json:"container,omitempty"`
+	Mimetype  string     `json:"mimetype"`
+	Href      *href.Href `json:"href"`
+	Width     int        `json:"width,omitempty"`
+	Height    int        `json:"height,omitempty"`
+	Container string     `json:"container,omitempty"`
 }
 
 // ============================ Attachment Methods ============================
@@ -87,12 +88,12 @@ func ParseItemMedia(item *Item, htmlBytes []byte, w io.Writer) (attachments []At
 	}
 	for _, media := range document.Media {
 		var attachment Attachment = Attachment{
-			Title:   media.Title,
-			Description:     media.Description,
-			Rank:    media.Index,
-			ItemID:  item.Identifier(),
-			FeedID:  item.Feed.Identifier(),
-			WebsiteID: item.Feed.Website.Identifier(),
+			Title:       media.Title,
+			Description: media.Description,
+			Rank:        media.Index,
+			ItemID:      item.Identifier(),
+			FeedID:      item.Feed.Identifier(),
+			WebsiteID:   item.Feed.Website.Identifier(),
 		}
 		for _, s := range media.Sources {
 			var src Source
@@ -142,6 +143,7 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 		"title",
 		"description",
 		"enclosure",
+		"download",
 		"rank",
 		"size",
 		"duration",
@@ -169,6 +171,7 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("title", attachment.Title))
 	values = append(values, sql.Named("description", attachment.Description))
 	values = append(values, sql.Named("enclosure", attachment.Enclosure))
+	values = append(values, sql.Named("download", attachment.Download))
 	values = append(values, sql.Named("rank", attachment.Rank))
 	values = append(values, sql.Named("size", attachment.Size))
 	values = append(values, sql.Named("duration", attachment.Duration))

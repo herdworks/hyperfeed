@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     [title] TEXT,
     [description] TEXT,
     [enclosure] INTEGER DEFAULT 0 CHECK ([enclosure] IN (0, 1)),
+    [download] INTEGER DEFAULT 0 CHECK ([download] IN (0, 1)),
 
     -- details
     [rank] INTEGER,
@@ -557,6 +558,7 @@ SELECT
         'title', [attachments].[title],
         'description', [attachments].[description],
         'enclosure', CASE WHEN [attachments].[enclosure] = 1 THEN json('true') ELSE json('false') END,
+        'download', CASE WHEN [attachments].[download] = 1 THEN json('true') ELSE json('false') END,
         'rank', [attachments].[rank],
         'size', [attachments].[size],
         'duration', [attachments].[duration],

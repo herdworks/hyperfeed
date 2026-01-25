@@ -46,7 +46,8 @@ func URL(incoming *url.URL) *url.URL {
 		normalized.Host = normalized.Hostname() // remove default HTTP/HTTPS ports
 	}
 	if normalized.Host != "" {
-		normalized.Host = strings.ToLower(normalized.Host) // lowercase host
+		normalized.Host = strings.ToLower(normalized.Host)            // lowercase host
+		normalized.Host = strings.TrimPrefix(normalized.Host, "www.") // remove "www." prefix
 	}
 	if normalized.Path == "" {
 		normalized.Path = "/" // ensure non-empty path
