@@ -191,8 +191,13 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 		if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
 			return nil, err
 		}
-		if duration := rss.GetPodcastEpisodeDurationSeconds(rssitem); duration > 0 {
-			attachment.Duration = int64(duration)
+		if rssitem.IsPodcastEpisode() {
+			if duration := rss.GetPodcastEpisodeDurationSeconds(rssitem); duration > 0 {
+				attachment.Duration = int64(duration)
+			}
+			if poster := rss.GetPodcastCoverArtwork(&parser.RSS.Channel, rssitem); poster != "" {
+				attachment.Poster, _ = href.Parse(poster)
+			}
 		}
 		attachment.Mimetype = enclosure.Type
 		attachment.ItemID = item.Identifier()

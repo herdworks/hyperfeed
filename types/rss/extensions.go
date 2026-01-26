@@ -49,7 +49,26 @@ const (
 	ExtensionNamespaceYouTube string = "http://www.youtube.com/xml/schemas/2015"
 )
 
-// ============================ Extension Methods =============================
+// METHODS
+// =============================================================================
+
+func (e *Extension) HasAttribute(name string) (exists bool) {
+	for _, attr := range e.Attrs {
+		if strings.EqualFold(attr.Name.Local, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *Extension) GetAttribute(name string) (value string) {
+	for _, attr := range e.Attrs {
+		if strings.EqualFold(attr.Name.Local, name) {
+			return attr.Value
+		}
+	}
+	return ""
+}
 
 // UnmarshalXML captures attributes, text, inner XML, and any nested extensions.
 func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
@@ -69,42 +88,10 @@ func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
-// func (r *RSS) ParseChannelExtensionAuthors() (authors []Author) {
-// 	var author Author = Author{}
-// 	if r.Channel.Title != "" {
-// 		author.Name = r.Channel.Title // use feed title as default author name
-// 	}
-// 	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
-// 		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
-// 			author.Name = name.Text
-// 		}
-// 		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
-// 			author.Email = email.Text
-// 		}
-// 	}
-// 	if !author.IsEmpty() {
-// 		authors = append(authors, author)
-// 	}
-// 	return authors
-// }
-// func (r *RSS) ParseItemExtensionAuthors(rssitem *RSSItem) (authors []Author) {
-// 	var author Author = Author{}
-// 	if r.Channel.Title != "" {
-// 		author.Name = r.Channel.Title
-// 	}
-// 	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
-// 		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
-// 			author.Name = name.Text
-// 		}
-// 		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
-// 			author.Email = email.Text
-// 		}
-// 	}
-// 	if !author.IsEmpty() {
-// 		authors = append(authors, author)
-// 	}
-// 	return authors
-// }
+
+
+// FUNCTIONS
+// =============================================================================
 
 func GetExtensionProperties(extensions []Extension, namespace string) (properties []*Extension) {
 	for _, ext := range extensions {
@@ -207,6 +194,34 @@ func GetItunesDurationDigits(duration string) (parts []int) {
 		}
 	}
 	return parts
+}
+
+func GetPodcastCoverArtwork(channel *Channel, item *Item) (href string) {
+	// check item-level artwork first
+	if iTunesImage := GetItunesMetadata(item.Extensions, "image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := GetPodcastIndexMetadata(item.Extensions, "image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := GetYahooMediaRSSMetadata(item.Extensions, "thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+
+	// use channel-level artwork as fallback
+	if channel.Image != nil && channel.Image.URL != "" {
+		return channel.Image.URL
+	}
+	if iTunesImage := GetItunesMetadata(channel.Extensions, "image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := GetPodcastIndexMetadata(channel.Extensions, "image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := GetYahooMediaRSSMetadata(channel.Extensions, "thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+	return ""
 }
 
 func GetDublinCoreCreator(metadata []Extension) (creator string) {
