@@ -139,6 +139,9 @@ CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 CREATE TABLE IF NOT EXISTS links (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
+    [cover_href] TEXT,
+    [title] TEXT,
+    [description] TEXT,
     [self] INTEGER DEFAULT 0 CHECK ([self] IN (0, 1)),
     [website_id] TEXT NOT NULL,
 
@@ -476,6 +479,10 @@ SELECT
     json_object(
         'id', [links].[id],
         'href', [links].[href],
+        'cover_href', NULLIF([links].[cover_href], ''),
+        'title', [links].[title],
+        'description', [links].[description],
+        'self', CASE WHEN [links].[self] = 1 THEN json('true') ELSE json('false') END,
         'website_id', [links].[website_id]
     ) as 'link',
     [links].[id],
@@ -491,6 +498,9 @@ SELECT
     json_object(
         'id', [links].[id],
         'href', [links].[href],
+        'cover_href', NULLIF([links].[cover_href], ''),
+        'title', [links].[title],
+        'description', [links].[description],
         'website_id', [links].[website_id],
         'website_count', [link_counts].[website_count],
         'item_count', [link_counts].[item_count]

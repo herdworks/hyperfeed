@@ -18,10 +18,14 @@ import (
 type HyperLink struct {
 	*DatabaseRecord
 
-	ID        string     `json:"id,omitempty"`
-	Href      *href.Href `json:"href,omitempty"`
-	Self      bool       `json:"self,omitempty"`
-	WebsiteID string     `json:"website_id,omitempty"` // back-reference to parent website
+	ID          string     `json:"id,omitempty"`
+	Href        *href.Href `json:"href,omitempty"`
+	CoverHref   *href.Href `json:"cover_href,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Self        bool       `json:"self,omitempty"`
+
+	WebsiteID   string     `json:"website_id,omitempty"` // back-reference to parent website
 }
 
 // ParseLinks() extracts links from an item's HTML content
