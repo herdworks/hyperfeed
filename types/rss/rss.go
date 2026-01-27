@@ -180,6 +180,9 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 		return u
 	}
 	if u, err := url.Parse(item.Comments.Value); err == nil && u != nil && !(&Link{Href: item.Comments.Value}).IsExternal(base) {
+		if u.Fragment == "comments" || u.Fragment == "respond" {
+			u.Fragment = ""
+		}
 		return base.ResolveReference(u)
 	}
 	return nil

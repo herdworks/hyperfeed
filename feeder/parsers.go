@@ -148,7 +148,6 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item.GUID = rssitem.GUID.Value
 		item.URL = parser.RSS.ItemLink(&rssitem, parser.Feed.HTMLURL.URL())
 		item.Title = html.UnescapeString(strings.TrimSpace(rssitem.Title))
-		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		if item.Summary, err = markdown.Convert(rssitem.Description); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.description error: %v\n", err)
 		}
@@ -168,6 +167,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		if item.Attachments, err = parser.Attachments(&rssitem, item, w); err != nil {
 			return nil, err
 		}
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 		if rssitem.IsPodcastEpisode() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
@@ -200,9 +200,6 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 			}
 		}
 		attachment.Mimetype = enclosure.Type
-		attachment.ItemID = item.Identifier()
-		attachment.FeedID = item.Feed.Identifier()
-		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
 	linkAttachments := hyperfeed.ParseItemLinkAttachments(item, rssitem.ExternalURLs(parser.Feed.HTMLURL.URL()), w)
@@ -308,7 +305,6 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
 		item.Title = html.UnescapeString(strings.TrimSpace(entry.Title))
-		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w)
 		if item.Summary, err = markdown.Convert(entry.Summary.Body); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.summary error: %v\n", err)
 		}
@@ -328,6 +324,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		if item.Attachments, err = parser.Attachments(entry, item, w); err != nil {
 			return nil, err
 		}
+		item.Links = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w)
 		if entry.IsPodcastEpisode() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
@@ -351,9 +348,6 @@ func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Ite
 		attachment.Mimetype = link.Type
 		attachment.Duration = 0 // Atom links do not have a duration field
 		attachment.Mimetype = link.Type
-		attachment.ItemID = item.Identifier()
-		attachment.FeedID = item.Feed.Identifier()
-		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
 	linkAttachments := hyperfeed.ParseItemLinkAttachments(item, entry.ExternalURLs(parser.Feed.HTMLURL.URL()), w)
@@ -428,7 +422,6 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.Title = html.UnescapeString(strings.TrimSpace(jsonitem.Title))
-		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		if item.Summary, err = markdown.Convert(jsonitem.Summary); err != nil {
 			fmt.Fprintf(w, "markdown JSONFeed item.Summary error: %v\n", err)
 		}
@@ -449,6 +442,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		if item.Attachments, err = parser.Attachments(&jsonitem, item, w); err != nil {
 			return nil, err
 		}
+		item.Links = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w)
 		if jsonitem.IsPodcastEpisode() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
@@ -468,9 +462,6 @@ func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyp
 		attachment.Size = int64(a.SizeInBytes)
 		attachment.Mimetype = a.MimeType
 		attachment.Duration = a.DurationInSeconds
-		attachment.ItemID = item.Identifier()
-		attachment.FeedID = item.Feed.Identifier()
-		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
 	linkAttachments := hyperfeed.ParseItemLinkAttachments(item, jsonfeeditem.ExternalURLs(parser.Feed.HTMLURL.URL()), w)

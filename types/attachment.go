@@ -34,9 +34,6 @@ type Attachment struct {
 	Duration    int64      `json:"duration,omitempty"` // seconds
 	Height      int        `json:"height,omitempty"`
 	Width       int        `json:"width,omitempty"`
-	ItemID      string     `json:"-"` // back-reference to parent item
-	FeedID      string     `json:"-"` // back-reference to parent feed
-	WebsiteID   string     `json:"-"` // back-reference to parent website
 }
 
 type Source struct {
@@ -51,19 +48,11 @@ type Source struct {
 
 func (attachment *Attachment) Identifier() string {
 	if attachment == nil {
-		return ""
+		return normalized.Identifier("") // the unknown identifier
 	}
 	if attachment.ID == "" {
-		var id *url.URL = normalized.URL(attachment.Href.URL())
-		var query url.Values = id.Query()
-		if id == nil {
-			id = &url.URL{}
-		}
-		query.Set("_size", fmt.Sprintf("%d", attachment.Size))
-		query.Set("_duration", fmt.Sprintf("%d", attachment.Duration))
-		query.Set("_mimetype", attachment.Mimetype)
-		id.RawQuery = query.Encode()
-		attachment.ID = normalized.Identifier(normalized.URL(id).String())
+		id := normalized.URL(attachment.Href.URL())
+		attachment.ID = normalized.Identifier(id.String())
 	}
 	return attachment.ID
 }
@@ -78,9 +67,6 @@ func ParseItemLinkAttachments(item *Item, urls []*url.URL, w io.Writer) (attachm
 		attachment.Href, _ = href.Parse(u)
 		attachment.Enclosure = false
 		attachment.Rank = len(attachments) + 1
-		attachment.ItemID = item.Identifier()
-		attachment.FeedID = item.Feed.Identifier()
-		attachment.WebsiteID = item.Feed.Website.Identifier()
 		attachments = append(attachments, attachment)
 	}
 	return attachments
@@ -109,9 +95,6 @@ func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attac
 			Title:       media.Title,
 			Description: media.Description,
 			Rank:        media.Index,
-			ItemID:      item.Identifier(),
-			FeedID:      item.Feed.Identifier(),
-			WebsiteID:   item.Feed.Website.Identifier(),
 		}
 		for _, s := range media.Sources {
 			var src Source
@@ -167,9 +150,6 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 		"duration",
 		"height",
 		"width",
-		"item_id",
-		"feed_id",
-		"website_id",
 	}
 }
 func (attachment *Attachment) DatabaseInsertValues() (values []any) {
@@ -195,9 +175,6 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("duration", attachment.Duration))
 	values = append(values, sql.Named("height", attachment.Height))
 	values = append(values, sql.Named("width", attachment.Width))
-	values = append(values, sql.Named("item_id", attachment.ItemID))
-	values = append(values, sql.Named("feed_id", attachment.FeedID))
-	values = append(values, sql.Named("website_id", attachment.WebsiteID))
 	return values
 }
 func (attachment *Attachment) Hash() string {

@@ -139,6 +139,9 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
 		return err
 	}
+	if err = subscriber.SaveAttachmentRelations(ctx, w, feeds); err != nil {
+		return err
+	}
 	subscriber.Status.Duration = time.Since(start)
 	fmt.Fprintln(w, subscriber.Status.Print())
 	return nil
@@ -523,8 +526,6 @@ func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, 
 		defer subscriber.Database.EndTransaction(transaction, err)
 		for _, item := range feed.Items {
 			for _, attachment := range item.Attachments {
-				attachment.FeedID = item.Feed.Identifier()
-				attachment.WebsiteID = item.Feed.Website.Identifier()
 				if err = subscriber.Database.UpsertRow(ctx, transaction, &attachment); err != nil {
 					return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
 				}
@@ -536,6 +537,34 @@ func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, 
 		}
 	}
 	fmt.Fprintf(w, "attachments written: %d\n", count)
+	return nil
+}
+func (subscriber *Subscriber) SaveAttachmentRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
+	var transaction *sql.Tx
+	var count int = 0
+	for _, feed := range feeds {
+		if !feed.Status.Fetched() || feed.Status.Skipped() {
+			continue
+		}
+		if transaction, err = subscriber.Database.BeginTransaction(ctx, nil); err != nil {
+			return errors.Join(ErrDatabase, errors.New("starting transaction"), err)
+		}
+		defer subscriber.Database.EndTransaction(transaction, err)
+		for _, item := range feed.Items {
+			for _, attachment := range item.Attachments {
+				columns := []string{"website_id", "feed_id", "item_id", "attachment_id"}
+				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), attachment.Identifier()}
+				if err = subscriber.Database.RelateRows(ctx, transaction, "item_attachments", columns, values); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting item-attachment relation"), err)
+				}
+				count++
+			}
+		}
+		if err = transaction.Commit(); err != nil {
+			return errors.Join(ErrDatabase, errors.New("inserting item-attachment relation"), err)
+		}
+	}
+	fmt.Fprintf(w, "byline relations written: %d\n", count)
 	return nil
 }
 

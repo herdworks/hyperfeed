@@ -139,6 +139,7 @@ CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 CREATE TABLE IF NOT EXISTS links (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
+    [self] INTEGER DEFAULT 0 CHECK ([self] IN (0, 1)),
     [website_id] TEXT NOT NULL,
 
     PRIMARY KEY ([id])
@@ -171,35 +172,14 @@ CREATE TABLE IF NOT EXISTS attachments (
     [duration] INTEGER,
 
     -- references
-    [item_id] TEXT NOT NULL REFERENCES items([id]),
-    [feed_id] TEXT NOT NULL REFERENCES feeds([id]),
-    [website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
+    --[item_id] TEXT NOT NULL REFERENCES items([id]),
+    --[feed_id] TEXT NOT NULL REFERENCES feeds([id]),
+    --[website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
 
-    PRIMARY KEY ([href],[item_id]) -- Composite PK
+    PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
 CREATE INDEX IF NOT EXISTS attachments_href_index ON attachments([href]);
-CREATE INDEX IF NOT EXISTS attachments_item_id_index ON attachments([item_id]);
-CREATE INDEX IF NOT EXISTS attachments_feed_id_index ON attachments([feed_id]);
-CREATE INDEX IF NOT EXISTS attachments_website_id_index ON attachments([website_id]);
-
--- -- Cache table
--- CREATE TABLE IF NOT EXISTS cache (
---     [url] TEXT PRIMARY KEY, -- source url
---     [uri] TEXT, -- cache file uri
---     [type] TEXT, -- mimetype
---     [size_in_bytes] INTEGER, -- size of cached data
---     [updated_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- last update time
---     [fetched_at] TIMESTAMP, -- last fetch time
---     [http_etag] TEXT, -- HTTP ETag
---     [http_last_modified] TEXT, -- HTTP Last-Modified
---     [http_expires_at] TIMESTAMP, -- HTTP Expires
---     [http_status_code] INTEGER, -- HTTP status code of last fetch
---     [bytes] BLOB -- cached data
--- );
--- CREATE INDEX IF NOT EXISTS cache_url_index ON cache ([url]);
--- CREATE INDEX IF NOT EXISTS cache_type_index ON cache ([type]);
--- CREATE INDEX IF NOT EXISTS cache_http_expires_at_index ON cache ([http_expires_at]);
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS metadata (
@@ -237,15 +217,30 @@ CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relat
 
 -- Item-Bylines join table
 CREATE TABLE IF NOT EXISTS item_bylines (
+    [website_id] TEXT REFERENCES websites([id]),
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
     [byline_id] TEXT NOT NULL REFERENCES bylines([id]),
 
     PRIMARY KEY([item_id], [byline_id])
 );
+CREATE INDEX IF NOT EXISTS item_bylines_website_id_index ON item_bylines([website_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_feed_id_index ON item_bylines([feed_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_item_id_index ON item_bylines([item_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_id]);
+
+-- Item-Attachments join table
+CREATE TABLE IF NOT EXISTS item_attachments (
+    [website_id] TEXT REFERENCES websites([id]),
+    [feed_id] TEXT REFERENCES feeds([id]),
+    [item_id] TEXT REFERENCES items([id]),
+    [attachment_id] TEXT NOT NULL REFERENCES attachments([id]),
+    PRIMARY KEY([item_id], [attachment_id])
+);
+CREATE INDEX IF NOT EXISTS item_attachments_website_id_index ON item_attachments([website_id]);
+CREATE INDEX IF NOT EXISTS item_attachments_feed_id_index ON item_attachments([feed_id]);
+CREATE INDEX IF NOT EXISTS item_attachments_item_id_index ON item_attachments([item_id]);
+CREATE INDEX IF NOT EXISTS item_attachments_attachment_id_index ON item_attachments([attachment_id]);
 
 -- Item-Links join table
 CREATE TABLE IF NOT EXISTS item_links (
@@ -374,8 +369,9 @@ SELECT
         'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
         'attachments', COALESCE((
             SELECT json_group_array(json([attachments_view].[attachment]))
-            FROM [attachments_view]
-            WHERE [attachments_view].[item_id] = [items].[id]
+            FROM [item_attachments]
+            INNER JOIN [attachments_view] ON [attachments_view].[id] = [item_attachments].[attachment_id]
+            WHERE [item_attachments].[item_id] = [items].[id]
         ), json('[]'))
     ) AS [item],
     [items].[id],
@@ -417,8 +413,9 @@ SELECT
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
             'attachments', COALESCE((
                 SELECT json_group_array(json([attachments_view].[attachment]))
-                FROM [attachments_view]
-                WHERE [attachments_view].[item_id] = [items].[id]
+                FROM [item_attachments]
+                INNER JOIN [attachments_view] ON [attachments_view].[id] = [item_attachments].[attachment_id]
+                WHERE [item_attachments].[item_id] = [items].[id]
             ), json('[]'))
         ),
         'feed', COALESCE((
@@ -563,16 +560,11 @@ SELECT
         'size', [attachments].[size],
         'duration', [attachments].[duration],
         'width', [attachments].[width],
-        'height', [attachments].[height],
-        'item_id', [attachments].[item_id],
-        'feed_id', [attachments].[feed_id],
-        'website_id', [attachments].[website_id]
+        'height', [attachments].[height]
     ) as 'attachment',
     [attachments].[id],
     [attachments].[href],
-    [attachments].[item_id],
-    [attachments].[feed_id],
-    [attachments].[website_id]
+    [attachments].[mimetype]
 FROM
     [attachments]
 ;

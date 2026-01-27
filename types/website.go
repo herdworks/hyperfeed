@@ -30,7 +30,7 @@ func (website *Website) Identifier() string {
 		return normalized.Identifier("") // the unknown entity
 	}
 	if website.ID == "" {
-		if id, err = url.Parse(website.HTMLURL); err != nil {
+		if id, err = url.Parse(website.Entity.HTMLURL); err != nil {
 			return normalized.Identifier("")
 		}
 		id = normalized.URL(id)
