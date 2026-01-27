@@ -43,6 +43,7 @@ const (
 
 	// Other common extension namespaces
 	ExtensionNamespaceAtom       string = "http://www.w3.org/2005/Atom"
+	ExtensionNamespaceRSS        string = "http://purl.org/rss/1.0/"
 	ExtensionNamespaceRSSContent string = "http://purl.org/rss/1.0/modules/content/"
 
 	// YouTube XML

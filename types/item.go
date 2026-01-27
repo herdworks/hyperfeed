@@ -21,8 +21,6 @@ type Item struct {
 	ID  string   `json:"id,omitempty"`
 	URL *url.URL `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
 
-	ExternalHrefs []string `json:"external_hrefs,omitempty"` // ExternalHrefs are other URLs associated with the item.
-
 	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
 	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
 	AddedAt     time.Time `json:"added_at,omitempty"`     // when we first saw the item
@@ -89,9 +87,6 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 	if item.URL != nil {
 		item.URL = href.ResolveHref(base, item.URL, w).URL()
 	}
-	for i, h := range item.ExternalHrefs {
-		item.ExternalHrefs[i] = href.ResolveHrefString(base, h, w)
-	}
 	for i, b := range item.Bylines {
 		if b.Href != nil {
 			b.Href = href.ResolveHref(base, b.Href, w)
@@ -155,7 +150,6 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
-		"external_hrefs",
 		"title",
 		"summary",
 		"content",
@@ -176,11 +170,6 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 		args = append(args, sql.Named("url", item.URL.String()))
 	} else {
 		args = append(args, sql.Named("url", nil))
-	}
-	if len(item.ExternalHrefs) > 0 {
-		args = append(args, sql.Named("external_hrefs", fmt.Sprintf("[%q]", strings.Join(item.ExternalHrefs, ", "))))
-	} else {
-		args = append(args, sql.Named("external_hrefs", "[]"))
 	}
 	args = append(args, sql.Named("title", item.Title))
 	args = append(args, sql.Named("summary", strings.TrimSpace(item.Summary)))
@@ -212,9 +201,8 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 
 func (item *Item) Hash() string {
 	return fmt.Sprintf(
-		"%s|%q|%s|%s|%s|%s|%s|%s",
+		"%s|%q|%s|%s|%s|%s|%s",
 		item.URL.String(),
-		item.ExternalHrefs,
 		item.Title,
 		strings.TrimSpace(item.Summary),
 		strings.TrimSpace(item.Content),

@@ -391,9 +391,9 @@ func (subscriber *Subscriber) SaveItems(ctx context.Context, w io.Writer, feeds 
 			return errors.Join(ErrDatabase, errors.New("upserting item"), err)
 		}
 		if dups := feed.DuplicateItems(); len(dups) > 0 {
-			fmt.Printf("feed %q has %d duplicate items\n", feed.URL.String(), len(dups))
+			fmt.Printf("feed %q has %d duplicate items\n", feed.URL, len(dups))
 			for _, d := range dups {
-				fmt.Printf("\t%s: %s\n", d.Identifier(), d.URL.String())
+				fmt.Printf("\t%s: %s\n", d.Identifier(), d.URL)
 			}
 			subscriber.Status.ItemsDuplicate.Increment(len(dups))
 		}
@@ -541,9 +541,9 @@ func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, 
 
 func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writer, since time.Time) (int, int, error) {
 	var addedCount int = 0
-	var addedQuery string = `SELECT COUNT(*) FROM items WHERE added_at = updated_at AND added_at > ?;`
+	var addedQuery string = `SELECT COUNT(*) FROM items WHERE added_at = updated_at AND added_at >= ?;`
 	var updatedCount int = 0
-	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE added_at != updated_at AND updated_at > ?;`
+	var updatedQuery string = `SELECT COUNT(*) FROM items WHERE added_at != updated_at AND updated_at >= ?;`
 	var args []any = []any{since.UTC().Format(time.RFC3339)}
 	var err error
 	if w == nil {

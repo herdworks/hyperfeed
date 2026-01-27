@@ -133,9 +133,23 @@ func (atom *Atom) Link(rel string) (link *Link) {
 	return link
 }
 
+// Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.
+func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
+	if entry == nil || entry.Links == nil {
+		return urls
+	}
+	for _, link := range entry.Links {
+		if u := link.URL(); u != nil && link.IsExternal(base) {
+			urls = append(urls, u)
+		}
+	}
+	return urls
+}
+
+
 func (atom *Atom) IsPodcast() bool {
-	for _, item := range atom.Entries {
-		if item.IsPodcastEpisode() {
+	for _, entry := range atom.Entries {
+		if entry.IsPodcastEpisode() {
 			return true
 		}
 	}
@@ -171,7 +185,7 @@ func (entry *Entry) Link(rel string) *Link {
 // returns the first link whose host matches the base URL host
 func (entry *Entry) InternalLink(base *url.URL) *Link {
 	for _, l := range entry.Links {
-		if l.URL() != nil && strings.TrimPrefix(l.URL().Host, "www.") == strings.TrimPrefix(base.Host, "www.") {
+		if l.URL() != nil && strings.EqualFold(strings.TrimPrefix(l.URL().Host, "www."), strings.TrimPrefix(base.Host, "www.")) {
 			return &l
 		}
 	}
@@ -183,27 +197,6 @@ func (entry *Entry) InternalLink(base *url.URL) *Link {
 	return &entry.Links[0] // fallback to first link? (this should not happen)
 }
 
-// Entry.ExternalLinks()
-// returns all links whose host differs from the base URL host
-func (entry *Entry) ExternalLinks(base *url.URL) (links []*Link) {
-	if base == nil {
-		return links
-	}
-	for _, l := range entry.Links {
-		if len(l.Href) == 0 {
-			continue
-		}
-		if strings.TrimPrefix(l.URL().Host, "www.") == strings.TrimPrefix(base.Host, "www.") {
-			continue
-		}
-		if entry.InternalLink(base).Href == l.Href {
-			continue
-		}
-		links = append(links, &l)
-	}
-	return links
-}
-
 // Link.URL()
 func (link *Link) URL() (u *url.URL) {
 	if link == nil || link.Href == "" {
@@ -211,6 +204,20 @@ func (link *Link) URL() (u *url.URL) {
 	}
 	u, _ = url.Parse(link.Href) // ignore error, return nil on failure
 	return u
+}
+
+// Link.IsExternal()
+func (link *Link) IsExternal(base *url.URL) bool {
+	if link == nil || link.URL() == nil || link.URL().Host == "" {
+		return false
+	}
+	if base == nil {
+		return true
+	}
+	if strings.EqualFold(link.Rel, "shorturl") {
+		return false // DaringFireball "short URL" links
+	}
+	return !strings.EqualFold(strings.TrimPrefix(link.URL().Host, "www."), strings.TrimPrefix(base.Host, "www."))
 }
 
 // FUNCTIONS

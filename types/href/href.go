@@ -116,6 +116,17 @@ func (href *Href) String() string {
 	return href.URL().String()
 }
 
+func (href *Href) SameOrigin(in any) bool {
+	if href == nil || href.URL() == nil || href.URL().Host == "" {
+		return false // href does not have a valid host, so in cannot be same-origin
+	}
+	ref, err := Parse(in)
+	if err != nil || ref == nil || ref.URL() == nil || ref.URL().Host == "" {
+		return false // ref does not have a valid host, so cannot be same-origin
+	}
+	return href.URL().Host == ref.URL().Host // true if href and in have the same host
+}
+
 // ============================ Helper Functions ===============================
 // Parse parses a string into the Href
 func Parse(in any) (out *Href, err error) {

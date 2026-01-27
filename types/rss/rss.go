@@ -52,7 +52,7 @@ type Item struct {
 	Description    string      `xml:"description"`
 	ContentEncoded string      `xml:"http://purl.org/rss/1.0/modules/content/ encoded,omitempty"` // RSS Content Module
 	Authors        []string    `xml:"author"`
-	Comments       string      `xml:"comments"`
+	Comments       Text        `xml:"comments"`
 	GUID           RSSGUID     `xml:"guid"`
 	PubDate        string      `xml:"pubDate"`
 	Categories     []Category  `xml:"category"`
@@ -68,6 +68,13 @@ type Link struct {
 	Rel   string `xml:"rel,attr,omitempty"` // for Atom links
 	Type  string `xml:"type,attr,omitempty"`
 	Space string `xml:"xmlns,attr,omitempty"`
+
+	uri   *url.URL `xml:"-" json:"-"`
+}
+
+// Text represents character data elements with no namespace.
+type Text struct {
+	Value string `xml:",chardata"`
 }
 
 type AtomLink struct {
@@ -157,10 +164,69 @@ func (rss *RSS) FeedVersion() string {
 	return rss.Version
 }
 
-func (rsslink *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
+func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
+	if item == nil || item.Links == nil {
+		return nil
+	}
+	for _, link := range item.Links {
+		if link.IsExternal(base) {
+			continue
+		}
+		if link.URL() != nil {
+			return base.ResolveReference(link.URL())
+		}
+	}
+	if u, err := url.Parse(item.GUID.Value); err == nil && u != nil && item.GUID.IsPermaLink {
+		return u
+	}
+	if u, err := url.Parse(item.Comments.Value); err == nil && u != nil && !(&Link{Href: item.Comments.Value}).IsExternal(base) {
+		return base.ResolveReference(u)
+	}
+	return nil
+}
+
+// Item.ExternalURLs() returns a slice of external URLs found in the item's links.
+func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
+	if item == nil || item.Links == nil {
+		return urls
+	}
+	for _, link := range item.Links {
+		if u := link.URL(); u != nil && link.IsExternal(base) {
+			urls = append(urls, u)
+		}
+	}
+	return urls
+}
+
+// Link.URL()
+func (link *Link) URL() (u *url.URL) {
+	if link == nil || link.Href == "" {
+		return nil
+	}
+	if link.uri == nil {
+		link.uri, _ = url.Parse(link.Href) // ignore error, return nil on failure
+	}
+	return link.uri
+}
+
+// Link.IsExternal()
+func (link *Link) IsExternal(base *url.URL) bool {
+	if link == nil || link.URL() == nil || link.URL().Host == "" {
+		return false
+	}
+	if base == nil {
+		return true
+	}
+	if strings.EqualFold(link.Rel, "shorturl") {
+		return false // DaringFireball "short URL" links
+	}
+	return !strings.EqualFold(strings.TrimPrefix(link.URL().Host, "www."), strings.TrimPrefix(base.Host, "www."))
+}
+
+func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
 	var atomLink AtomLink = AtomLink{}
-	if rsslink == nil {
-		rsslink = &Link{}
+	if link == nil {
+		link = &Link{}
 	}
 	switch {
 	case start.Name.Local == "link" && start.Name.Space == "http://www.w3.org/2005/Atom":
@@ -168,15 +234,29 @@ func (rsslink *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err e
 		if err = d.DecodeElement(&atomLink, &start); err != nil {
 			return err
 		}
-		rsslink.Href = atomLink.Href
-		rsslink.Rel = atomLink.Rel
-		rsslink.Type = atomLink.Type
-		rsslink.Space = start.Name.Space
+		link.Href = atomLink.Href
+		link.Rel = atomLink.Rel
+		link.Type = atomLink.Type
+		link.Space = start.Name.Space
 	case start.Name.Local == "link":
 		// handle standard <link> elements
-		if err = d.DecodeElement(&rsslink.Href, &start); err != nil {
+		if err = d.DecodeElement(&link.Href, &start); err != nil {
 			return err
 		}
+	default:
+		fmt.Printf("WARNING: unhandled rss.Link element: \"%s/%s\"\n", start.Name.Space, start.Name.Local)
+		d.Skip()
+	}
+	return nil
+}
+
+func (text *Text) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
+	if start.Name.Space == "" || strings.EqualFold(start.Name.Space, ExtensionNamespaceRSS) {
+		if err = d.DecodeElement(&text.Value, &start); err != nil {
+			return err
+		}
+	} else {
+		d.Skip()
 	}
 	return nil
 }
@@ -243,26 +323,30 @@ func Date(from string) (t time.Time, err error) {
 	return time.Time{}, ErrDateParser
 }
 
-func (r *RSS) Link() string {
+func (r *RSS) HTMLHref() string {
 	if r == nil {
 		return ""
 	}
 	for _, link := range r.Channel.Links {
-		if strings.ToLower(link.Rel) == "self" || link.Type == "application/rss+xml" {
+		if strings.EqualFold(link.Rel, "self") || link.Type == "application/rss+xml" {
 			continue // skip self-referencing feed links
 		}
-		if strings.ToLower(link.Rel) == "hub" {
+		if strings.EqualFold(link.Rel, "hub") {
 			continue // skip WebSub links (https://www.w3.org/TR/websub/)
 		}
-		if link.Href != "" && link.Href != r.Origin.String() {
-			return link.Href
+		if link.Href == r.Origin.String() {
+			continue // skip links that match the feed URL
 		}
+		if link.Href == "" {
+			continue // skip empty links
+		}
+		return link.Href
 	}
 	for i, item := range r.Channel.Items {
 		if i == 3 {
 			break
 		}
-		if itemLink := LinkURL(item.Links); itemLink != nil {
+		if itemLink := r.ItemLink(&item, r.Origin); itemLink != nil {
 			itemLink.Path = "/"
 			return itemLink.String()
 		}
@@ -291,12 +375,6 @@ func (item *Item) IsPodcastEpisode() bool {
 			return true
 		}
 	}
-	// if len(GetExtensionProperties(item.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
-	// 	return true
-	// }
-	// if len(GetExtensionProperties(item.Extensions, ExtensionNamespacePodcastIndex)) > 0 {
-	// 	return true
-	// }
 	return false
 }
 
@@ -341,17 +419,6 @@ func ParseAuthor(incoming string) (name, email string) {
 	name = strings.TrimSpace(strings.Join(parts, " "))
 	name = strings.Trim(name, "<>(){}[]")
 	return name, email
-}
-
-func LinkURL(links []Link) *url.URL {
-	for _, link := range links {
-		if link.Href != "" {
-			if u, err := url.Parse(link.Href); err == nil {
-				return u
-			}
-		}
-	}
-	return nil
 }
 
 func HTML(text string) string {

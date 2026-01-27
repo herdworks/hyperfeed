@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/herdworks/hyperfeed-go/types/href"
 )
 
 // jsonfeed.Feed represents a JSONFeed document as defined by https://jsonfeed.org/version/1.1
@@ -96,6 +98,14 @@ func (feed *Feed) IsPodcast() bool {
 		}
 	}
 	return false
+}
+
+// Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.
+func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
+	if h,err := href.Parse(item.ExternalURL); err == nil && h != nil && h.Host != "" && !h.SameOrigin(base) {
+		urls = append(urls, h.URL())
+	}
+	return urls
 }
 
 func (item *Item) IsPodcastEpisode() bool {

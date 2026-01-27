@@ -124,9 +124,15 @@ Greetings, coding agent. Welcome to the team!
 * Reference issues or tickets when relevant
 * Run tests before committing
 * Keep commits focused and atomic
-* Review diffs before committing
+* Write meaningful commit messages 
+  * Commit messages should start with a 1-2 sentence summary
+  * Commit messages should include a list of changes in the following style: 
+    * Added [component] for [reason]
+    * Changed [component] for [reason]
+    * Removed [component] for [reason]
 * Write meaningful commit messages
 * Follow semantic versioning best practices (https://semver.org)
+
 
 ## Common Pitfalls to Avoid
 

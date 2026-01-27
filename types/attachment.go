@@ -68,8 +68,26 @@ func (attachment *Attachment) Identifier() string {
 	return attachment.ID
 }
 
-// ParseItemMedia() extracts media from an item's HTML content
-func ParseItemMedia(item *Item, htmlBytes []byte, w io.Writer) (attachments []Attachment) {
+// ParseItemLinkAttachments() generates link attachments from a []*url.URL slice
+func ParseItemLinkAttachments(item *Item, urls []*url.URL, w io.Writer) (attachments []Attachment) {
+	for _, u := range urls {
+		if base,err := href.Parse(item.URL); err != nil || base == nil || base.SameOrigin(u) {
+			continue // skip invalid or same-origin links
+		}
+		var attachment Attachment = Attachment{Sources: []Source{}, Mimetype: "text/x-url"}
+		attachment.Href, _ = href.Parse(u)
+		attachment.Enclosure = false
+		attachment.Rank = len(attachments) + 1
+		attachment.ItemID = item.Identifier()
+		attachment.FeedID = item.Feed.Identifier()
+		attachment.WebsiteID = item.Feed.Website.Identifier()
+		attachments = append(attachments, attachment)
+	}
+	return attachments
+}
+
+// ParseItemMediaAttachments() extracts media from an item's HTML content
+func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attachments []Attachment) {
 	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
 	var err error
