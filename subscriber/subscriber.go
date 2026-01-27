@@ -526,14 +526,14 @@ func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, 
 		defer subscriber.Database.EndTransaction(transaction, err)
 		for _, item := range feed.Items {
 			for _, attachment := range item.Attachments {
-				if err = subscriber.Database.UpsertRow(ctx, transaction, &attachment); err != nil {
-					return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
+				if err = subscriber.Database.InsertRow(ctx, transaction, &attachment); err != nil {
+					return errors.Join(ErrDatabase, errors.New("inserting attachment"), err)
 				}
 				count++
 			}
 		}
 		if err = transaction.Commit(); err != nil {
-			return errors.Join(ErrDatabase, errors.New("upserting attachment"), err)
+			return errors.Join(ErrDatabase, errors.New("inserting attachment"), err)
 		}
 	}
 	fmt.Fprintf(w, "attachments written: %d\n", count)
