@@ -120,6 +120,8 @@ CREATE INDEX IF NOT EXISTS items_feed_at_index_desc ON items([feed_at] DESC);
 CREATE INDEX IF NOT EXISTS items_feed_at_id_desc ON items(feed_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items(feed_at DESC, published_at DESC, added_at DESC);
 CREATE INDEX IF NOT EXISTS items_website_id_feed_at_desc ON items(website_id, feed_at DESC); -- feed frequency index
+CREATE INDEX IF NOT EXISTS items_website_id_feed_at_id_desc ON items(website_id, feed_at DESC, id DESC);
+
 
 -- Bylines table
 CREATE TABLE IF NOT EXISTS bylines (
@@ -174,11 +176,6 @@ CREATE TABLE IF NOT EXISTS attachments (
     [size] INTEGER,
     [duration] INTEGER,
 
-    -- references
-    --[item_id] TEXT NOT NULL REFERENCES items([id]),
-    --[feed_id] TEXT NOT NULL REFERENCES feeds([id]),
-    --[website_id] TEXT NOT NULL REFERENCES websites([id]) ON DELETE CASCADE,
-
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
@@ -229,7 +226,6 @@ CREATE TABLE IF NOT EXISTS item_bylines (
 );
 CREATE INDEX IF NOT EXISTS item_bylines_website_id_index ON item_bylines([website_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_feed_id_index ON item_bylines([feed_id]);
-CREATE INDEX IF NOT EXISTS item_bylines_item_id_index ON item_bylines([item_id]);
 CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_id]);
 
 -- Item-Attachments join table
@@ -355,26 +351,23 @@ SELECT
         'updated_at', [items].[updated_at],
         'feed_at', [items].[feed_at],
         'feed', COALESCE((
-            SELECT
-                json([feeds_view].[feed])
+            SELECT json([feeds_view].[feed])
             FROM [feeds_view]
             WHERE [feeds_view].[id] = [items].[feed_id]
         ), json('{}')),
         'title', [items].[title],
         'bylines', COALESCE((
             SELECT json_group_array(json([bylines_view].[byline]))
-            FROM [item_bylines]
-            INNER JOIN [bylines_view] ON [bylines_view].[id] = [item_bylines].[byline_id]
-            WHERE [item_bylines].[item_id] = [items].[id]
+            FROM [bylines_view] 
+            WHERE [bylines_view].[item_id] = [items].[id]
         ), json('[]')),
         'summary', [items].[summary],
         'content', [items].[content],
         'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
         'attachments', COALESCE((
             SELECT json_group_array(json([attachments_view].[attachment]))
-            FROM [item_attachments]
-            INNER JOIN [attachments_view] ON [attachments_view].[id] = [item_attachments].[attachment_id]
-            WHERE [item_attachments].[item_id] = [items].[id]
+            FROM [attachments_view]
+            WHERE [attachments_view].[item_id] = [items].[id]
         ), json('[]'))
     ) AS [item],
     [items].[id],
@@ -407,18 +400,16 @@ SELECT
             'title', [items].[title],
             'bylines', COALESCE((
                 SELECT json_group_array(json([bylines_view].[byline]))
-                FROM [item_bylines]
-                INNER JOIN [bylines_view] ON [bylines_view].[id] = [item_bylines].[byline_id]
-                WHERE [item_bylines].[item_id] = [items].[id]
+                FROM [bylines_view] 
+                WHERE [bylines_view].[item_id] = [items].[id]
             ), json('[]')),
             'summary', [items].[summary],
             'content', [items].[content],
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
             'attachments', COALESCE((
                 SELECT json_group_array(json([attachments_view].[attachment]))
-                FROM [item_attachments]
-                INNER JOIN [attachments_view] ON [attachments_view].[id] = [item_attachments].[attachment_id]
-                WHERE [item_attachments].[item_id] = [items].[id]
+                FROM [attachments_view] 
+                WHERE [attachments_view].[item_id] = [items].[id]
             ), json('[]'))
         ),
         'feed', COALESCE((
@@ -543,14 +534,21 @@ SELECT
         'id', [bylines].[id],
         'href', NULLIF([bylines].[href], ''),
         'name', [bylines].[name],
-        'email', [bylines].[email]
+        'email', [bylines].[email],
+        'item_id', [item_bylines].[item_id],
+        'feed_id', [item_bylines].[feed_id],
+        'website_id', [item_bylines].[website_id]
     ) as 'byline',
     [bylines].[id],
     [bylines].[href],
     [bylines].[name],
-    [bylines].[email]
+    [bylines].[email],
+    [item_bylines].[item_id],
+    [item_bylines].[feed_id],
+    [item_bylines].[website_id]
 FROM
     [bylines]
+    INNER JOIN [item_bylines] ON [item_bylines].[byline_id] = [bylines].[id]
 ;
 
 -- AttachmentsView
@@ -570,11 +568,18 @@ SELECT
         'size', [attachments].[size],
         'duration', [attachments].[duration],
         'width', [attachments].[width],
-        'height', [attachments].[height]
+        'height', [attachments].[height],
+        'item_id', [item_attachments].[item_id],
+        'feed_id', [item_attachments].[feed_id],
+        'website_id', [item_attachments].[website_id]
     ) as 'attachment',
     [attachments].[id],
     [attachments].[href],
-    [attachments].[mimetype]
+    [attachments].[mimetype],
+    [item_attachments].[item_id],
+    [item_attachments].[feed_id],
+    [item_attachments].[website_id]
 FROM
     [attachments]
+    INNER JOIN [item_attachments] ON [item_attachments].[attachment_id] = [attachments].[id]
 ;

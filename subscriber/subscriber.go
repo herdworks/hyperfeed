@@ -478,8 +478,8 @@ func (subscriber *Subscriber) SaveBylineRelations(ctx context.Context, w io.Writ
 		defer subscriber.Database.EndTransaction(transaction, err)
 		for _, item := range feed.Items {
 			for _, byline := range item.Bylines {
-				columns := []string{"feed_id", "item_id", "byline_id"}
-				values := []any{item.Feed.Identifier(), item.Identifier(), byline.Identifier()}
+				columns := []string{"website_id", "feed_id", "item_id", "byline_id"}
+				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), byline.Identifier()}
 				if err = subscriber.Database.RelateRows(ctx, transaction, "item_bylines", columns, values); err != nil {
 					return errors.Join(ErrDatabase, errors.New("inserting item-byline relation"), err)
 				}
