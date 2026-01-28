@@ -90,11 +90,14 @@ func (opml *OPML) Unmarshal(data []byte) error {
 	return xml.Unmarshal(data, &opml)
 }
 
-func (opml *OPML) MarshalIndent(prefix string, indent string) ([]byte, error) {
+func (opml *OPML) MarshalIndent(prefix string, indent string) (out []byte, err error) {
 	if opml.Version == "" {
 		opml.Version = "2.0"
 	}
-	return xml.MarshalIndent(opml, prefix, indent)
+	if out, err = xml.MarshalIndent(opml, prefix, indent); err != nil {
+		return nil, err
+	}
+	return []byte(xml.Header + string(out)), nil
 }
 
 func (opml *OPML) ToJSON() (jsonBytes []byte, err error) {

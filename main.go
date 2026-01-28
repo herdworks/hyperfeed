@@ -93,6 +93,17 @@ func main() {
 		feeds = []*hyperfeed.Feed{feed}
 	}
 
+	// Export feeds
+	if slices.Contains(args, "export") {
+		var out []byte
+		if out, err = subscriber.Export(ctx, false, os.Stdout); err != nil {
+			fmt.Printf("Error exporting subscriber: %v\n", err)
+			os.Exit(1)
+		} else {
+			fmt.Println(string(out))
+		}
+	}
+
 	// Refresh feeds
 	if slices.Contains(args, "refresh") {
 		if err = subscriber.Refresh(ctx, feeds, timeout, w); err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 )
 
 // ============================ Package Types ==================================
@@ -84,6 +85,31 @@ func (href *Href) URL() *url.URL {
 	}
 	u := url.URL(*href)
 	return &u
+}
+
+// RedactedURL returns a redacted version of the URL with sensitive info removed
+//
+// Sensitive info includes:
+// * User info (username, password)
+// * Fragments
+// * Sensitive query parameters
+func (href *Href) RedactedURL() *url.URL {
+	var values url.Values = url.Values{}
+	if href == nil {
+		return nil
+	}
+	u := href.URL()
+	u.User = nil
+	for key := range u.Query() {
+		if RedactedURLValue(key) {
+			continue
+		}
+		values.Add(key, u.Query().Get(key))
+	}
+	u.RawQuery = values.Encode()
+	u.ForceQuery = false
+	u.Fragment = ""
+	return u
 }
 
 // IsAbs reports whether the Href is absolute
@@ -174,4 +200,14 @@ func ResolveHref(base, ref any, w io.Writer) *Href {
 		return nil
 	}
 	return b.ResolveReference(r)
+}
+
+func RedactedURLValue(key string) bool {
+	var redacted = []string{ "token", "auth", "key", "password", "member" }
+	for _, redact := range redacted {
+		if strings.Contains(strings.ToLower(key), redact) {
+			return true
+		}
+	}
+	return false
 }

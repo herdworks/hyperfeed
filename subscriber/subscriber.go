@@ -20,6 +20,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed-go/types/opml"
 )
 
 // TYPES
@@ -37,6 +38,40 @@ type Subscriber struct {
 
 // METHODS
 // =============================================================================
+
+func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Writer) (out []byte, err error) {
+	var feeds []*hyperfeed.Feed
+	var export opml.OPML = opml.OPML{ 
+		Version: "2.0", 
+		Head: opml.Head{ 
+			Title: "HyperFeed Subscriptions", 
+			DateCreated: time.Now().Format(time.RFC1123Z),
+		},
+	}
+	if err = subscriber.Database.Open(ctx); err == nil {
+		defer subscriber.Database.Close()
+	} else {
+		return nil, err
+	}
+	if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
+		return nil, err
+	}
+	for _, feed := range feeds {
+		var outline opml.Outline = opml.Outline{
+			Text: feed.Title,
+			Title: feed.Title,
+			Description: feed.Description,
+			Type: feed.Kind,
+			XMLURL: feed.URL.String(),
+			HTMLURL: feed.HTMLURL.String(),
+		}
+		if redacted {
+			outline.XMLURL = feed.URL.RedactedURL().String()		
+		}
+		export.Body.Outlines = append(export.Body.Outlines, &outline)
+	}
+	return export.MarshalIndent("", "\t")
+}
 
 // Refresh refreshes all subscribed feeds concurrently
 func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
