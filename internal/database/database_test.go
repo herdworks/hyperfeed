@@ -121,6 +121,7 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	var err error
 	var ctx context.Context = context.Background()
 	var db *Database = &Database{Path: filepath.Join("testdata", "crud.db")}
+	ts, _ := time.Parse(time.RFC3339, "2026-01-28T22:00:00Z")
 	tests := []struct {
 		name   string
 		writer DatabaseRow
@@ -131,8 +132,7 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 			name: "SubscriptionList record",
 			writer: &hyperfeed.SubscriptionList{
 				Path:      "following.opml",
-				OPML:      &opml.OPML{},
-				CreatedAt: time.Now().UTC(),
+				CreatedAt: ts.UTC(),
 			},
 			reader: &hyperfeed.SubscriptionList{
 				Path: "following.opml",

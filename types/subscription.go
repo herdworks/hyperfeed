@@ -82,10 +82,9 @@ func (sl *SubscriptionList) Load() (err error) {
 }
 
 func (subscription *SubscriptionList) Identifier() string {
-	if subscription != nil && subscription.ID != "" {
-		return subscription.ID
+	if subscription == nil || subscription.ID != "" {
+		subscription.ID = normalized.Identifier(subscription.Path)
 	}
-	subscription.ID = normalized.Identifier(subscription.Path)
 	return subscription.ID
 }
 func (*SubscriptionList) DatabaseObject() string {
@@ -117,7 +116,11 @@ func (subscription *SubscriptionList) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("owner_name", subscription.Owner.Name))
 	args = append(args, sql.Named("owner_email", subscription.Owner.Email))
 	args = append(args, sql.Named("created_at", subscription.CreatedAt.UTC().Format(time.RFC3339)))
-	args = append(args, sql.Named("updated_at", subscription.UpdatedAt.UTC().Format(time.RFC3339)))
+	if subscription.UpdatedAt.IsZero() {
+		args = append(args, sql.Named("created_at", subscription.CreatedAt.UTC().Format(time.RFC3339)))
+	} else {
+		args = append(args, sql.Named("updated_at", subscription.UpdatedAt.UTC().Format(time.RFC3339)))
+	}
 	args = append(args, sql.Named("status", string(statusBytes))) // status
 	return args
 }

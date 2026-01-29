@@ -251,7 +251,7 @@ func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
 		row.DatabaseViewIdentifier(),
 	)
 	var args []any = []any{
-		sql.Named("id", row.Identifier()),
+		sql.Named("identifier", row.Identifier()),
 	}
 	var result *sql.Row = db.DB.QueryRowContext(ctx, query, args...)
 	var jsonBytes []byte

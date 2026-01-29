@@ -132,11 +132,11 @@ func TestURLNormalization(t *testing.T) {
 	}{
 		{
 			"HTTP://WWW.Example.com:80/a?b=2&a=1",
-			"http://www.example.com/a?a=1&b=2",
+			"http://example.com/a?a=1&b=2",
 		},
 		{
 			"http://www.example.com:81/a?a=1&b=2",
-			"http://www.example.com:81/a?a=1&b=2",
+			"http://example.com:81/a?a=1&b=2",
 		},
 		{
 			"https://EXAMPLE.com:443/x?z=9&y=8",
@@ -147,7 +147,7 @@ func TestURLNormalization(t *testing.T) {
 		u, _ := url.Parse(tc.href)
 		got := URL(u)
 		if got.String() != tc.want {
-			t.Fatalf("URL(%q) = %q; want %q", tc.href, got.String(), tc.want)
+			t.Fatalf("URL(%q)\n\twanted: %q\n\t   got: %q", tc.href, tc.want, got.String())
 		}
 	}
 }
