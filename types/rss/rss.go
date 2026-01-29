@@ -69,7 +69,7 @@ type Link struct {
 	Type  string `xml:"type,attr,omitempty"`
 	Space string `xml:"xmlns,attr,omitempty"`
 
-	uri   *url.URL `xml:"-" json:"-"`
+	uri *url.URL `xml:"-" json:"-"`
 }
 
 // Text represents character data elements with no namespace.

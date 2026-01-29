@@ -41,10 +41,10 @@ type Subscriber struct {
 
 func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Writer) (out []byte, err error) {
 	var feeds []*hyperfeed.Feed
-	var export opml.OPML = opml.OPML{ 
-		Version: "2.0", 
-		Head: opml.Head{ 
-			Title: "HyperFeed Subscriptions", 
+	var export opml.OPML = opml.OPML{
+		Version: "2.0",
+		Head: opml.Head{
+			Title:       "HyperFeed Subscriptions",
 			DateCreated: time.Now().Format(time.RFC1123Z),
 		},
 	}
@@ -58,15 +58,15 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 	}
 	for _, feed := range feeds {
 		var outline opml.Outline = opml.Outline{
-			Text: feed.Title,
-			Title: feed.Title,
+			Text:        feed.Title,
+			Title:       feed.Title,
 			Description: feed.Description,
-			Type: feed.Kind,
-			XMLURL: feed.URL.String(),
-			HTMLURL: feed.HTMLURL.String(),
+			Type:        feed.Kind,
+			XMLURL:      feed.URL.String(),
+			HTMLURL:     feed.HTMLURL.String(),
 		}
 		if redacted {
-			outline.XMLURL = feed.URL.RedactedURL().String()		
+			outline.XMLURL = feed.URL.RedactedURL().String()
 		}
 		export.Body.Outlines = append(export.Body.Outlines, &outline)
 	}
@@ -535,6 +535,7 @@ func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer
 				columns := []string{"website_id", "feed_id", "item_id", "link_id"}
 				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier()}
 				if err = subscriber.Database.RelateRows(ctx, transaction, "item_links", columns, values); err != nil {
+					fmt.Printf("link: %+v\n", link)
 					return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)
 				}
 				count++

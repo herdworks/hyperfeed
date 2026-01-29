@@ -203,7 +203,7 @@ func ResolveHref(base, ref any, w io.Writer) *Href {
 }
 
 func RedactedURLValue(key string) bool {
-	var redacted = []string{ "token", "auth", "key", "password", "member" }
+	var redacted = []string{"token", "auth", "key", "password", "member"}
 	for _, redact := range redacted {
 		if strings.Contains(strings.ToLower(key), redact) {
 			return true

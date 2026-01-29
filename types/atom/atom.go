@@ -146,7 +146,6 @@ func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
 	return urls
 }
 
-
 func (atom *Atom) IsPodcast() bool {
 	for _, entry := range atom.Entries {
 		if entry.IsPodcastEpisode() {

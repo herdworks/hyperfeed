@@ -60,7 +60,7 @@ func (attachment *Attachment) Identifier() string {
 // ParseItemLinkAttachments() generates link attachments from a []*url.URL slice
 func ParseItemLinkAttachments(item *Item, urls []*url.URL, w io.Writer) (attachments []Attachment) {
 	for _, u := range urls {
-		if base,err := href.Parse(item.URL); err != nil || base == nil || base.SameOrigin(u) {
+		if base, err := href.Parse(item.URL); err != nil || base == nil || base.SameOrigin(u) {
 			continue // skip invalid or same-origin links
 		}
 		var attachment Attachment = Attachment{Sources: []Source{}, Mimetype: "text/x-url"}
@@ -95,6 +95,7 @@ func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attac
 			Title:       media.Title,
 			Description: media.Description,
 			Rank:        media.Index,
+			Download:    media.Download,
 		}
 		for _, s := range media.Sources {
 			var src Source

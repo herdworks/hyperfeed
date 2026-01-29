@@ -47,7 +47,7 @@ type Item struct {
 	GUID string `json:"-"`
 
 	// Feed is the parent feed this item belongs to
-	Feed *Feed `json:"-"` // parent feed (not serialized)
+	Feed *Feed      `json:"-"` // parent feed (not serialized)
 	Link *HyperLink `json:"-"` // primary link (not serialized)
 }
 

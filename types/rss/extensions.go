@@ -89,8 +89,6 @@ func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
-
-
 // FUNCTIONS
 // =============================================================================
 

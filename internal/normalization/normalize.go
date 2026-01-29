@@ -58,6 +58,7 @@ func URL(incoming *url.URL) *url.URL {
 		normalized.Path = strings.TrimSuffix(normalized.Path, "/") // remove trailing slash except for root
 	}
 	normalized.RawQuery = normalized.Query().Encode() // Encode sorts keys
+	normalized.ForceQuery = false
 	return &normalized
 }
 

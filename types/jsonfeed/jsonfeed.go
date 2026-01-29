@@ -102,7 +102,7 @@ func (feed *Feed) IsPodcast() bool {
 
 // Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.
 func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
-	if h,err := href.Parse(item.ExternalURL); err == nil && h != nil && h.Host != "" && !h.SameOrigin(base) {
+	if h, err := href.Parse(item.ExternalURL); err == nil && h != nil && h.Host != "" && !h.SameOrigin(base) {
 		urls = append(urls, h.URL())
 	}
 	return urls

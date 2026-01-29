@@ -25,7 +25,7 @@ type HyperLink struct {
 	Description string     `json:"description,omitempty"`
 	ItemID      string     `json:"item_id,omitempty"`
 
-	WebsiteID   string     `json:"website_id,omitempty"` // back-reference to parent website
+	WebsiteID string `json:"website_id,omitempty"` // back-reference to parent website
 }
 
 // ParseLinks() extracts links from an item's HTML content
