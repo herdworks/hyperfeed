@@ -23,7 +23,7 @@ type HyperLink struct {
 	CoverHref   *href.Href `json:"cover_href,omitempty"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
-	Self        bool       `json:"self,omitempty"`
+	ItemID      string     `json:"item_id,omitempty"`
 
 	WebsiteID   string     `json:"website_id,omitempty"` // back-reference to parent website
 }
@@ -36,11 +36,11 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 	if item.URL != nil {
 		document.Href = item.URL.String()
 		if h, e := href.Parse(item.URL.String()); e == nil {
-			l := &HyperLink{Href: h, Self: true}
+			item.Link = &HyperLink{Href: h, ItemID: item.Identifier()}
 			if item.Feed != nil {
-				l.WebsiteID = item.Feed.Website.Identifier()
+				item.Link.WebsiteID = item.Feed.Website.Identifier()
 			}
-			links = append(links, l) // include a "self link"
+			links = append(links, item.Link) // include a "self link"
 		}
 	} else {
 		document.Href = "about:blank" // TODO: setting document.Href for hypergraph's Document.Ready() 🤦 until we finish the hypergraph refactor
@@ -100,14 +100,18 @@ func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"href",
-		"self",
+		"item_id",
 		"website_id",
 	}
 }
 func (link *HyperLink) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("id", link.Identifier()))
 	args = append(args, sql.Named("href", link.Href.String()))
-	args = append(args, sql.Named("self", link.Self))
+	if link.ItemID == "" {
+		args = append(args, sql.Named("item_id", nil))
+	} else {
+		args = append(args, sql.Named("item_id", link.ItemID))
+	}
 	args = append(args, sql.Named("website_id", link.WebsiteID))
 	return args
 }

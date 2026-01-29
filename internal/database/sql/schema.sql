@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS items (
     [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
     [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
     [id] TEXT,
+    [link_id] TEXT, -- back-reference to primary link for the item
     [published_at] TIMESTAMP,
     [modified_at] TIMESTAMP,
     [added_at] TIMESTAMP,
@@ -144,13 +145,14 @@ CREATE TABLE IF NOT EXISTS links (
     [cover_href] TEXT,
     [title] TEXT,
     [description] TEXT,
-    [self] INTEGER DEFAULT 0 CHECK ([self] IN (0, 1)),
+    [item_id] TEXT,
     [website_id] TEXT NOT NULL,
 
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS links_id_index ON links([id]);
 CREATE INDEX IF NOT EXISTS links_href_index ON links([href]);
+CREATE INDEX IF NOT EXISTS links_item_id_index ON links([item_id]);
 CREATE INDEX IF NOT EXISTS links_website_id_index ON links([website_id]);
 
 -- Attachments table
@@ -250,6 +252,7 @@ CREATE TABLE IF NOT EXISTS item_links (
 
     PRIMARY KEY([item_id], [link_id])
 );
+CREATE INDEX IF NOT EXISTS item_links_link_id_item_id_index ON item_links(link_id, item_id);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -364,6 +367,7 @@ SELECT
         'summary', [items].[summary],
         'content', [items].[content],
         'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
+        'link_id', [items].[link_id],
         'attachments', COALESCE((
             SELECT json_group_array(json([attachments_view].[attachment]))
             FROM [attachments_view]
@@ -406,6 +410,7 @@ SELECT
             'summary', [items].[summary],
             'content', [items].[content],
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
+            'link_id', [items].[link_id],
             'attachments', COALESCE((
                 SELECT json_group_array(json([attachments_view].[attachment]))
                 FROM [attachments_view] 
@@ -473,11 +478,12 @@ SELECT
         'cover_href', NULLIF([links].[cover_href], ''),
         'title', [links].[title],
         'description', [links].[description],
-        'self', CASE WHEN [links].[self] = 1 THEN json('true') ELSE json('false') END,
+        'item_id', [links].[item_id],
         'website_id', [links].[website_id]
     ) as 'link',
     [links].[id],
     [links].[href],
+    [links].[item_id],
     [links].[website_id]
 FROM
     [links]
@@ -492,12 +498,14 @@ SELECT
         'cover_href', NULLIF([links].[cover_href], ''),
         'title', [links].[title],
         'description', [links].[description],
+        'item_id', [links].[item_id],
         'website_id', [links].[website_id],
         'website_count', [link_counts].[website_count],
         'item_count', [link_counts].[item_count]
     ) as 'link',
     [links].[id],
     [links].[href],
+    [links].[item_id],
     [links].[website_id],
     [link_counts].[website_count],
     [link_counts].[item_count]
@@ -526,6 +534,16 @@ ORDER BY
 LIMIT 100
 ;
 
+-- ResponsesView
+CREATE VIEW IF NOT EXISTS responses_view AS
+SELECT
+    json([posts_view].[post]) AS 'post',
+    [item_links].[link_id] AS 'link_id',
+    [posts_view].[id] AS 'item_id',
+    [posts_view].[feed_at] AS 'feed_at'
+FROM
+    posts_view JOIN item_links ON posts_view.id = item_links.item_id
+;
 
 -- BylinesView
 CREATE VIEW IF NOT EXISTS bylines_view AS

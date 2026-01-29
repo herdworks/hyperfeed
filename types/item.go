@@ -48,6 +48,7 @@ type Item struct {
 
 	// Feed is the parent feed this item belongs to
 	Feed *Feed `json:"-"` // parent feed (not serialized)
+	Link *HyperLink `json:"-"` // primary link (not serialized)
 }
 
 // ============================ Item Methods ==================================
@@ -162,6 +163,7 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 		"feed_at",
 		"feed_id",
 		"website_id",
+		"link_id",
 	}
 }
 func (item *Item) DatabaseInsertValues() (args []any) {
@@ -183,6 +185,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("feed_at", item.FeedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("feed_id", item.Feed.Identifier()))
 	args = append(args, sql.Named("website_id", item.Feed.Website.Identifier()))
+	args = append(args, sql.Named("link_id", item.Link.Identifier()))
 	return args
 }
 func (item *Item) DatabaseUpdatesSet(_ []string) []string {
@@ -196,6 +199,7 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
 		"website_id = excluded.website_id",
+		"link_id = excluded.link_id",
 	}
 }
 
