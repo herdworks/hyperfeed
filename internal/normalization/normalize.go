@@ -19,7 +19,7 @@ import (
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrInvalidPath    = errors.New("invalid path")
-	
+
 	TrackingParameters = []string{
 		"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
 		"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",

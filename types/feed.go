@@ -102,6 +102,7 @@ func (feed *Feed) WebsiteURL() *url.URL {
 	website.Fragment = ""
 	return &website
 }
+
 // WebsiteIdentifier returns a stable website identifier derived from Feed.HTMLURL.
 func (feed *Feed) WebsiteIdentifier() string {
 	if feed == nil || feed.HTMLURL == nil || feed.HTMLURL.String() == "" {

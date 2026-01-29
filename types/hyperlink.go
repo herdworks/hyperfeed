@@ -25,7 +25,6 @@ type HyperLink struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Weight      float32    `json:"same_origin,omitempty"`
-
 }
 
 // ParseLinks() extracts links from an item's HTML content

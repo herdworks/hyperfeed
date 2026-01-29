@@ -106,7 +106,7 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hy
 	parser.Feed.Metadata = hyperfeed.Metadata{}
 
 	// Feed.Website properties
-	if website := parser.Feed.WebsiteURL(); website == nil { 
+	if website := parser.Feed.WebsiteURL(); website == nil {
 		fmt.Printf("FEED %q MISSING HTMLURL\n", parser.Feed.URL.String())
 		return nil, errors.Join(ErrInvalidRSSFeed, ErrMissingHTMLURL)
 	} else {
@@ -252,7 +252,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 	parser.Feed.Metadata = hyperfeed.Metadata{}
 
 	// Feed.Website properties
-	if website := parser.Feed.WebsiteURL(); website == nil { 
+	if website := parser.Feed.WebsiteURL(); website == nil {
 		fmt.Printf("FEED %q MISSING HTMLURL\n", parser.Feed.URL.String())
 		return nil, errors.Join(ErrInvalidAtomFeed, ErrMissingHTMLURL)
 	} else {
