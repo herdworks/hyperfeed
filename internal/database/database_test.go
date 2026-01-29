@@ -196,3 +196,49 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	}
 
 }
+
+func TestReadRowPopulatesProvidedStruct(t *testing.T) {
+	var err error
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "readrow.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	writer := &hyperfeed.Website{
+		Entity: hypergraph.Entity{
+			HTMLURL:    "https://example.com",
+			FaviconURL: "https://example.com/favicon.ico",
+			Name:       "Example",
+		},
+	}
+	if err = db.UpsertRow(ctx, nil, writer); err != nil {
+		t.Fatalf("insert website: %v", err)
+	}
+
+	reader := &hyperfeed.Website{
+		Entity: hypergraph.Entity{
+			HTMLURL: "https://example.com",
+		},
+	}
+	if err = db.ReadRow(ctx, reader); err != nil {
+		t.Fatalf("read website: %v", err)
+	}
+
+	if reader.FaviconURL != writer.FaviconURL {
+		t.Fatalf("expected favicon %q, got %q", writer.FaviconURL, reader.FaviconURL)
+	}
+	if reader.Name != writer.Name {
+		t.Fatalf("expected name %q, got %q", writer.Name, reader.Name)
+	}
+	if reader.ID == "" {
+		t.Fatalf("expected website ID to be set")
+	}
+}

@@ -38,6 +38,7 @@ func (website *Website) Identifier() string {
 	}
 	return website.ID
 }
+
 func (*Website) DatabaseObject() string {
 	return "website"
 }

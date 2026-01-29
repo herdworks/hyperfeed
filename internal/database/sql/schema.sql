@@ -122,7 +122,11 @@ CREATE INDEX IF NOT EXISTS items_feed_at_id_desc ON items([feed_at] DESC, [id] D
 CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items([feed_at] DESC, [published_at] DESC, [added_at] DESC);
 CREATE INDEX IF NOT EXISTS items_website_id_feed_at_desc ON items([website_id], [feed_at] DESC); -- feed frequency index
 CREATE INDEX IF NOT EXISTS items_website_id_feed_at_id_desc ON items([website_id], [feed_at] DESC, [id] DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS items_feed_id_guid_url_unique_index ON items([feed_id], [guid], [url]);
+
+--NOTE:  the following unique index had unintended side effects; next time we see duplicate posts,
+--       we should check to see if the duplicates have been orphaned from their parent website.
+--CREATE UNIQUE INDEX IF NOT EXISTS items_feed_id_guid_url_unique_index ON items([feed_id], [guid], [url]);
+
 
 -- Bylines table
 CREATE TABLE IF NOT EXISTS bylines (
@@ -140,19 +144,17 @@ CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 
 -- Links table
 CREATE TABLE IF NOT EXISTS links (
+    [website_id] TEXT NOT NULL,
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
     [cover_href] TEXT,
     [title] TEXT,
     [description] TEXT,
-    [item_id] TEXT,
-    [website_id] TEXT NOT NULL,
 
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS links_id_index ON links([id]);
 CREATE INDEX IF NOT EXISTS links_href_index ON links([href]);
-CREATE INDEX IF NOT EXISTS links_item_id_index ON links([item_id]);
 CREATE INDEX IF NOT EXISTS links_website_id_index ON links([website_id]);
 
 -- Attachments table
@@ -249,6 +251,7 @@ CREATE TABLE IF NOT EXISTS item_links (
     [feed_id] TEXT REFERENCES feeds([id]),
     [item_id] TEXT REFERENCES items([id]),
     [link_id] TEXT REFERENCES links([id]),
+    [weight] FLOAT,
 
     PRIMARY KEY([item_id], [link_id])
 );
@@ -473,17 +476,15 @@ ORDER BY
 CREATE VIEW IF NOT EXISTS links_view AS
 SELECT
     json_object(
+        'website_id', [links].[website_id],
         'id', [links].[id],
         'href', [links].[href],
         'cover_href', NULLIF([links].[cover_href], ''),
         'title', [links].[title],
-        'description', [links].[description],
-        'item_id', [links].[item_id],
-        'website_id', [links].[website_id]
+        'description', [links].[description]
     ) as 'link',
     [links].[id],
     [links].[href],
-    [links].[item_id],
     [links].[website_id]
 FROM
     [links]
@@ -493,22 +494,22 @@ FROM
 CREATE VIEW IF NOT EXISTS hot_hyperlinks_view AS
 SELECT
     json_object(
+        'website_id', [links].[website_id],
         'id', [links].[id],
         'href', [links].[href],
         'cover_href', NULLIF([links].[cover_href], ''),
         'title', [links].[title],
         'description', [links].[description],
-        'item_id', [links].[item_id],
-        'website_id', [links].[website_id],
         'website_count', [link_counts].[website_count],
-        'item_count', [link_counts].[item_count]
+        'item_count', [link_counts].[item_count],
+        'score', [link_counts].[score]
     ) as 'link',
+    [links].[website_id],
     [links].[id],
     [links].[href],
-    [links].[item_id],
-    [links].[website_id],
     [link_counts].[website_count],
-    [link_counts].[item_count]
+    [link_counts].[item_count],
+    [link_counts].[score]
 FROM
     [links]
     JOIN (
@@ -516,6 +517,7 @@ FROM
             [item_links].[link_id],
             COUNT(DISTINCT [item_links].[website_id]) AS [website_count],
             COUNT(*) AS [item_count],
+            SUM(COALESCE([item_links].[weight], 0)) AS [score],
             MAX([items].[feed_at]) AS [last_feed_at]
         FROM
             [item_links]
@@ -525,10 +527,12 @@ FROM
         GROUP BY
             [item_links].[link_id]
         HAVING
-            COUNT(DISTINCT [item_links].[website_id]) > 1
+            COUNT(DISTINCT [item_links].[website_id]) > 1 AND
+            SUM(COALESCE([item_links].[weight], 0)) > 0.0
     ) AS [link_counts] ON [link_counts].[link_id] = [links].[id]
 ORDER BY
     [link_counts].[website_count] DESC,
+    [link_counts].[score] DESC,
     [link_counts].[item_count] DESC,
     [link_counts].[last_feed_at] DESC
 LIMIT 100

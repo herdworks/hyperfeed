@@ -18,14 +18,14 @@ import (
 type HyperLink struct {
 	*DatabaseRecord
 
+	WebsiteID   string     `json:"website_id,omitempty"`
 	ID          string     `json:"id,omitempty"`
 	Href        *href.Href `json:"href,omitempty"`
 	CoverHref   *href.Href `json:"cover_href,omitempty"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
-	ItemID      string     `json:"item_id,omitempty"`
+	Weight      float32    `json:"same_origin,omitempty"`
 
-	WebsiteID string `json:"website_id,omitempty"` // back-reference to parent website
 }
 
 // ParseLinks() extracts links from an item's HTML content
@@ -36,7 +36,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 	if item.URL != nil {
 		document.Href = item.URL.String()
 		if h, e := href.Parse(item.URL.String()); e == nil {
-			item.Link = &HyperLink{Href: h, ItemID: item.Identifier()}
+			item.Link = &HyperLink{Href: h, Weight: 0.25}
 			if item.Feed != nil {
 				item.Link.WebsiteID = item.Feed.Website.Identifier()
 			}
@@ -53,6 +53,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 		websiteURL := url.URL{Scheme: attachment.Href.URL().Scheme, Host: attachment.Href.URL().Host, Path: "/"}
 		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
 		link.WebsiteID = website.Identifier()
+		link.Weight = 1.00
 		links = append(links, link)
 	}
 	if document.HTML, err = html.Parse(bytes.NewReader(htmlBytes)); err == nil {
@@ -71,7 +72,17 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
 		website = &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
-		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier()})
+		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.75})
+	}
+	for _, i := range document.Metadata.HyperLinks.SameOrigin {
+		var h *href.Href
+		var website *Website
+		if h, err = href.Parse(i); err != nil {
+			continue
+		}
+		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
+		website = &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
 	}
 	return links
 }
@@ -98,22 +109,34 @@ func (*HyperLink) DatabaseView() string {
 }
 func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
 	return []string{
+		"website_id",
 		"id",
 		"href",
-		"item_id",
-		"website_id",
+		"cover_href",
+		"title",
+		"description",
 	}
 }
 func (link *HyperLink) DatabaseInsertValues() (args []any) {
+	args = append(args, sql.Named("website_id", link.WebsiteID))
 	args = append(args, sql.Named("id", link.Identifier()))
 	args = append(args, sql.Named("href", link.Href.String()))
-	if link.ItemID == "" {
-		args = append(args, sql.Named("item_id", nil))
+	if link.CoverHref != nil {
+		args = append(args, sql.Named("cover_href", link.CoverHref.String()))
 	} else {
-		args = append(args, sql.Named("item_id", link.ItemID))
+		args = append(args, sql.Named("cover_href", nil))
 	}
-	args = append(args, sql.Named("website_id", link.WebsiteID))
+	args = append(args, sql.Named("title", link.Title))
+	args = append(args, sql.Named("description", link.Description))
 	return args
+}
+
+func (link *HyperLink) DatabaseUpdatesSet(_ []string) (columns []string) {
+	return []string{
+		"cover_href = excluded.cover_href",
+		"title = excluded.title",
+		"description = excluded.description",
+	}
 }
 
 func (link *HyperLink) Hash() string {

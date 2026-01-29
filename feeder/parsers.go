@@ -58,6 +58,7 @@ var (
 	ErrUnsupportedFeedFormat = fmt.Errorf("unsupported feed format")
 	ErrParserInitialization  = fmt.Errorf("feed parser initialization error")
 	ErrParsingRawFeed        = fmt.Errorf("error parsing raw feed")
+	ErrMissingHTMLURL        = fmt.Errorf("feed html_url missing")
 	ErrInvalidRSSFeed        = fmt.Errorf("invalid RSS feed")
 	ErrInvalidRSSItem        = fmt.Errorf("invalid RSS item(s)")
 	ErrInvalidRSSEnclosure   = fmt.Errorf("invalid RSS enclosure(s)")
@@ -105,9 +106,12 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hy
 	parser.Feed.Metadata = hyperfeed.Metadata{}
 
 	// Feed.Website properties
-	if parser.Feed.Website.HTMLURL == "" {
-		parser.Feed.Website.HTMLURL = parser.Feed.HTMLURL.String()
-		parser.Feed.Website.ID = "" // reset website ID
+	if website := parser.Feed.WebsiteURL(); website == nil { 
+		fmt.Printf("FEED %q MISSING HTMLURL\n", parser.Feed.URL.String())
+		return nil, errors.Join(ErrInvalidRSSFeed, ErrMissingHTMLURL)
+	} else {
+		parser.Feed.Website.HTMLURL = website.String()
+		parser.Feed.Website.ID = parser.Feed.WebsiteIdentifier()
 	}
 	if parser.Feed.Website.FaviconURL == "" {
 		// RSS does not have a standard favicon field, will source from HyperGraph later
@@ -248,6 +252,13 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 	parser.Feed.Metadata = hyperfeed.Metadata{}
 
 	// Feed.Website properties
+	if website := parser.Feed.WebsiteURL(); website == nil { 
+		fmt.Printf("FEED %q MISSING HTMLURL\n", parser.Feed.URL.String())
+		return nil, errors.Join(ErrInvalidAtomFeed, ErrMissingHTMLURL)
+	} else {
+		parser.Feed.Website.HTMLURL = website.String()
+		parser.Feed.Website.ID = parser.Feed.WebsiteIdentifier()
+	}
 	if parser.Feed.Website.FaviconURL == "" {
 		if link := parser.Atom.Link("icon"); link != nil {
 			parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, link.Href, w)
@@ -387,6 +398,13 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 	parser.Feed.Metadata = hyperfeed.Metadata{}
 
 	// Feed.Website properties
+	if website := parser.Feed.WebsiteURL(); website == nil {
+		fmt.Printf("FEED %q MISSING HTMLURL\n", parser.Feed.URL.String())
+		return nil, errors.Join(ErrInvalidJSONFeed, ErrMissingHTMLURL)
+	} else {
+		parser.Feed.Website.HTMLURL = website.String()
+		parser.Feed.Website.ID = parser.Feed.WebsiteIdentifier()
+	}
 	if parser.Feed.Website.FaviconURL == "" {
 		parser.Feed.Website.FaviconURL = href.ResolveHrefString(parser.Feed.URL, hyperfeed.First(parser.JSON.Favicon, parser.JSON.Icon), w)
 	}

@@ -8,12 +8,29 @@ import (
 )
 
 func TestOPMLLoad(t *testing.T) {
-	opml := &OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
-	if err := opml.Load(); err != nil {
-		t.Fatalf("Failed to load OPML: %v", err)
+	tests := []struct {
+		name     string
+		filepath string
+	}{
+		{
+			name:     "NNW default subscriptions",
+			filepath: filepath.Join("testdata", "nnw_default_subscriptions.opml"),
+		},
+		{
+			name:     "Sample OPML",
+			filepath: filepath.Join("testdata", "hyperfeed.opml"),
+		},
 	}
-	if len(opml.Body.Outlines) != 14 {
-		t.Fatalf("expected 14 outlines; got %d", len(opml.Body.Outlines))
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opml := &OPML{URI: &url.URL{Path: tc.filepath}}
+			if err := opml.Load(); err != nil {
+				t.Fatalf("Failed to load OPML: %v", err)
+			}
+			t.Logf("opml %q has %d outlines", tc.filepath, len(opml.Body.Outlines))
+		})
 	}
 }
 

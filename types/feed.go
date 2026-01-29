@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"slices"
 	"time"
@@ -89,6 +90,30 @@ func (feed *Feed) Identifier() string {
 	return feed.ID
 }
 
+// WebsiteURL returns the feed's website URL root
+func (feed *Feed) WebsiteURL() *url.URL {
+	if feed == nil || feed.HTMLURL == nil || feed.HTMLURL.String() == "" {
+		return nil
+	}
+	website := *feed.HTMLURL.URL()
+	website.Path = "/"
+	website.RawQuery = ""
+	website.ForceQuery = false
+	website.Fragment = ""
+	return &website
+}
+// WebsiteIdentifier returns a stable website identifier derived from Feed.HTMLURL.
+func (feed *Feed) WebsiteIdentifier() string {
+	if feed == nil || feed.HTMLURL == nil || feed.HTMLURL.String() == "" {
+		return normalized.Identifier("")
+	}
+	if website := feed.WebsiteURL(); website == nil {
+		return normalized.Identifier("")
+	} else {
+		return normalized.Identifier(normalized.URL(website).String())
+	}
+}
+
 // PathIdentifier returns the stable identifier for the feed, computing it if needed.
 func (feed *Feed) PathIdentifier() any {
 	return normalized.Identifier(normalized.Path(feed.URL.URL()))
@@ -121,7 +146,6 @@ func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer)
 		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
 	feed.Website.Entity = document.Metadata.Entity
-	feed.Website.ID = "" // reset website ID
 	if feed.Website.Status == nil {
 		feed.Website.Status = &Status{}
 	}

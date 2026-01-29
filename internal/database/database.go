@@ -260,8 +260,8 @@ func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
 	} else if err != nil {
 		return fmt.Errorf("database record read: scan: %w", err)
 	}
-	if err = json.Unmarshal(jsonBytes, &row); err != nil {
-		return fmt.Errorf("database record %T unmarshal error: %w", &row, err)
+	if err = json.Unmarshal(jsonBytes, row); err != nil {
+		return fmt.Errorf("database record %T unmarshal error: %w", row, err)
 	}
 	return nil
 }

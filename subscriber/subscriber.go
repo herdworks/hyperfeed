@@ -532,8 +532,8 @@ func (subscriber *Subscriber) SaveLinkRelations(ctx context.Context, w io.Writer
 		defer subscriber.Database.EndTransaction(transaction, err)
 		for _, item := range feed.Items {
 			for _, link := range item.Links {
-				columns := []string{"website_id", "feed_id", "item_id", "link_id"}
-				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier()}
+				columns := []string{"website_id", "feed_id", "item_id", "link_id", "weight"}
+				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), link.Identifier(), link.Weight}
 				if err = subscriber.Database.RelateRows(ctx, transaction, "item_links", columns, values); err != nil {
 					fmt.Printf("link: %+v\n", link)
 					return errors.Join(ErrDatabase, errors.New("inserting item-link relation"), err)

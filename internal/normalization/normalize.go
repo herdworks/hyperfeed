@@ -19,6 +19,11 @@ import (
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrInvalidPath    = errors.New("invalid path")
+	
+	TrackingParameters = []string{
+		"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+		"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",
+	}
 )
 
 var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -57,6 +62,7 @@ func URL(incoming *url.URL) *url.URL {
 	if normalized.Path != "/" && strings.HasSuffix(normalized.Path, "/") {
 		normalized.Path = strings.TrimSuffix(normalized.Path, "/") // remove trailing slash except for root
 	}
+	SanitizeParams(&normalized)
 	normalized.RawQuery = normalized.Query().Encode() // Encode sorts keys
 	normalized.ForceQuery = false
 	return &normalized
@@ -120,30 +126,26 @@ func Path(u *url.URL) string {
 		return ""
 	}
 	u = URL(u)
-	u = SanitizeParams(u)
+	SanitizeParams(u)
 	p := url.URL{Path: u.Path, RawQuery: u.RawQuery}
 	return p.String()
 }
 
 // SanitizeParams removes tracking and secret query parameters from a URL.
-func SanitizeParams(u *url.URL) *url.URL {
-	if u == nil {
-		return nil
+func SanitizeParams(incoming *url.URL) {
+	if incoming == nil {
+		return
 	}
-	v := *URL(u) // normalize first, then copy
-	if v.RawQuery == "" {
-		return &v
+	if incoming.RawQuery == "" {
+		return
 	}
-	trackers := []string{
-		"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-		"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",
+	query := incoming.Query()
+	for _, t := range TrackingParameters {
+		query.Del(t)
 	}
-	q := v.Query()
-	for _, t := range trackers {
-		q.Del(t)
-	}
-	v.RawQuery = q.Encode()
-	return &v
+	incoming.RawQuery = query.Encode()
+	incoming.ForceQuery = false
+	return
 }
 
 // Identifier returns a HyperFeed identifier (first 40 chars of SHA256 hex)

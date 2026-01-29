@@ -69,7 +69,7 @@ func (item *Item) Identifier() string {
 	}
 	if item.ID == "" {
 		u := normalized.URL(item.URL)
-		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.Website.Identifier(), u, item.GUID))
+		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.WebsiteIdentifier(), u, item.GUID))
 	}
 	return item.ID
 }
@@ -181,7 +181,11 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("modified_at", item.ModifiedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("added_at", item.AddedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("updated_at", item.UpdatedAt.UTC().Format(time.RFC3339)))
-	args = append(args, sql.Named("guid", item.GUID))
+	if item.GUID == "" {
+		args = append(args, sql.Named("guid", nil))
+	} else {
+		args = append(args, sql.Named("guid", item.GUID))
+	}
 	args = append(args, sql.Named("feed_at", item.FeedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("feed_id", item.Feed.Identifier()))
 	args = append(args, sql.Named("website_id", item.Feed.Website.Identifier()))
@@ -198,8 +202,8 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 		"is_podcast_episode = excluded.is_podcast_episode",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
-		"website_id = excluded.website_id",
-		"link_id = excluded.link_id",
+		// "website_id = excluded.website_id",
+		// "link_id = excluded.link_id",
 	}
 }
 

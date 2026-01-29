@@ -95,34 +95,30 @@ func TestIsCommonSubdomain(t *testing.T) {
 }
 
 func TestSanitizeParams(t *testing.T) {
-	in := "https://example.com/post?utm_source=x&utm_medium=y&utm_campaign=z&gclid=123&keep=ok"
-	u, _ := url.Parse(in)
-	got := SanitizeParams(u)
-	if got.Query().Get("keep") != "ok" {
-		t.Fatalf("keep param missing; got %v", got.RawQuery)
+	tests := []struct {
+		href string
+		want string // expected Host field
+	}{
+		{
+			"https://example.com/path?utm_source=newsletter&utm_medium=email&keep=this&gclid=12345",
+			"https://example.com/path?keep=this",
+		},
+		{
+			"https://example.com/path?a=1&b=2",
+			"https://example.com/path?a=1&b=2",
+		},
 	}
-	removed := []string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer"}
-	for _, k := range removed {
-		if got.Query().Has(k) {
-			t.Fatalf("param %q not removed; got %v", k, got.RawQuery)
+	for _, tc := range tests {
+		got, err := url.Parse(tc.href)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.href, err)
+		}
+		SanitizeParams(got)
+		if got.String() != tc.want {
+			t.Fatalf("SanitizeParams(%q) = %q; want %q", tc.href, got.String(), tc.want)
 		}
 	}
-	// Should return a new pointer (pure function)
-	if got == u {
-		t.Fatalf("SanitizeParams should return a new pointer (not modify in place)")
-	}
-	// Original should be unchanged
-	if u.RawQuery != "utm_source=x&utm_medium=y&utm_campaign=z&gclid=123&keep=ok" {
-		t.Fatalf("original URL was mutated: %q", u.RawQuery)
-	}
 
-	// Idempotent: no tracking params present
-	in2 := "https://example.com/path?a=1&b=2"
-	u2, _ := url.Parse(in2)
-	got2 := SanitizeParams(u2)
-	if got2.RawQuery != "a=1&b=2" {
-		t.Fatalf("unexpected query after sanitize: %q", got2.RawQuery)
-	}
 }
 
 func TestURLNormalization(t *testing.T) {
