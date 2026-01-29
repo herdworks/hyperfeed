@@ -40,6 +40,22 @@ func TestConvertOrderedList(t *testing.T) {
 			source: "testdata/7.html",
 		},
 		{
+			name:   "Daring Fireball multimedia post",
+			source: "testdata/8.html",
+		},
+		{
+			name:   "HTMHell post",
+			source: "testdata/9.html",
+		},
+		{
+			name:   "Vergecast episode description (plaintext)",
+			source: "testdata/10.html",
+		},
+		{
+			name:   "GitHub blog post with video poster",
+			source: "testdata/11.html",
+		},
+		{
 			name:   "HTMHell",
 			source: "testdata/htmhell.html",
 		},

@@ -1,0 +1,167 @@
+<p>Yesterday&rsquo;s article on <a href="https://gomakethings.com/death-to-the-shadow-dom/">why the shadow DOM sucks</a> may have been one of the most hated pieces I&rsquo;ve written in a while.</p>
+
+<p>But I stand by what I said, and today I wanted to respond to some of the comments I got.</p>
+
+<p>Let&rsquo;s dig in!</p>
+
+<h2 id="global-styles-can-break-your-component">&ldquo;Global styles can break your component.&rdquo;</h2>
+
+<p>This is true&hellip; if CSS is badly written.</p>
+
+<p>If your component relies on very generic class names, global CSS with the same name can break it.</p>
+<div class="highlight"><pre class="chroma"><code class="language-html" data-lang="html"><span class="p">&lt;</span><span class="nt">accordion-group</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">h2</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;heading&#34;</span> <span class="na">aria-expanded</span><span class="o">=</span><span class="s">&#34;true&#34;</span><span class="p">&gt;&lt;</span><span class="nt">button</span><span class="p">&gt;</span>Some heading<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>Some content...<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+	<span class="c">&lt;!-- ... --&gt;</span>
+<span class="p">&lt;/</span><span class="nt">accordion-group</span><span class="p">&gt;</span></code></pre></div><div class="highlight"><pre class="chroma"><code class="language-css" data-lang="css"><span class="p">.</span><span class="nc">heading</span> <span class="nt">button</span><span class="p">:</span><span class="nd">after</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span>
+
+<span class="nt">accordion-group</span> <span class="nt">div</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span></code></pre></div>
+<p>These styles are really easily broken by global CSS. But like, we solved for this a decade ago, back in the jQuery era, with&hellip;</p>
+
+<ol>
+<li>Better class naming conventions, and</li>
+<li>Customizable classes on internals.</li>
+</ol>
+<div class="highlight"><pre class="chroma"><code class="language-html" data-lang="html"><span class="c">&lt;!-- Here, the attributes let you change the default class names --&gt;</span>
+<span class="p">&lt;</span><span class="nt">accordion-group</span> 
+	<span class="na">content-class</span><span class="o">=</span><span class="s">&#34;accordion-content&#34;</span> 
+	<span class="na">btn-class</span><span class="o">=</span><span class="s">&#34;accordion-heading-btn&#34;</span>
+<span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">h2</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;accordion-group-heading&#34;</span> <span class="na">aria-expanded</span><span class="o">=</span><span class="s">&#34;true&#34;</span><span class="p">&gt;</span>
+		<span class="p">&lt;</span><span class="nt">button</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;accordion-heading-btn&#34;</span><span class="p">&gt;</span>Some heading<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+	<span class="p">&lt;/</span><span class="nt">h2</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">&#34;accordion-content&#34;</span><span class="p">&gt;</span>Some content...<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+	<span class="c">&lt;!-- ... --&gt;</span>
+<span class="p">&lt;/</span><span class="nt">accordion-group</span><span class="p">&gt;</span></code></pre></div><div class="highlight"><pre class="chroma"><code class="language-css" data-lang="css"><span class="c">/**
+</span><span class="c"> * These selectors have much tighter scoping, but can still be overridden without !important
+</span><span class="c"> */</span>
+<span class="nt">accordiong-group</span> <span class="p">.</span><span class="nc">accordion-heading-btn</span><span class="p">:</span><span class="nd">after</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span>
+
+<span class="nt">accordion-group</span> <span class="p">.</span><span class="nc">accordion-content</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span></code></pre></div>
+<p>The other issue could be badly written CSS on the site loading the component.</p>
+
+<p>Frankly&hellip; that shouldn&rsquo;t be the component author&rsquo;s problem to fix. If the site using the component has CSS riddled with <code>!important</code> and grossly over-specific selectors, they should fix that.</p>
+
+<p>It shouldn&rsquo;t be on you to encapsulate your component such that it cannot every be broken, because&hellip;</p>
+
+<h2 id="you-can-make-shadow-dom-externally-styleable-with-parts-and-css-variables">&ldquo;You can make shadow DOM externally styleable with parts and CSS variables&rdquo;</h2>
+
+<p>You can.</p>
+
+<p>But again, you&rsquo;re not benefiting from <em>global</em> styles. The site owner has to apply existing global styles to the internal shit inside your component, rather than just letting your component look like the rest of the site.</p>
+
+<p>Consider you have a set of components for a show-hide widget, a dropdown menu, and an off-canvas menu. All three use buttons.</p>
+<div class="highlight"><pre class="chroma"><code class="language-html" data-lang="html"><span class="c">&lt;!-- The rendered shadow DOM looks something like this... --&gt;</span>
+<span class="p">&lt;</span><span class="nt">show-hide</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">button</span><span class="p">&gt;</span>Show more<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">div</span><span class="p">&gt;</span>...<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">show-hide</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">dropdown-menu</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">button</span><span class="p">&gt;&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">ul</span><span class="p">&gt;</span>
+		<span class="c">&lt;!-- ... --&gt;</span>
+	<span class="p">&lt;/</span><span class="nt">ul</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">dropdown-menu</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">off-canvas</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">button</span><span class="p">&gt;</span>Menu<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+	<span class="p">&lt;</span><span class="nt">dialog</span><span class="p">&gt;</span>...<span class="p">&lt;/</span><span class="nt">dialog</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">off-canvas</span><span class="p">&gt;</span></code></pre></div>
+<p>The host site has global styles for <code>&lt;button&gt;</code> elements. All of their buttons have a cohesive look already.</p>
+
+<p>But your shadow DOM <code>&lt;button&gt;</code>&rsquo;s? They either look like hideous browser-native unstyled buttons, or whatever default style <em>you</em> wanted for the component.</p>
+
+<p>Either way, they don&rsquo;t look like they belong on the same site.</p>
+
+<p>But fear not, you&rsquo;ve used <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::part">the <code>[part]</code> attribute</a> to let users style things.</p>
+
+<p>Great, now they have to specify every single <code>&lt;button&gt;</code> part in their CSS and add all of their existing <code>button</code> styles to it.</p>
+<div class="highlight"><pre class="chroma"><code class="language-css" data-lang="css"><span class="nt">button</span><span class="o">,</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">show-hide-btn</span><span class="o">),</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">dropdown-menu-btn</span><span class="o">),</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">off-canvas-btn</span><span class="o">)</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span>
+
+<span class="nt">button</span><span class="p">:</span><span class="nd">hover</span><span class="o">,</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">show-hide-btn</span><span class="o">)</span><span class="p">:</span><span class="nd">hover</span><span class="o">,</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">dropdown-menu-btn</span><span class="o">)</span><span class="p">:</span><span class="nd">hover</span><span class="o">,</span>
+<span class="p">::</span><span class="nd">part</span><span class="o">(</span><span class="nt">off-canvas-btn</span><span class="o">)</span><span class="p">:</span><span class="nd">hover</span> <span class="p">{</span>
+	<span class="c">/* ... */</span>
+<span class="p">}</span>
+
+<span class="c">/* ... */</span></code></pre></div>
+<p>Or maybe you used CSS variables. Same deal.</p>
+
+<p>Either way, you&rsquo;ve given developers a whole lot more work.</p>
+
+<h2 id="developer-should-only-be-able-to-modify-certain-things">&ldquo;Developer should only be able to modify certain things.&rdquo;</h2>
+
+<p>Why?</p>
+
+<p>I hear this one a lot. That the shadow DOM lets you expose just the things that developers <em>should</em> be able to customize.</p>
+
+<p>I&rsquo;ve been making public plugins and components for over a decade, and I can confidently say that developers will <em>always</em> have use cases for your code that you didn&rsquo;t anticipate or account for when you built it.</p>
+
+<p>What you think they <em>should</em> do may not be what they <em>want</em> to do.</p>
+
+<p>Letting devs openly target and style code makes it easier for people to implement use-cases you didn&rsquo;t think of without you needing to go back and add more style hooks (or them having to modify the core code).</p>
+
+<p>Write documentation, explain possible foot guns, and let people do what they want.</p>
+
+<h2 id="developers-shouldn-t-have-to-worry-about-internals">&ldquo;Developers shouldn&rsquo;t have to worry about internals.&rdquo;</h2>
+
+<p>Relate to the previous item, there seems to be this dual concern about&hellip;</p>
+
+<ol>
+<li>If the internal structure of your web component changes, you&rsquo;ll break things for people using it.</li>
+<li>Developers shouldn&rsquo;t have to think about how the internal HTML looks.</li>
+</ol>
+
+<p>I find both of these really weird, for different reasons.</p>
+
+<p>First, <a href="https://semver.org">semantic versioning</a> exists for a reason.</p>
+
+<p>If a change is going to break the component, that&rsquo;s a major version upgrade, and you can communicate that through version numbers very easily. This danger also forces you to think about the structure and how the component will be used a bit more before implementing it.</p>
+
+<p>A majority of my time spent building <a href="https://kelpui.com">Kelp UI</a> was <em>not</em> spent writing code, but instead thinking through the different ways people might want to use something and how to structure the code for maximum flexibility.</p>
+
+<p>And second&hellip; developers <em>should</em> think about HTML. It is literally the backbone of the web.</p>
+
+<p>Yesterday, when I said that an obsession with shadow DOM is React-thinking creeping into the native web, this is what I meant.</p>
+
+<p>I think <a href="https://gomakethings.com/talks/html-web-components/">the <em>right way</em> to build most web components</a> is to start with usable HTML, and progressively enhance it into something better.</p>
+
+<p>But if you don&rsquo;t do that&hellip; you can still render internal HTML with JS, and developer won&rsquo;t have to think about it. This is a non-concern.</p>
+
+<h2 id="shadow-dom-is-better-for-performance">&ldquo;Shadow DOM is better for performance.&rdquo;</h2>
+
+<p>This was a new one to me.</p>
+
+<p>When a site has lots of DOM nodes, rendering (and more specifically, <em>re-rendering</em>) becomes very slow and expensive. Because shadow DOM is its own separate DOM, the repaints become far less expensive.</p>
+
+<p>This does not feel like a web component problem.</p>
+
+<p>This feels like a site architecture/design problem that you&rsquo;re using a different tool as a band-aid to fix. The issue is that the site uses a bad DOM structure or tries to do too much in one place.</p>
+
+<p>That&rsquo;s the problem you should fix, in my opinion.</p>
+
+<h2 id="the-part-where-i-cede-some-ground">The part where I cede some ground</h2>
+
+<p>The shadow DOM does have situational uses.</p>
+
+<p>As someone pointed out to me yesterday, the shadow DOM let&rsquo;s you replace <code>iframes</code>, which can be notoriously difficult to make look good.</p>
+
+<p>So it&rsquo;s not &ldquo;death to the shadow DOM&rdquo; so much as &ldquo;please stop using it for fucking everything!&rdquo;</p>
+
+<p>But it being <em>situationally useful</em> I think underscores my original point: it&rsquo;s an anti-pattern, not a best practice.</p>
+<p><em><strong>Like this?</strong> A <a href="https://members.gomakethings.com">Lean Web Club</a> membership is the best way to support my work and help me create more free content.</em></p>
