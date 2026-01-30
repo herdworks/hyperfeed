@@ -144,7 +144,7 @@ CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 
 -- Links table
 CREATE TABLE IF NOT EXISTS links (
-    [website_id] TEXT NOT NULL,
+    [website_id] TEXT,
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
     [cover_href] TEXT,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     [duration] INTEGER,
 
     -- playback
-    [duration_watched] INTEGER,
+    [playback_position] INTEGER,
 
     PRIMARY KEY ([id])
 );
@@ -592,7 +592,7 @@ SELECT
         'rank', [attachments].[rank],
         'size', [attachments].[size],
         'duration', [attachments].[duration],
-        'duration_watched', [attachments].[duration_watched],
+        'playback_position', [attachments].[playback_position],
         'width', [attachments].[width],
         'height', [attachments].[height],
         'item_id', [item_attachments].[item_id],

@@ -20,21 +20,21 @@ import (
 type Attachment struct {
 	*DatabaseRecord
 
-	ID              string     `json:"id,omitempty"`   // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
-	Href            *href.Href `json:"href,omitempty"` // default URL of the attachment
-	Sources         []Source   `json:"sources,omitempty"`
-	Poster          *href.Href `json:"poster,omitempty"`   // poster image for audio/video attachments
-	Mimetype        string     `json:"mimetype,omitempty"` // MIME type
-	Title           string     `json:"title,omitempty"`
-	Description     string     `json:"description,omitempty"`
-	Enclosure       bool       `json:"enclosure,omitempty"`
-	Download        bool       `json:"download,omitempty"`
-	Rank            int        `json:"rank,omitempty"`
-	Size            int64      `json:"size,omitempty"`             // bytes
-	Duration        int64      `json:"duration,omitempty"`         // seconds
-	DurationWatched int64      `json:"duration_watched,omitempty"` // seconds watched
-	Height          int        `json:"height,omitempty"`
-	Width           int        `json:"width,omitempty"`
+	ID               string     `json:"id,omitempty"`   // stable HyperFeed Attachment identifier (e.g. hash of URL+title)
+	Href             *href.Href `json:"href,omitempty"` // default URL of the attachment
+	Sources          []Source   `json:"sources,omitempty"`
+	Poster           *href.Href `json:"poster,omitempty"`   // poster image for audio/video attachments
+	Mimetype         string     `json:"mimetype,omitempty"` // MIME type
+	Title            string     `json:"title,omitempty"`
+	Description      string     `json:"description,omitempty"`
+	Enclosure        bool       `json:"enclosure,omitempty"`
+	Download         bool       `json:"download,omitempty"`
+	Rank             int        `json:"rank,omitempty"`
+	Size             int64      `json:"size,omitempty"`              // bytes
+	Duration         int64      `json:"duration,omitempty"`          // seconds
+	PlaybackPosition int64      `json:"playback_position,omitempty"` // seconds watched
+	Height           int        `json:"height,omitempty"`
+	Width            int        `json:"width,omitempty"`
 }
 
 type Source struct {
@@ -150,7 +150,7 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 		"rank",
 		"size",
 		"duration",
-		"duration_watched",
+		"playback_position",
 		"height",
 		"width",
 	}
@@ -176,7 +176,7 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("rank", attachment.Rank))
 	values = append(values, sql.Named("size", attachment.Size))
 	values = append(values, sql.Named("duration", attachment.Duration))
-	values = append(values, sql.Named("duration_watched", attachment.DurationWatched))
+	values = append(values, sql.Named("playback_position", attachment.PlaybackPosition))
 	values = append(values, sql.Named("height", attachment.Height))
 	values = append(values, sql.Named("width", attachment.Width))
 	return values
