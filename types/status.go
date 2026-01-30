@@ -118,6 +118,10 @@ func (status *Status) Skipped() bool {
 	return status.UpdatedAt != status.LastAttemptAt
 }
 
+func (status *Status) TimedOut() bool {
+	return status.UpdatedAt == status.LastCanceledAt
+}
+
 func (status *Status) Failed() bool {
 	switch {
 	case status.UpdatedAt == status.LastAttemptAt && status.FetchErrors > 0:

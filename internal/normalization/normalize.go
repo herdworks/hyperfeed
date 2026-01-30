@@ -153,6 +153,11 @@ func SanitizeParams(incoming *url.URL) {
 // Inspired by Git's SHA-256-based object naming.
 // https://git-scm.com/docs/hash-function-transition
 func Identifier(incoming string) string {
+	if strings.HasPrefix(incoming, "http://") {
+		incoming = strings.TrimPrefix(incoming, "http://")
+	} else if strings.HasPrefix(incoming, "https://") {
+		incoming = strings.TrimPrefix(incoming, "https://")
+	}
 	incoming = strings.ToLower(incoming)
 	sum := sha256.Sum256([]byte(incoming))
 	return hex.EncodeToString(sum[:])[:40]

@@ -133,6 +133,9 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 			if ff.Feed.Status.Skipped() {
 				subscriber.Status.FeedsSkipped.Increment(1)
 			}
+			if ff.Feed.Status.TimedOut() {
+				subscriber.Status.FeedsTooSlowJunior.Increment(1)
+			}
 			if ff.Feed.Status.Failed() {
 				subscriber.Status.FeedsFailed.Increment(1)
 			}
@@ -194,15 +197,16 @@ type Config struct {
 
 // Status holds Subscriber runtime status information
 type Status struct {
-	Duration       time.Duration     `json:"duration,omitempty"`
-	UpdatedAt      time.Time         `json:"updated_at,omitempty"`
-	FeedsSkipped   hyperfeed.Counter `json:"feeds_skipped,omitempty"`
-	FeedsFailed    hyperfeed.Counter `json:"feeds_failed,omitempty"`
-	FeedsFetched   hyperfeed.Counter `json:"feeds_fetched,omitempty"`
-	ItemsFetched   hyperfeed.Counter `json:"items_fetched,omitempty"`
-	ItemsDuplicate hyperfeed.Counter `json:"items_duplicate,omitempty"`
-	ItemsAdded     hyperfeed.Counter `json:"items_added,omitempty"`
-	ItemsUpdated   hyperfeed.Counter `json:"items_updated,omitempty"`
+	Duration           time.Duration     `json:"duration,omitempty"`
+	UpdatedAt          time.Time         `json:"updated_at,omitempty"`
+	FeedsSkipped       hyperfeed.Counter `json:"feeds_skipped,omitempty"`
+	FeedsTooSlowJunior hyperfeed.Counter `json:"feeds_too_slow_junior,omitempty"`
+	FeedsFailed        hyperfeed.Counter `json:"feeds_failed,omitempty"`
+	FeedsFetched       hyperfeed.Counter `json:"feeds_fetched,omitempty"`
+	ItemsFetched       hyperfeed.Counter `json:"items_fetched,omitempty"`
+	ItemsDuplicate     hyperfeed.Counter `json:"items_duplicate,omitempty"`
+	ItemsAdded         hyperfeed.Counter `json:"items_added,omitempty"`
+	ItemsUpdated       hyperfeed.Counter `json:"items_updated,omitempty"`
 
 	// TODO: add bytes downloaded
 	// TODO: add image counts
@@ -628,6 +632,7 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 func (status *Status) Print() string {
 	var report string = "\n"
 	report += fmt.Sprintf("Feeds Skipped:   %6d\n", status.FeedsSkipped.Count)
+	report += fmt.Sprintf("Feeds TooSlow:   %6d\n", status.FeedsTooSlowJunior.Count)
 	report += fmt.Sprintf("Feeds Failed:    %6d\n", status.FeedsFailed.Count)
 	report += fmt.Sprintf("Feeds Fetched:   %6d\n", status.FeedsFetched.Count)
 	report += fmt.Sprintf("Items Fetched:   %6d\n", status.ItemsFetched.Count)
