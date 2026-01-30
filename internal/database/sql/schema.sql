@@ -180,6 +180,9 @@ CREATE TABLE IF NOT EXISTS attachments (
     [size] INTEGER,
     [duration] INTEGER,
 
+    -- playback
+    [duration_watched] INTEGER,
+
     PRIMARY KEY ([id])
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
@@ -589,6 +592,7 @@ SELECT
         'rank', [attachments].[rank],
         'size', [attachments].[size],
         'duration', [attachments].[duration],
+        'duration_watched', [attachments].[duration_watched],
         'width', [attachments].[width],
         'height', [attachments].[height],
         'item_id', [item_attachments].[item_id],
