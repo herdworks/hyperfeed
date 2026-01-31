@@ -103,7 +103,7 @@ func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attac
 			if src.Href, err = href.Parse(s.Href); err != nil {
 				continue
 			}
-			src.Mimetype = s.Type
+			src.Mimetype = s.Mimetype
 			src.Width = s.Width
 			src.Height = s.Height
 			if src.Width == 1 || src.Height == 1 {
