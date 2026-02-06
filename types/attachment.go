@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 	"slices"
+	"strings"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	href "github.com/herdworks/hyperfeed-go/types/href"
@@ -127,6 +128,21 @@ func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attac
 	return attachments
 }
 
+func (attachment *Attachment) Displayable() bool {
+	if attachment == nil {
+		return false
+	}
+	if strings.Contains(attachment.Href.String(), "/tracking/") {
+		return false // skip tracking pixels
+	}
+	if max(attachment.Width, attachment.Height) == 0 {
+		return true // if dimensions are unknown, assume it's displayable
+	} else if max(attachment.Width, attachment.Height) > 512 {
+		return true // if either dimension is larger than 512px, it's likely a displayable image/video
+	}
+	return false // otherwise, it's likely a small icon or tracking pixel
+}
+
 func (*Attachment) DatabaseObject() string {
 	return "attachment"
 }
@@ -150,6 +166,7 @@ func (*Attachment) DatabaseInsertColumns() (columns []string) {
 		"rank",
 		"size",
 		"duration",
+		"display",
 		"playback_position",
 		"height",
 		"width",
@@ -176,6 +193,7 @@ func (attachment *Attachment) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("rank", attachment.Rank))
 	values = append(values, sql.Named("size", attachment.Size))
 	values = append(values, sql.Named("duration", attachment.Duration))
+	values = append(values, sql.Named("display", attachment.Displayable()))
 	values = append(values, sql.Named("playback_position", attachment.PlaybackPosition))
 	values = append(values, sql.Named("height", attachment.Height))
 	values = append(values, sql.Named("width", attachment.Width))

@@ -127,7 +127,6 @@ CREATE INDEX IF NOT EXISTS items_website_id_feed_at_id_desc ON items([website_id
 --       we should check to see if the duplicates have been orphaned from their parent website.
 --CREATE UNIQUE INDEX IF NOT EXISTS items_feed_id_guid_url_unique_index ON items([feed_id], [guid], [url]);
 
-
 -- Bylines table
 CREATE TABLE IF NOT EXISTS bylines (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
@@ -179,6 +178,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     [height] INTEGER,
     [size] INTEGER,
     [duration] INTEGER,
+    [display] INTEGER DEFAULT 0 CHECK ([display] IN (0, 1)),
 
     -- playback
     [playback_position] INTEGER,
@@ -420,7 +420,9 @@ SELECT
             'attachments', COALESCE((
                 SELECT json_group_array(json([attachments_view].[attachment]))
                 FROM [attachments_view] 
-                WHERE [attachments_view].[item_id] = [items].[id]
+                WHERE 
+                    [attachments_view].[item_id] = [items].[id] AND
+                    [attachments_view].[display] = 1
             ), json('[]'))
         ),
         'feed', COALESCE((
@@ -602,6 +604,9 @@ SELECT
     [attachments].[id],
     [attachments].[href],
     [attachments].[mimetype],
+    [attachments].[width],
+    [attachments].[height],
+    [attachments].[display],
     [item_attachments].[item_id],
     [item_attachments].[feed_id],
     [item_attachments].[website_id]
