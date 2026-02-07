@@ -264,6 +264,9 @@ func (db *Database) Maintenance(ctx context.Context) (err error) {
 			}
 			return nil
 		}); err != nil {
+			if script.nooped(err) {
+				continue
+			}
 			return err
 		}
 	}

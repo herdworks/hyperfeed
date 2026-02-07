@@ -10,14 +10,6 @@ import (
 	"unicode"
 )
 
-// type DatabaseScriptable interface {
-// 	Root() string
-// 	Table() string
-// 	Checksum() string
-// 	List() (scripts []DatabaseScript, err error)
-// 	IsTransaction() bool
-// }
-
 type DatabaseScript struct {
 	Path  string
 	Bytes []byte
@@ -172,4 +164,16 @@ func (script *DatabaseScript) IsTransaction() bool {
 	}
 
 	return flushToken()
+}
+
+func (script DatabaseScript) nooped(err error) bool {
+	var prefix string = "HYPERFEED_NOOP:"
+	if err == nil {
+		return false
+	}
+	if strings.Contains(strings.TrimSpace(err.Error()), prefix) {
+		fmt.Printf("maintenance %q no-op\n", script.Path)
+		return true
+	}	
+	return false
 }

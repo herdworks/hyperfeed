@@ -41,6 +41,14 @@ CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
     [completed_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- HyperFeed scripts no-op guard (used by maintenance scripts).
+CREATE TRIGGER IF NOT EXISTS hyperfeed_scripts_noop_trigger
+BEFORE INSERT ON hyperfeed_scripts
+WHEN NEW.id = 'noop'
+BEGIN
+    SELECT RAISE(ABORT, 'HYPERFEED_NOOP:');
+END;
+
 -- Initial version entry
 -- INSERT OR IGNORE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date)
 -- VALUES ('v0.1.0', 1, datetime('2025-11-03T12:00:00-08:00'));
