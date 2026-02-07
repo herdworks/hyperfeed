@@ -33,6 +33,7 @@ type Options struct {
 type DatabaseRecord[T DatabaseRow] struct {
 	Value T
 }
+
 type DatabaseRow interface {
 	DatabaseReadable
 	DatabaseWritable
@@ -64,11 +65,12 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrConfig         = errors.New("database configuration invalid")
 	ErrTransaction    = errors.New("database transaction error")
+	ErrSchemaVersion  = errors.New("database schema version missing")
 	// TODO: replace errors.New() and fmt.Errorf() with error variables
 )
 
-//go:embed sql/*
-var sqlFS embed.FS // embeds database/sql/* files into the binary
+//go:embed sql/maintenance sql/migration sql/schema
+var sqlFS embed.FS // embeds database/sql scripts into the binary (recursive)
 
 // ============================ Database Methods =================================
 
@@ -140,14 +142,183 @@ func (db *Database) Configure(ctx context.Context) (err error) {
 
 func (db *Database) Initialize(ctx context.Context) (err error) {
 	var schemaBytes []byte
-	if schemaBytes, err = db.Embedded("sql/schema.sql"); err != nil {
-		return fmt.Errorf("database: load schema: %w", err)
+	var schemaPath string = "sql/schema/schema.sql"
+	if schemaBytes, err = db.Embedded(schemaPath); err != nil {
+		return fmt.Errorf("database %q schema load error: %w", schemaPath, err)
 	}
 	if err := db.DB.PingContext(ctx); err != nil {
 		return err
 	}
+
+	// schema
 	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
-		return fmt.Errorf("database: apply schema: %w", err)
+		return fmt.Errorf("database %q schema apply error: %w", db.Path, err)
+	}
+
+	// migration
+	if err = db.Migrate(ctx); err != nil {
+		return fmt.Errorf("database %q migration error: %w", db.Path, err)
+	}
+
+	// maintenance
+	if err = db.Maintenance(ctx); err != nil {
+		return fmt.Errorf("database %q maintenance error: %w", db.Path, err)
+	}
+
+	return nil
+}
+
+// Migrate applies any pending migration scripts to the database.
+func (db *Database) Migrate(ctx context.Context) (err error) {
+	var scripts []MigrationScript
+	var currentVersion, nextVersion, migratedVersion int
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check current schema version and exit if already at latest version
+	if currentVersion, err = db.SchemaVersion(ctx); err != nil {
+		return fmt.Errorf("database: schema version: %w", err)
+	} else if currentVersion > SchemaVersionLatest {
+		return fmt.Errorf(
+			"database %q schema version %d is newer than supported version %d",
+			db.Path,
+			currentVersion,
+			SchemaVersionLatest,
+		)
+	} else if currentVersion == SchemaVersionLatest {
+		fmt.Printf("database %q schema version: %d\n", db.Path, currentVersion)
+		return nil
+	} else {
+		nextVersion = currentVersion + 1
+	}
+
+	// Get migration scripts for the next version
+	if scripts, err = (MigrationScript{}).List(nextVersion); err != nil {
+		return fmt.Errorf("database %q migration scripts: %w", db.Path, err)
+	} else if len(scripts) == 0 {
+		// TODO: Hook up backup + rebuild fallback for unsupported versions.
+		return fmt.Errorf("database %q no migration scripts found for version %d", db.Path, nextVersion)
+	}
+
+	// Apply migration scripts in order
+	for _, script := range scripts {
+		fmt.Printf("migration %q discovered\n", script.Path)
+		if script.IsTransaction() {
+			return fmt.Errorf("migration %q must not manage transactions", script.Path)
+		}
+	}
+
+	if err := db.withImmediateTransaction(ctx, fmt.Sprintf("migration %q", db.Path), func(ctx context.Context, conn *sql.Conn) error {
+		for _, script := range scripts {
+			if _, err := conn.ExecContext(ctx, string(script.Bytes)); err != nil {
+				return fmt.Errorf("migration %q exec: %w", script.Path, err)
+			}
+		}
+		if err := conn.QueryRowContext(ctx, "SELECT version FROM hyperfeed_schema WHERE id = 1").Scan(&migratedVersion); err != nil {
+			return fmt.Errorf("migration %q schema version error: %w", db.Path, err)
+		}
+		if migratedVersion != nextVersion {
+			return fmt.Errorf("migration %q error: expected schema version %d, got %d", db.Path, nextVersion, migratedVersion)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if nextVersion != SchemaVersionLatest {
+		return db.Migrate(ctx)
+	}
+	return nil
+}
+
+// Maintenance applies any pending maintenance scripts to the database.
+func (db *Database) Maintenance(ctx context.Context) (err error) {
+	var scripts []MaintenanceScript
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if scripts, err = (MaintenanceScript{}).List(); err != nil {
+		return fmt.Errorf("database: maintenance scripts: %w", err)
+	}
+	for _, script := range scripts {
+		if exists, err := script.Applied(ctx, db); err != nil {
+			return fmt.Errorf("database: maintenance check %q: %w", script.Path, err)
+		} else if exists {
+			fmt.Printf("maintenance %q skipped\n", script.Path)
+			continue
+		}
+		fmt.Printf("maintenance %q apply\n", script.Path)
+		if script.IsTransaction() {
+			return fmt.Errorf("database: maintenance %q must not manage transactions", script.Path)
+		}
+		if err := db.withImmediateTransaction(ctx, fmt.Sprintf("database: maintenance %q", script.Path), func(ctx context.Context, conn *sql.Conn) error {
+			if _, err := conn.ExecContext(ctx, string(script.Bytes)); err != nil {
+				return fmt.Errorf("database: maintenance %q exec: %w", script.Path, err)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SchemaVersion returns the current database schema version.
+func (db *Database) SchemaVersion(ctx context.Context) (version int, err error) {
+	var query string = `SELECT version FROM hyperfeed_schema WHERE id = 1`
+	if db == nil || db.DB == nil {
+		return 0, errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err = db.DB.QueryRowContext(ctx, query).Scan(&version); errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrSchemaVersion
+	} else if err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+func (db *Database) withImmediateTransaction(ctx context.Context, label string, check func(context.Context, *sql.Conn) error) (err error) {
+	var conn *sql.Conn
+	var rollbackCtx context.Context
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	rollbackCtx = context.WithoutCancel(ctx)
+	if conn, err = db.DB.Conn(ctx); err != nil {
+		return fmt.Errorf("%s begin connection error: %w", label, err)
+	} else {
+		defer conn.Close()
+	}
+
+	if _, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("%s begin error: %w", label, err)
+	}
+
+	if err = check(ctx, conn); err != nil {
+		if _, rollbackErr := conn.ExecContext(rollbackCtx, "ROLLBACK"); rollbackErr != nil {
+			return fmt.Errorf("%s rollback error: %v (original error: %v)", label, rollbackErr, err)
+		}
+		return err
+	}
+
+	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
+		if _, rollbackErr := conn.ExecContext(rollbackCtx, "ROLLBACK"); rollbackErr != nil {
+			return fmt.Errorf("%s commit error: %v (rollback: %v)", label, err, rollbackErr)
+		}
+		return fmt.Errorf("%s commit error: %w", label, err)
 	}
 	return nil
 }

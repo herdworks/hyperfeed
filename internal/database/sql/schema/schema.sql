@@ -18,7 +18,7 @@ FOR EACH ROW
 BEGIN
     SELECT CASE
         WHEN NEW.version > 1 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
-            THEN RAISE(ABORT, 'hyperfeed_schema must start at 1')
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 1')
     END;
 END;
 CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
@@ -33,6 +33,13 @@ END;
 
 -- Initialize hyperfeed_schema with version 1 if not already set
 INSERT OR IGNORE INTO hyperfeed_schema (id, version) VALUES (1, 1);
+
+-- Scripts table
+CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
+    [id] TEXT PRIMARY KEY,
+    [description] TEXT,
+    [completed_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Initial version entry
 -- INSERT OR IGNORE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date)
@@ -221,6 +228,28 @@ CREATE INDEX IF NOT EXISTS metadata_id_index ON metadata([id]);
 CREATE INDEX IF NOT EXISTS metadata_namespace_index ON metadata([namespace]);
 CREATE INDEX IF NOT EXISTS metadata_name_index ON metadata([name]);
 CREATE INDEX IF NOT EXISTS metadata_ref_index ON metadata([namespace], [name]);
+
+-- Discovery table
+--
+-- Used for storing discovered feeds & websites
+CREATE TABLE IF NOT EXISTS discovery (
+    [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
+    [kind] TEXT,
+    [url] TEXT,
+    [feed_url] TEXT,
+    [html_url] TEXT,
+    [favicon_url] TEXT,
+    [cover_url] TEXT,
+    [mentions_url] TEXT,
+    [email] TEXT,
+    [name] TEXT,
+    [title] TEXT,
+    [description] TEXT,
+    [username] TEXT,
+    [language] TEXT,
+
+    PRIMARY KEY ([id])
+);
 
 -- Metadata-Relation join table
 CREATE TABLE IF NOT EXISTS metadata_relation (

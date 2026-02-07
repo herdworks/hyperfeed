@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/herdworks/hyperfeed-go/internal/database"
 	"github.com/herdworks/hyperfeed-go/subscriber"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	"github.com/herdworks/hyperfeed-go/types/href"
@@ -17,7 +18,7 @@ import (
 // ============================ Package Variables ============================
 var (
 	LibVersion    = hyperfeed.LibVersion
-	SchemaVersion = hyperfeed.LibSchemaVersion
+	SchemaVersion = database.SchemaVersionLatest
 	ReleaseDate   = hyperfeed.LibReleaseDate
 )
 
