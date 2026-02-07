@@ -4,15 +4,35 @@ PRAGMA wal_autocheckpoint = 1000;
 PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
 
--- HyperFeed table (versioning info)
-CREATE TABLE IF NOT EXISTS hyperfeed (
-    [lib_version] TEXT UNIQUE,
-    [lib_schema_version] INTEGER,
-    [lib_release_date] TIMESTAMP,
-    [added_at] TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY ([lib_version])
+-- HyperFeed Schema version table (single-row)
+CREATE TABLE IF NOT EXISTS hyperfeed_schema (
+    [id] INTEGER PRIMARY KEY CHECK ([id] = 1),
+    [version] INTEGER NOT NULL,
+    [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- HyperFeed Schema triggers (enforce single-row, monotonic version increments)
+CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_insert_trigger
+BEFORE INSERT ON hyperfeed_schema
+FOR EACH ROW
+BEGIN
+    SELECT CASE
+        WHEN NEW.version > 1 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at 1')
+    END;
+END;
+CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
+BEFORE UPDATE ON hyperfeed_schema
+FOR EACH ROW
+BEGIN
+    SELECT CASE
+        WHEN NEW.version != OLD.version + 1
+            THEN RAISE(ABORT, 'hyperfeed_schema must increment by 1')
+    END;
+END;
+
+-- Initialize hyperfeed_schema with version 1 if not already set
+INSERT OR IGNORE INTO hyperfeed_schema (id, version) VALUES (1, 1);
 
 -- Initial version entry
 -- INSERT OR IGNORE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date)
