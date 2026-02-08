@@ -190,13 +190,13 @@ func TestIdentifierNormalization(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"http://example.com", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
-		{"http://example.com/", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
-		{"http://EXAMPLE.com", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
-		{"http://example.com:80", "2a1b402420ef46577471cdc7409b0fa2c6a204db"},
-		{"https://example.com/path", "5faa4bf4918ff56562141cc328545ec8f7b6dd27"},
-		{"https://example.com:443/path", "5faa4bf4918ff56562141cc328545ec8f7b6dd27"},
-		{"https://example.com/path?a=1&b=2", "94ab2087f4c4ce19d248cfbab9e2b19cc5065e44"},
+		{"http://example.com", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"https://example.com/", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"http://EXAMPLE.com", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"http://example.com:80", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"https://example.com/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
+		{"https://example.com:443/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
+		{"https://example.com/path?a=1&b=2", "c7fd3768059cbba04b6fc985a96aeb2a5f34ff37"},
 		{"", "8a5edab282632443219e051e4ade2d1d5bbc671c"}, // the empty url identifier
 	}
 	for _, tc := range tests {

@@ -174,6 +174,6 @@ func (script DatabaseScript) nooped(err error) bool {
 	if strings.Contains(strings.TrimSpace(err.Error()), prefix) {
 		fmt.Printf("maintenance %q no-op\n", script.Path)
 		return true
-	}	
+	}
 	return false
 }

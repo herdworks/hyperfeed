@@ -2,6 +2,11 @@
 
 Greetings, coding agent. Welcome to the team!
 
+## Project-specific Instructions
+
+* Use `go fmt` instead of `gofmt` for formatting
+* Always review database migration and maintenance scripts for potential idempotency issues
+
 ## General Instructions
 
 * Always refer to `README.md` for a description of this project's goals
