@@ -73,6 +73,20 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 	return export.MarshalIndent("", "\t")
 }
 
+// Backup exposes the Subscriber's database backup functionality
+func (subscriber *Subscriber) Backup(ctx context.Context, destinationPath string, w io.Writer) (err error) {
+	if subscriber.Database == nil {
+		return ErrDatabase
+	}
+	if subscriber.Database.Path == "" {
+		return ErrDatabase
+	}
+	if w == nil {
+		w = os.Stdout
+	}
+	return subscriber.Database.Backup(ctx, destinationPath, w)
+}
+
 // Refresh refreshes all subscribed feeds concurrently
 func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
 	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Millisecond})

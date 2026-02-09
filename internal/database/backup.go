@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -22,7 +23,8 @@ var (
 )
 
 // Backup creates an online backup using SQLite's backup API.
-func (db *Database) Backup(ctx context.Context, destPath string) (err error) {
+// TODO: add debug logging if an io.Writer is provided?
+func (db *Database) Backup(ctx context.Context, destPath string, _ io.Writer) (err error) {
 	var destDB *sql.DB
 	var srcConn, destConn *sql.Conn
 	if db == nil || db.DB == nil {
