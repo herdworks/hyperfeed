@@ -118,9 +118,11 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 // - An item's actual timestamp is determined by the earliest of PublishedAt and ModifiedAt
 // - We should always use the item's actual timestamp if it's not "zero" and not in the future
 // - If an item's actual timestamp is in the future, use AddedAt
-// - If an item's actual timestamp is "zero" (missing), use AddedAt offset
+// - If an item's actual timestamp is "zero" (missing), and it's a new feed, use the Unix epoch - offset
+// - If an item's actual timestamp is "zero" (missing), but the feed is not new, use AddedAt - offset
 // - If no other condition applies, use the AddedAt timestamp
 func (item *Item) TimelineAt(offset int) (ts time.Time) {
+	newFeed := count(item.Feed.Status.LastStatusCodes, 200, 304) == 1 // if the feed has only ever returned one successful response, it's our first time seeing items from this feed
 	ts = Earliest(item.PublishedAt, item.ModifiedAt) // actual item timestamp
 	if offset > 0 {
 		offset = -offset // use a negative offset to retain the original order of items with "zero" timestamps (within a given feed)
@@ -131,8 +133,11 @@ func (item *Item) TimelineAt(offset int) (ts time.Time) {
 	if ts.After(time.Now()) {
 		return item.AddedAt.UTC() // item has invalid future added timestamp, use added timestamp
 	}
-	if ts.IsZero() {
-		return item.AddedAt.Add(time.Duration(offset) * time.Second).UTC() // item is missing a timestamp, use added timestamp with offset to preserve deterministic order of items in a given feed
+	days := time.Duration((offset - 1)) * (time.Hour * 24)
+	if ts.IsZero() && newFeed {
+		return time.Unix(0, 0).Add(days).UTC() // if the feed is new and the item is missing a timestamp, use the Unix epoch with offset to preserve deterministic order of items in a new feed
+	} else if ts.IsZero() {
+		return item.AddedAt.Add(days).UTC() // item is missing a timestamp, use added timestamp with offset to preserve deterministic order of items in a given feed
 	}
 	return item.AddedAt.UTC() // default to added timestamp
 }
