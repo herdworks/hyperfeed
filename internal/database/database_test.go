@@ -147,10 +147,10 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		{
 			name: "Feed record",
 			writer: &hyperfeed.Feed{
-				URL:                &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
-				HTMLURL:            &href.Href{Scheme: "https", Host: "example.com"},
-				Title:              "Example Feed",
-				Website:            hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
+				Title:   "Example Feed",
+				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
 			},
 			reader: &hyperfeed.Feed{
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},

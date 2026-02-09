@@ -340,7 +340,7 @@ func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionLis
 	}
 	for _, outline := range subscriptions.OPML.Body.Outlines {
 		var feed *hyperfeed.Feed = &hyperfeed.Feed{
-			Title:              outline.Text,
+			Title: outline.Text,
 		}
 		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
 			return feeds, err

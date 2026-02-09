@@ -24,19 +24,19 @@ import (
 type Feed struct {
 	*DatabaseRecord
 
-	ID                 string        `json:"id,omitempty"`       // stable HyperFeed Feed identifier (normalized URL string)
-	Kind               string        `json:"kind"`               // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
-	URL                *href.Href    `json:"url,omitempty"`      // canonical feed URL (RSS/Atom endpoint)
-	HTMLURL            *href.Href    `json:"html_url,omitempty"` // human-readable feed URL (web page)
-	Title              string        `json:"title,omitempty"`
-	Description        string        `json:"description,omitempty"`
-	Language           string        `json:"language,omitempty"`
-	IsPodcast          bool          `json:"is_podcast,omitempty"`
-	Metadata           Metadata      `json:"metadata,omitempty"` // Non-standard/extension properties
-	Interval           time.Duration `json:"interval,omitempty"` // fetch interval in minutes
-	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
-	Website            Website       `json:"website,omitempty"`             // the Website this feed is associated with
-	Status             Status        `json:"status,omitempty"`              // fetch status
+	ID          string        `json:"id,omitempty"`       // stable HyperFeed Feed identifier (normalized URL string)
+	Kind        string        `json:"kind"`               // feed kind (e.g. "rss", "atom", "jsonfeed", "invalid", "unknown", etc.)
+	URL         *href.Href    `json:"url,omitempty"`      // canonical feed URL (RSS/Atom endpoint)
+	HTMLURL     *href.Href    `json:"html_url,omitempty"` // human-readable feed URL (web page)
+	Title       string        `json:"title,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Language    string        `json:"language,omitempty"`
+	IsPodcast   bool          `json:"is_podcast,omitempty"`
+	Metadata    Metadata      `json:"metadata,omitempty"` // Non-standard/extension properties
+	Interval    time.Duration `json:"interval,omitempty"` // fetch interval in minutes
+	UpdatedAt   time.Time     `json:"updated_at,omitempty"`
+	Website     Website       `json:"website,omitempty"` // the Website this feed is associated with
+	Status      Status        `json:"status,omitempty"`  // fetch status
 
 	Items []*Item `json:"-"` // the most recent items for this feed
 	Bytes []byte  `json:"-"` // the most recent contents (raw bytes) for this feed

@@ -48,7 +48,7 @@ type Status struct {
 	// TooSlow indicates the feed has returned consistently slow response times
 	TooSlow bool `json:"too_slow"`
 
-	// Zombie indicates the feed has returned too many consecutive errors and should be considered "dead" until the user intervenes. 
+	// Zombie indicates the feed has returned too many consecutive errors and should be considered "dead" until the user intervenes.
 	Zombie bool `json:"zombie"`
 
 	// ETag stores the value of the ETag header from the last successful fetch.

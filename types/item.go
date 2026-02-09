@@ -118,7 +118,7 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 // - An item's actual timestamp is determined by the earliest of PublishedAt and ModifiedAt
 // - We should always use the item's actual timestamp if it's not "zero" and not in the future
 // - If an item's actual timestamp is in the future, use AddedAt
-// - If an item's actual timestamp is "zero" (missing), use AddedAt offset 
+// - If an item's actual timestamp is "zero" (missing), use AddedAt offset
 // - If no other condition applies, use the AddedAt timestamp
 func (item *Item) TimelineAt(offset int) (ts time.Time) {
 	ts = Earliest(item.PublishedAt, item.ModifiedAt) // actual item timestamp

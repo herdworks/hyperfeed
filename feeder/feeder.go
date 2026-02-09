@@ -135,7 +135,7 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 		return true, nil // new feed
 	} else if feeder.Feed.Status.UpdatedAt == feeder.Feed.Status.LastCanceledAt {
 		return true, nil // last attempt was canceled; allow immediate retry
-	} 
+	}
 
 	// apply cooldown
 	cooldown := feeder.Feed.Status.Cooldown(feeder.Feed.Interval)
