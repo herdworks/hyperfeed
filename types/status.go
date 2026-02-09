@@ -45,6 +45,12 @@ type Status struct {
 	// PausedUntil stores user-imposed pause windows (manual snooze).
 	PausedUntil time.Time `json:"paused_until"`
 
+	// TooSlow indicates the feed has returned consistently slow response times
+	TooSlow bool `json:"too_slow"`
+
+	// Zombie indicates the feed has returned too many consecutive errors and should be considered "dead" until the user intervenes. 
+	Zombie bool `json:"zombie"`
+
 	// ETag stores the value of the ETag header from the last successful fetch.
 	ETag string `json:"etag"`
 
@@ -59,6 +65,9 @@ type Status struct {
 
 	// LastStatusCodes stores the last 30 status codes for diagnostic purposes.
 	LastStatusCodes []int `json:"last_status_codes"`
+
+	// LastResponseTimes stores the last 30 response times for diagnostic purposes.
+	LastResponseTimes []time.Duration `json:"last_response_times"`
 
 	// LastEntityUpdate
 	LastEntityUpdateAt time.Time `json:"last_entity_update_at"`
@@ -110,16 +119,37 @@ func (status *Status) Cooldown(interval time.Duration) (cooldown time.Duration) 
 	) * intervalUnits
 }
 
+// CheckUp evaluates the current status and returns true if the feed is healthy (i.e. not a zombie)
+func (status *Status) Healthy() bool {
+	if status.TooSlow || status.Zombie {
+		return false
+	}
+	if status.FetchErrors >= 10 {
+		return false
+	}
+	if count(status.LastStatusCodes, 0) >= 10 {
+		status.TooSlow = true
+	}
+	if len(status.LastStatusCodes) >= 10 && count(status.LastStatusCodes, 200) == 0 && count(status.LastStatusCodes, 304) == 0 {
+		status.Zombie = true
+	}
+	return !(status.TooSlow || status.Zombie)
+}
+
 func (status *Status) Fetched() bool {
 	return status.UpdatedAt == status.LastSuccessAt
 }
 
-func (status *Status) Skipped() bool {
-	return status.UpdatedAt != status.LastAttemptAt
-}
-
 func (status *Status) TimedOut() bool {
 	return status.UpdatedAt == status.LastCanceledAt
+}
+
+func (status *Status) RateLimited() bool {
+	return status.UpdatedAt == status.LastAttemptAt && status.RateLimit.Recent429s > 0
+}
+
+func (status *Status) Skipped() bool {
+	return status.UpdatedAt != status.LastAttemptAt
 }
 
 func (status *Status) Failed() bool {

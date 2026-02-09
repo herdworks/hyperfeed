@@ -17,8 +17,8 @@ BEFORE INSERT ON hyperfeed_schema
 FOR EACH ROW
 BEGIN
     SELECT CASE
-        WHEN NEW.version > 1 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
-            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 1')
+        WHEN NEW.version != 2 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 2')
     END;
 END;
 CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
@@ -31,8 +31,8 @@ BEGIN
     END;
 END;
 
--- Initialize hyperfeed_schema with version 1 if not already set
-INSERT OR IGNORE INTO hyperfeed_schema (id, version) VALUES (1, 1);
+-- Initialize hyperfeed_schema with version 2 if not already set
+INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (2);
 
 -- Scripts table
 CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
@@ -92,6 +92,7 @@ CREATE INDEX IF NOT EXISTS websites_email_index ON websites([email]);
 
 -- Feeds table
 CREATE TABLE IF NOT EXISTS feeds (
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
     [id] TEXT,
     [kind] TEXT,
     [url] TEXT UNIQUE,
@@ -110,9 +111,6 @@ CREATE TABLE IF NOT EXISTS feeds (
     --   This allows efficient filtering/sorting on JSON subfields.
     --   Use VIRTUAL for unindexed columns or write-heavy workloads, STORED for indexed columns or read-heavy workloads
     [updated_at] TIMESTAMP GENERATED ALWAYS AS (json_extract(status, '$.updated_at')) STORED,
-
-    [subscriptionlist_id] TEXT REFERENCES subscriptionlists([id]),
-    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
 
     PRIMARY KEY ([id])
 );
@@ -178,7 +176,7 @@ CREATE INDEX IF NOT EXISTS bylines_email_index ON bylines([email]);
 
 -- Links table
 CREATE TABLE IF NOT EXISTS links (
-    [website_id] TEXT,
+    [website_id] TEXT, -- soft back reference to parent website
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [href] TEXT NOT NULL,
     [cover_href] TEXT,
@@ -261,30 +259,30 @@ CREATE TABLE IF NOT EXISTS discovery (
 
 -- Metadata-Relation join table
 CREATE TABLE IF NOT EXISTS metadata_relation (
-    [subscription_id] TEXT REFERENCES subscriptionlists([id]),
-    [feed_id] TEXT REFERENCES feeds([id]),
-    [item_id] TEXT REFERENCES items([id]),
-    [metadata_id] INTEGER NOT NULL REFERENCES metadata([id]),
+    [website_id] TEXT REFERENCES websites([id]),
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [item_id] TEXT REFERENCES items([id]) ON DELETE CASCADE,
+    [metadata_id] INTEGER NOT NULL REFERENCES metadata([id]) ON DELETE CASCADE,
 
-    CHECK((subscription_id IS NOT NULL) OR (feed_id IS NOT NULL) OR (item_id IS NOT NULL)),
+    CHECK((website_id IS NOT NULL) OR (feed_id IS NOT NULL) OR (item_id IS NOT NULL)),
 
-    UNIQUE (subscription_id, metadata_id),
+    UNIQUE (website_id, metadata_id),
     UNIQUE (feed_id, metadata_id),
     UNIQUE (item_id, metadata_id),
 
-    PRIMARY KEY([subscription_id], [feed_id], [item_id])
+    PRIMARY KEY([website_id], [feed_id], [item_id])
 );
-CREATE INDEX IF NOT EXISTS metadata_relation_subscription_id_index ON metadata_relation([subscription_id]);
+CREATE INDEX IF NOT EXISTS metadata_relation_website_id_index ON metadata_relation([website_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_feed_id_index ON metadata_relation([feed_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_item_id_index ON metadata_relation([item_id]);
 CREATE INDEX IF NOT EXISTS metadata_relation_metadata_id_index ON metadata_relation([metadata_id]);
 
 -- Item-Bylines join table
 CREATE TABLE IF NOT EXISTS item_bylines (
-    [website_id] TEXT REFERENCES websites([id]),
-    [feed_id] TEXT REFERENCES feeds([id]),
-    [item_id] TEXT REFERENCES items([id]),
-    [byline_id] TEXT NOT NULL REFERENCES bylines([id]),
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [item_id] TEXT REFERENCES items([id]) ON DELETE CASCADE,
+    [byline_id] TEXT NOT NULL REFERENCES bylines([id]) ON DELETE CASCADE,
 
     PRIMARY KEY([item_id], [byline_id])
 );
@@ -294,10 +292,10 @@ CREATE INDEX IF NOT EXISTS item_bylines_byline_id_index ON item_bylines([byline_
 
 -- Item-Attachments join table
 CREATE TABLE IF NOT EXISTS item_attachments (
-    [website_id] TEXT REFERENCES websites([id]),
-    [feed_id] TEXT REFERENCES feeds([id]),
-    [item_id] TEXT REFERENCES items([id]),
-    [attachment_id] TEXT NOT NULL REFERENCES attachments([id]),
+    [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [item_id] TEXT REFERENCES items([id]) ON DELETE CASCADE,
+    [attachment_id] TEXT NOT NULL REFERENCES attachments([id]) ON DELETE CASCADE,
     PRIMARY KEY([item_id], [attachment_id])
 );
 CREATE INDEX IF NOT EXISTS item_attachments_website_id_index ON item_attachments([website_id]);
@@ -308,14 +306,16 @@ CREATE INDEX IF NOT EXISTS item_attachments_attachment_id_index ON item_attachme
 -- Item-Links join table
 CREATE TABLE IF NOT EXISTS item_links (
     [website_id] TEXT REFERENCES websites([id]) ON DELETE CASCADE,
-    [feed_id] TEXT REFERENCES feeds([id]),
-    [item_id] TEXT REFERENCES items([id]),
-    [link_id] TEXT REFERENCES links([id]),
+    [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
+    [item_id] TEXT REFERENCES items([id]) ON DELETE CASCADE,
+    [link_id] TEXT REFERENCES links([id]) ON DELETE CASCADE,
     [weight] FLOAT,
 
     PRIMARY KEY([item_id], [link_id])
 );
 CREATE INDEX IF NOT EXISTS item_links_link_id_item_id_index ON item_links(link_id, item_id);
+CREATE INDEX IF NOT EXISTS item_links_website_id_index ON item_links([website_id]);
+CREATE INDEX IF NOT EXISTS item_links_feed_id_index ON item_links([feed_id]);
 
 -- SubscriptionListsView
 CREATE VIEW IF NOT EXISTS subscriptionlists_view AS
@@ -392,13 +392,11 @@ SELECT
             ),
             json(NULL)
         ),
-        'status', json([feeds].[status]),
-        'subscriptionlist_id', [feeds].[subscriptionlist_id]
+        'status', json([feeds].[status])
     ) AS 'feed',
     [feeds].[id],
     [feeds].[url],
     [feeds].[updated_at],
-    [feeds].[subscriptionlist_id],
     [feeds].[website_id]
 FROM
     [feeds]
@@ -494,8 +492,7 @@ SELECT
                     'language', [feeds].[language],
                     'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
                     'website', json(NULL),
-                    'status', json([feeds].[status]),
-                    'subscriptionlist_id', [feeds].[subscriptionlist_id]
+                    'status', json([feeds].[status])
                 )
             FROM [feeds]
             WHERE [feeds].[id] = [items].[feed_id]

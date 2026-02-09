@@ -37,7 +37,6 @@ type Feed struct {
 	UpdatedAt          time.Time     `json:"updated_at,omitempty"`
 	Website            Website       `json:"website,omitempty"`             // the Website this feed is associated with
 	Status             Status        `json:"status,omitempty"`              // fetch status
-	SubscriptionListID string        `json:"subscriptionlist_id,omitempty"` // the SubscriptionList.ID this feed originated from
 
 	Items []*Item `json:"-"` // the most recent items for this feed
 	Bytes []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
@@ -140,10 +139,10 @@ func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer)
 	if !feed.Status.LastEntityUpdateAt.IsZero() && time.Since(feed.Status.LastEntityUpdateAt) < 24*time.Hour {
 		return nil // recently updated
 	}
-	if err = document.Download(ctx, true, nil, timeout, w); err != nil {
+	if err = document.Download(ctx, true, nil, int(timeout/1000), w); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("downloading document"), err)
 	}
-	if err = document.Scrape(ctx, true, nil, timeout, w); err != nil {
+	if err = document.Scrape(ctx, true, nil, int(timeout/1000), w); err != nil {
 		return errors.Join(ErrScraper, fmt.Errorf("scraping document"), err)
 	}
 	feed.Website.Entity = document.Metadata.Entity
@@ -158,11 +157,11 @@ func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer)
 func (*Feed) DatabaseObject() string {
 	return "feed"
 }
-func (*Feed) DatabaseTable() string {
-	return "feeds"
-}
 func (*Feed) DatabaseView() string {
 	return "feeds_view"
+}
+func (*Feed) DatabaseTable() string {
+	return "feeds"
 }
 func (*Feed) DatabaseInsertColumns() []string {
 	return []string{
@@ -176,7 +175,6 @@ func (*Feed) DatabaseInsertColumns() []string {
 		"is_podcast",
 		"interval",
 		"status",
-		"subscriptionlist_id",
 		"website_id",
 	}
 }
@@ -199,7 +197,6 @@ func (feed *Feed) DatabaseInsertValues() (values []any) {
 	} else {
 		values = append(values, sql.Named("status", "{}")) // status
 	}
-	values = append(values, sql.Named("subscriptionlist_id", feed.SubscriptionListID)) // subscriptionlist_id
 	if len(feed.Website.HTMLURL) > 0 {
 		values = append(values, sql.Named("website_id", feed.Website.Identifier())) // website_id
 	} else {
@@ -218,7 +215,6 @@ func (feed *Feed) DatabaseUpdatesSet(_ []string) []string {
 		"is_podcast = excluded.is_podcast",
 		"interval = excluded.interval",
 		"status = excluded.status",
-		// never update subscriptionlist_id
 		"website_id = excluded.website_id",
 	}
 }

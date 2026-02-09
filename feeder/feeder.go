@@ -51,6 +51,7 @@ var (
 	ErrReadiness      = errors.New("feeder not ready")
 	ErrPaused         = errors.New("feed paused")
 	ErrTooSoonJunior  = errors.New("too soon, junior")
+	ErrUnhealthy      = errors.New("feed is unhealthy")
 	ErrThrottled      = errors.New("throttled to avoid rate limiting")
 	ErrRateLimited    = errors.New("rate limited")
 	ErrFeed           = errors.New("invalid feed")
@@ -85,7 +86,7 @@ var (
 
 // Tick handles a feed scheduling event.
 // It performs readiness checks, builds and sends the request, applies the response.
-func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, timelinePosition time.Time, w io.Writer) error {
+func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, at time.Time, w io.Writer) error {
 	var ready bool
 	var request *http.Request
 	var response *http.Response
@@ -94,6 +95,7 @@ func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, timelinePos
 	if w == nil {
 		w = os.Stdout
 	}
+	feeder.Feed.Status.UpdatedAt = at
 	if ready, err = feeder.Ready(); !ready {
 		feeder.Log(nil, errors.Join(ErrReadiness, err), w)
 		return err
@@ -116,7 +118,7 @@ func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, timelinePos
 		feeder.Log(response, errors.Join(ErrResponse, err), w)
 		return err
 	}
-	return feeder.Parse(ctx, request.URL, body, timelinePosition, w)
+	return feeder.Parse(ctx, request.URL, body, w)
 }
 
 // Ready determines if the Feeder is ready to be fetched again.
@@ -127,13 +129,13 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 	if feeder.Feed == nil {
 		feeder.Feed = &hyperfeed.Feed{URL: &href.Href{}}
 		return false, ErrFeed // feeder must have a feed
-	}
-	if feeder.Feed.Status.UpdatedAt.IsZero() {
+	} else if !feeder.Feed.Status.Healthy() {
+		return false, ErrUnhealthy // feed is unhealthy; checkup required
+	} else if feeder.Feed.Status.UpdatedAt.IsZero() || feeder.Feed.Status.LastSuccessAt.IsZero() {
 		return true, nil // new feed
-	}
-	if feeder.Feed.Status.UpdatedAt == feeder.Feed.Status.LastCanceledAt {
+	} else if feeder.Feed.Status.UpdatedAt == feeder.Feed.Status.LastCanceledAt {
 		return true, nil // last attempt was canceled; allow immediate retry
-	}
+	} 
 
 	// apply cooldown
 	cooldown := feeder.Feed.Status.Cooldown(feeder.Feed.Interval)
@@ -141,20 +143,20 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 
 	// check readiness (paused, rate limited, error cooldown, interval)
 	// TODO: add support for checking if feeder.Feed.Interval < feeder.Feed.Status.RateLimit.PollInterval
+	if tick.Before(feeder.Feed.Status.LastSuccessAt.Add(feeder.Feed.Interval)) {
+		return false, ErrTooSoonJunior // not enough time has passed since last successful fetch (interval)
+	}
 	if tick.Before(feeder.Feed.Status.PausedUntil) {
 		return false, ErrPaused // feed is paused
 	}
 	if tick.Before(feeder.Feed.Status.RateLimit.WaitUntil) {
-		return false, ErrTooSoonJunior // throttled
+		return false, ErrThrottled // throttled to respect server-side rate limits
 	}
-	if tick.Before(retryAfter.Add(cooldown)) {
-		return false, ErrTooSoonJunior // throttled
+	if tick.Before(retryAfter) {
+		return false, ErrThrottled // throttled to respect server-side rate limits
 	}
 	if tick.Before(feeder.Feed.Status.LastErrorAt.Add(cooldown)) {
-		return false, ErrTooSoonJunior // feed is in cooldown-only period after last error
-	}
-	if tick.Before(feeder.Feed.Status.LastSuccessAt.Add(feeder.Feed.Interval)) {
-		return false, ErrTooSoonJunior // not enough time has passed since last successful fetch (interval+cooldown)
+		return false, ErrTooSoonJunior // let's wait a beat before trying again
 	}
 	return true, nil
 }
@@ -186,7 +188,7 @@ func (feeder *Feeder) Apply(response *http.Response, w io.Writer) {
 	}
 	feeder.ApplyReset(response, w)
 	feeder.ApplyTimestamps(response, nil, w)
-	feeder.ApplyStatusCode(response, w)
+	feeder.ApplyStatusCode(response, nil, w)
 	feeder.ApplyHeaders(response, w)
 	feeder.ApplyRateLimits(response, w)
 }
@@ -198,7 +200,6 @@ func (feeder *Feeder) ApplyReset(response *http.Response, w io.Writer) {
 	}
 }
 func (feeder *Feeder) ApplyTimestamps(response *http.Response, err error, w io.Writer) {
-	feeder.Feed.Status.UpdatedAt = time.Now().UTC()
 	if feeder.Feed.Status.CreatedAt.IsZero() {
 		feeder.Feed.Status.CreatedAt = feeder.Feed.Status.UpdatedAt
 	}
@@ -220,13 +221,20 @@ func (feeder *Feeder) ApplyTimestamps(response *http.Response, err error, w io.W
 		feeder.Feed.Status.LastErrorAt = feeder.Feed.Status.UpdatedAt
 	}
 }
-func (feeder *Feeder) ApplyStatusCode(response *http.Response, w io.Writer) {
+func (feeder *Feeder) ApplyStatusCode(response *http.Response, err error, w io.Writer) {
 	if feeder.Status.LastStatusCodes == nil {
 		feeder.Status.LastStatusCodes = []int{}
 	}
 	var limit int = min(29, len(feeder.Status.LastStatusCodes))
-	if response == nil || response.StatusCode < 100 {
-		return // only log valid HTTP status codes
+	if response == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		feeder.Status.LastStatusCode = 0
+		feeder.Status.LastStatusCodes = append([]int{0}, feeder.Status.LastStatusCodes[:limit]...) // use 0 to indicate no status code was received
+		return
+	}
+	if errors.Is(err, ErrRateLimited) || errors.Is(err, ErrThrottled) {
+		feeder.Status.LastStatusCode = 1
+		feeder.Status.LastStatusCodes = append([]int{1}, feeder.Status.LastStatusCodes[:limit]...)
+		return
 	}
 	feeder.Status.LastStatusCode = response.StatusCode
 	feeder.Status.LastStatusCodes = append([]int{response.StatusCode}, feeder.Status.LastStatusCodes[:limit]...)
@@ -264,7 +272,7 @@ func (feeder *Feeder) Log(response *http.Response, err error, w io.Writer) {
 	}
 	feeder.ApplyReset(response, w)
 	feeder.ApplyTimestamps(response, err, w)
-	feeder.ApplyStatusCode(response, w)
+	feeder.ApplyStatusCode(response, err, w)
 	feeder.ApplyRateLimits(response, w)
 	feeder.LogErrors(response, err, w)
 }
@@ -283,7 +291,7 @@ func (feeder *Feeder) LogErrors(response *http.Response, err error, w io.Writer)
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		fmt.Fprintf(w, "feed %q canceled\n", feeder.Feed.URL.String())
 		return
-	case errors.Is(err, ErrRateLimited):
+	case errors.Is(err, ErrRateLimited) || errors.Is(err, ErrThrottled):
 		fmt.Fprintf(w, "feed %q rate limited: %v\n", feeder.Feed.URL.String(), message)
 		return
 	case errors.As(err, &ErrDNS):
@@ -305,7 +313,7 @@ func (feeder *Feeder) LogErrors(response *http.Response, err error, w io.Writer)
 	feeder.Feed.Status.LastError = message
 }
 
-func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, timelinePosition time.Time, w io.Writer) (err error) {
+func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, w io.Writer) (err error) {
 	var parser FeedParser
 	if w == nil {
 		w = os.Stdout
@@ -313,7 +321,7 @@ func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, timel
 	if parser, err = NewFeedParser(feeder.Feed, bytes); err != nil || parser == nil {
 		return err
 	}
-	if _, err = parser.Parse(timelinePosition, w); err != nil {
+	if _, err = parser.Parse(w); err != nil {
 		return err
 	}
 	// feeder.Feed = parser.Feed

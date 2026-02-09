@@ -25,7 +25,7 @@ import (
 
 type FeedParser interface {
 	Ready() bool
-	Parse(time.Time, io.Writer) (*hyperfeed.Feed, error)
+	Parse(io.Writer) (*hyperfeed.Feed, error)
 }
 
 type RSSFeedParser struct {
@@ -79,7 +79,7 @@ func (parser *RSSFeedParser) Ready() bool {
 }
 
 // RSSFeedParser.Parse()
-func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
+func (parser *RSSFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
 	if w == nil {
 		w = os.Stdout
@@ -136,7 +136,7 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hy
 	}
 
 	// Feed.Items
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, w); err != nil {
 		return nil, err
 	}
 	if len(parser.RSS.Channel.Items) != len(parser.Feed.Items) {
@@ -146,8 +146,8 @@ func (parser *RSSFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hy
 }
 
 // RSSFeedParser.Items()
-func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
-	for _, rssitem := range parser.RSS.Channel.Items {
+func (parser *RSSFeedParser) Items(added time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
+	for index, rssitem := range parser.RSS.Channel.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = rssitem.GUID.Value
 		item.URL = parser.RSS.ItemLink(&rssitem, parser.Feed.HTMLURL.URL())
@@ -163,7 +163,7 @@ func (parser *RSSFeedParser) Items(added time.Time, timelinePosition time.Time, 
 		item.ModifiedAt = item.PublishedAt // rss items don't have a modified date
 		item.AddedAt = added
 		item.UpdatedAt = added
-		item.FeedAt = item.TimelineAt(timelinePosition)
+		item.FeedAt = item.TimelineAt(-index) // use the index as a negative offset to preserve the original feed order of items
 		if byline := rss.GetDublinCoreCreator(rssitem.Extensions); byline != "" {
 			name, email := rss.ParseAuthor(byline)
 			item.Bylines = append(item.Bylines, hyperfeed.Byline{Name: strings.TrimSpace(name), Email: email})
@@ -219,7 +219,7 @@ func (parser *AtomFeedParser) Ready() bool {
 }
 
 // AtomFeedParser.Parse()
-func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
+func (parser *AtomFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
 	if w == nil {
 		w = os.Stdout
@@ -296,7 +296,7 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 	}
 
 	// Feed.Items
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, w); err != nil {
 		return nil, err
 	}
 	if len(parser.Atom.Entries) != len(parser.Feed.Items) {
@@ -306,8 +306,8 @@ func (parser *AtomFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 }
 
 // AtomFeedParser.Items()
-func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
-	for _, entry := range parser.Atom.Entries {
+func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
+	for index, entry := range parser.Atom.Entries {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = entry.ID
 		if link := entry.InternalLink(parser.Feed.URL.URL()); link != nil {
@@ -327,7 +327,7 @@ func (parser *AtomFeedParser) Items(added time.Time, timelinePosition time.Time,
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
 		item.UpdatedAt = added
-		item.FeedAt = item.TimelineAt(timelinePosition)
+		item.FeedAt = item.TimelineAt(-index) // use the index as a negative offset to preserve the original feed order of items
 		for _, byline := range append(entry.Authors, entry.Contributors...) {
 			href, _ := href.Parse(byline.URI)
 			item.Bylines = append(item.Bylines, hyperfeed.Byline{Href: href, Name: strings.TrimSpace(byline.Name), Email: byline.Email})
@@ -374,7 +374,7 @@ func (parser *JSONFeedParser) Ready() bool {
 }
 
 // JSONFeedParser.Parse()
-func (parser *JSONFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*hyperfeed.Feed, error) {
+func (parser *JSONFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 	var err error
 	if w == nil {
 		w = os.Stdout
@@ -423,7 +423,7 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 	if parser.Feed.Website.Username == "" {
 		parser.Feed.Website.Username = username.Parse(parser.Feed.HTMLURL.String())
 	}
-	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, timelinePosition, w); err != nil {
+	if parser.Feed.Items, err = parser.Items(parser.Feed.Status.UpdatedAt, w); err != nil {
 		return nil, err
 	}
 	if len(parser.JSON.Items) != len(parser.Feed.Items) {
@@ -433,8 +433,8 @@ func (parser *JSONFeedParser) Parse(timelinePosition time.Time, w io.Writer) (*h
 }
 
 // JSONFeedParser.Items()
-func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
-	for _, jsonitem := range parser.JSON.Items {
+func (parser *JSONFeedParser) Items(added time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
+	for index, jsonitem := range parser.JSON.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
@@ -451,7 +451,7 @@ func (parser *JSONFeedParser) Items(added time.Time, timelinePosition time.Time,
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
 		item.UpdatedAt = added
-		item.FeedAt = item.TimelineAt(timelinePosition)
+		item.FeedAt = item.TimelineAt(-index) // use the index as a negative offset to preserve the original feed order of items
 		for _, byline := range jsonitem.Authors {
 			url, _ := href.Parse(byline.URL)
 			favicon, _ := href.Parse(byline.Avatar)
@@ -495,7 +495,7 @@ func (parser *NoFeedParser) Ready() bool {
 }
 
 // NoFeedParser.Parse()
-func (parser *NoFeedParser) Parse(_ time.Time, _ io.Writer) (*hyperfeed.Feed, error) {
+func (parser *NoFeedParser) Parse(_ io.Writer) (*hyperfeed.Feed, error) {
 	return parser.Feed, nil
 }
 

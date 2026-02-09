@@ -5,6 +5,10 @@ Greetings, coding agent. Welcome to the team!
 ## Project-specific Instructions
 
 * Use `go fmt` instead of `gofmt` for formatting
+* When necessary, use the `sqlite3` CLI tool to inspect `*.db` files in this project
+* Run this project using `go run main.go` (use `go run main.go --help` for CLI arguments)
+* To run this project with my preferred sample data, use `go run main.go --opml example.opml`
+  NOTE: if `./example.opml` isn't available, any `./*.opml` file will work.
 * Always review database migration and maintenance scripts for potential idempotency issues
 
 ## General Instructions
@@ -167,7 +171,7 @@ Greetings, coding agent. Welcome to the team!
   * [Google's Go Style Guide](https://google.github.io/styleguide/go/)
 * Use Go modules (`go.mod` / `go.sum`)
 * Run `go mod tidy` to clean up unused dependencies
-* Always format with `go fmt` (or `gofmt`)
+* Always format with `go fmt`
 * Always use the `testing` package for tests
   * Place tests in `_test.go` files next to the code
   * Mark helpers with `t.Helper()` and use `t.Cleanup()` for teardown

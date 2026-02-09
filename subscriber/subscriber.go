@@ -48,10 +48,10 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 			DateCreated: time.Now().Format(time.RFC1123Z),
 		},
 	}
-	if err = subscriber.Database.Open(ctx); err == nil {
-		defer subscriber.Database.Close()
-	} else {
+	if err = subscriber.Database.Open(ctx); err != nil {
 		return nil, err
+	} else {
+		defer subscriber.Database.Close()
 	}
 	if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
 		return nil, err
@@ -75,22 +75,19 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 
 // Refresh refreshes all subscribed feeds concurrently
 func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
-	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
+	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Millisecond})
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
-	var timelinePosition time.Time = time.Time{}
-	subscriber.Status = &Status{UpdatedAt: time.Now().UTC()}
+	subscriber.Status = &Status{UpdatedAt: start}
 	ticker, cancellation = errgroup.WithContext(ctx)
 	if w == nil {
 		w = os.Stdout
 	}
 
-	// TODO: do we need to open the database here, or can we just check if it is already open?
-	if err = subscriber.Database.Open(ctx); err == nil {
-		defer subscriber.Database.Close()
-	} else {
-		return err
+	// check database
+	if subscriber.Database == nil || subscriber.Database.DB == nil {
+		return ErrDatabase
 	}
 
 	// Resolve provided feeds with state from database
@@ -105,40 +102,23 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 		}
 	}
 
-	// Determine timeline position based on newest item in database
-	if i, err := database.LastRecord[*hyperfeed.Item](ctx, subscriber.Database, "feed_at", "DESC"); err == nil && i != nil {
-		timelinePosition = (*i).FeedAt.UTC()
-		fmt.Fprintf(w, "setting timeline position to newest item at %v\n", timelinePosition)
-	}
-
 	// Refresh all feeds concurrently
 	for _, feed := range feeds {
+		feed := feed
 		ff := &feeder.Feeder{Feed: feed}
 		if ff.Feed.Interval == 0 {
 			ff.Feed.Interval = 5 * time.Minute // default interval
 		}
 		ticker.Go(func() (e error) {
-			ff.Tick(cancellation, client, timelinePosition, w) // ignore tick errors; they are recorded in f.Feed.Status
-			subscriber.Status.ItemsFetched.Increment(len(ff.Feed.Items))
+			ff.Tick(cancellation, client, start, w) // ignore tick errors; they are recorded in f.Feed.Status
 			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
 				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
 					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
 				}
-				ff.Feed.Status.LastEntityUpdateAt = time.Now().UTC()
+				ff.Feed.Status.LastEntityUpdateAt = start
 			}
-			if ff.Feed.Status.Fetched() {
-				subscriber.Status.FeedsFetched.Increment(1)
-			}
-			if ff.Feed.Status.Skipped() {
-				subscriber.Status.FeedsSkipped.Increment(1)
-			}
-			if ff.Feed.Status.TimedOut() {
-				subscriber.Status.FeedsTooSlowJunior.Increment(1)
-			}
-			if ff.Feed.Status.Failed() {
-				subscriber.Status.FeedsFailed.Increment(1)
-			}
+			subscriber.Status.Log(ff.Feed, e, w)
 			return nil
 		})
 	}
@@ -155,6 +135,7 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
 		return err
 	} else {
+		// only count items if we successfully saved them
 		if a, u, err := subscriber.RefreshedItemCounts(ctx, w, start); err != nil {
 			fmt.Fprintf(w, "error counting refreshed items: %v\n", err)
 		} else {
@@ -199,10 +180,12 @@ type Config struct {
 type Status struct {
 	Duration           time.Duration     `json:"duration,omitempty"`
 	UpdatedAt          time.Time         `json:"updated_at,omitempty"`
+	FeedsCount         hyperfeed.Counter `json:"feeds_count,omitempty"`
 	FeedsSkipped       hyperfeed.Counter `json:"feeds_skipped,omitempty"`
+	FeedsRateLimited   hyperfeed.Counter `json:"feeds_rate_limited,omitempty"`
+	FeedsFetched       hyperfeed.Counter `json:"feeds_fetched,omitempty"`
 	FeedsTooSlowJunior hyperfeed.Counter `json:"feeds_too_slow_junior,omitempty"`
 	FeedsFailed        hyperfeed.Counter `json:"feeds_failed,omitempty"`
-	FeedsFetched       hyperfeed.Counter `json:"feeds_fetched,omitempty"`
 	ItemsFetched       hyperfeed.Counter `json:"items_fetched,omitempty"`
 	ItemsDuplicate     hyperfeed.Counter `json:"items_duplicate,omitempty"`
 	ItemsAdded         hyperfeed.Counter `json:"items_added,omitempty"`
@@ -210,6 +193,22 @@ type Status struct {
 
 	// TODO: add bytes downloaded
 	// TODO: add image counts
+}
+
+func (status *Status) Log(feed *hyperfeed.Feed, _ error, _ io.Writer) {
+	status.FeedsCount.Increment(1)
+	if feed.Status.Fetched() {
+		status.FeedsFetched.Increment(1)
+		status.ItemsFetched.Increment(len(feed.Items))
+	} else if feed.Status.TimedOut() {
+		status.FeedsTooSlowJunior.Increment(1)
+	} else if feed.Status.RateLimited() {
+		status.FeedsRateLimited.Increment(1)
+	} else if feed.Status.Skipped() || !feed.Status.Healthy() {
+		status.FeedsSkipped.Increment(1)
+	} else if feed.Status.Failed() {
+		status.FeedsFailed.Increment(1)
+	}
 }
 
 // ============================ Package Variables =============================
@@ -342,7 +341,6 @@ func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionLis
 	for _, outline := range subscriptions.OPML.Body.Outlines {
 		var feed *hyperfeed.Feed = &hyperfeed.Feed{
 			Title:              outline.Text,
-			SubscriptionListID: subscriptions.Identifier(),
 		}
 		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
 			return feeds, err
@@ -631,16 +629,17 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 
 func (status *Status) Print() string {
 	var report string = "\n"
-	report += fmt.Sprintf("Feeds Skipped:   %6d\n", status.FeedsSkipped.Count)
-	report += fmt.Sprintf("Feeds TooSlow:   %6d\n", status.FeedsTooSlowJunior.Count)
-	report += fmt.Sprintf("Feeds Failed:    %6d\n", status.FeedsFailed.Count)
-	report += fmt.Sprintf("Feeds Fetched:   %6d\n", status.FeedsFetched.Count)
-	report += fmt.Sprintf("Items Fetched:   %6d\n", status.ItemsFetched.Count)
-	report += fmt.Sprintf("Items Duplicate: %6d\n", status.ItemsDuplicate.Count)
-	report += fmt.Sprintf("Items Updated:   %6d\n", status.ItemsUpdated.Count)
-	report += fmt.Sprintf("Items Added:     %6d\n", status.ItemsAdded.Count)
-	report += "-----------------------\n"
-	report += fmt.Sprintf("TOTAL:          %7v\n", status.Duration.Truncate(time.Millisecond))
+	report += fmt.Sprintf("Feeds Total:       %6d\n", status.FeedsCount.Count)
+	report += fmt.Sprintf("Feeds Skipped:     %6d\n", status.FeedsSkipped.Count)
+	report += fmt.Sprintf("Feeds RateLimited: %6d\n", status.FeedsRateLimited.Count)
+	report += fmt.Sprintf("Feeds Fetched:     %6d\n", status.FeedsFetched.Count)
+	report += fmt.Sprintf("Feeds TooSlow:     %6d\n", status.FeedsTooSlowJunior.Count)
+	report += fmt.Sprintf("Feeds Failed:      %6d\n", status.FeedsFailed.Count)
+	report += fmt.Sprintf("Items Fetched:     %6d\n", status.ItemsFetched.Count)
+	report += fmt.Sprintf("Items Updated:     %6d\n", status.ItemsUpdated.Count)
+	report += fmt.Sprintf("Items Added:       %6d\n", status.ItemsAdded.Count)
+	report += "-------------------------\n"
+	report += fmt.Sprintf("TOTAL:            %7v\n", status.Duration.Truncate(time.Millisecond))
 	return report
 }
 

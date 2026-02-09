@@ -115,27 +115,26 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 // TimelineAt computes the HyperFeed default "chronological" timeline timestamp for an item
 //
 // TimelineAt uses the following logic:
-// - If timelinePosition is zero, return the item's actual timestamp (PublishedAt or ModifiedAt).
-// - If the item's actual timestamp is after timelinePosition and before now, return the actual timestamp.
-// - If the item's actual timestamp is after timelinePosition and also after now, return AddedAt.
-// - If AddedAt is after timelinePosition, return AddedAt.
-// - Otherwise, return timelinePosition + 1 minute to nudge the item into the timeline.
-func (item *Item) TimelineAt(timelinePosition time.Time) (ts time.Time) {
+// - An item's actual timestamp is determined by the earliest of PublishedAt and ModifiedAt
+// - We should always use the item's actual timestamp if it's not "zero" and not in the future
+// - If an item's actual timestamp is in the future, use AddedAt
+// - If an item's actual timestamp is "zero" (missing), use AddedAt offset 
+// - If no other condition applies, use the AddedAt timestamp
+func (item *Item) TimelineAt(offset int) (ts time.Time) {
 	ts = Earliest(item.PublishedAt, item.ModifiedAt) // actual item timestamp
-	if timelinePosition.IsZero() && ts.Before(time.Now()) {
-		return ts.UTC() // new timeline, use actual item timestamp
+	if offset > 0 {
+		offset = -offset // use a negative offset to retain the original order of items with "zero" timestamps (within a given feed)
 	}
-	if ts.After(timelinePosition) && ts.Before(time.Now()) {
-		return ts.UTC() // item is between timeline position and "now", use actual item timestamp
+	if !ts.IsZero() && ts.Before(time.Now()) {
+		return ts.UTC() // use item timestamp if it's not "zero" and not in the future
 	}
-	if ts.After(timelinePosition) && ts.After(time.Now()) {
+	if ts.After(time.Now()) {
 		return item.AddedAt.UTC() // item has invalid future added timestamp, use added timestamp
 	}
-	if item.AddedAt.After(timelinePosition) {
-		return item.AddedAt.UTC() // item is behind timeline but was added after timeline position
+	if ts.IsZero() {
+		return item.AddedAt.Add(time.Duration(offset) * time.Second).UTC() // item is missing a timestamp, use added timestamp with offset to preserve deterministic order of items in a given feed
 	}
-	// the timeline is scrolled and the item is older than the timeline position
-	return timelinePosition.Add(1 * time.Minute) // nudge item into timeline
+	return item.AddedAt.UTC() // default to added timestamp
 }
 
 func (*Item) DatabaseObject() string {
@@ -202,8 +201,8 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 		"is_podcast_episode = excluded.is_podcast_episode",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
-		// "website_id = excluded.website_id",
-		// "link_id = excluded.link_id",
+		"website_id = excluded.website_id",
+		"link_id = excluded.link_id",
 	}
 }
 

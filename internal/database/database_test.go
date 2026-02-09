@@ -151,7 +151,6 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 				HTMLURL:            &href.Href{Scheme: "https", Host: "example.com"},
 				Title:              "Example Feed",
 				Website:            hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
-				SubscriptionListID: (&hyperfeed.SubscriptionList{Path: "following.opml", OPML: &opml.OPML{}}).Identifier(),
 			},
 			reader: &hyperfeed.Feed{
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
