@@ -226,7 +226,7 @@ func (feeder *Feeder) ApplyStatusCode(response *http.Response, err error, w io.W
 		feeder.Status.LastStatusCodes = []int{}
 	}
 	var limit int = min(29, len(feeder.Status.LastStatusCodes))
-	if response == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		feeder.Status.LastStatusCode = 0
 		feeder.Status.LastStatusCodes = append([]int{0}, feeder.Status.LastStatusCodes[:limit]...) // use 0 to indicate no status code was received
 		return
@@ -234,6 +234,9 @@ func (feeder *Feeder) ApplyStatusCode(response *http.Response, err error, w io.W
 	if errors.Is(err, ErrRateLimited) || errors.Is(err, ErrThrottled) {
 		feeder.Status.LastStatusCode = 1
 		feeder.Status.LastStatusCodes = append([]int{1}, feeder.Status.LastStatusCodes[:limit]...)
+		return
+	}
+	if response == nil {
 		return
 	}
 	feeder.Status.LastStatusCode = response.StatusCode

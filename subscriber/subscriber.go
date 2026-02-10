@@ -89,7 +89,7 @@ func (subscriber *Subscriber) Backup(ctx context.Context, destinationPath string
 
 // Refresh refreshes all subscribed feeds concurrently
 func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
-	var client *http.Client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Millisecond})
+	var client *http.Client
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
@@ -97,6 +97,15 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	ticker, cancellation = errgroup.WithContext(ctx)
 	if w == nil {
 		w = os.Stdout
+	}
+
+	// apply timeout
+	if timeout <= 60 {
+		fmt.Fprintf(w, "client.timeout: %ds\n", timeout)
+		client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
+	} else {
+		fmt.Fprintf(w, "client.timeout: %dms\n", max(500, timeout))
+		client = feeder.Client(feeder.Config{Timeout: time.Duration(max(500, timeout)) * time.Millisecond})
 	}
 
 	// check database
