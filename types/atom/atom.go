@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/herdworks/hyperfeed-go/types/hosted"
 )
 
 // This file is a derivative work of "golang.org/x/tools/blog/atom" and is
@@ -184,7 +186,14 @@ func (entry *Entry) Link(rel string) *Link {
 // returns the first link whose host matches the base URL host
 func (entry *Entry) InternalLink(base *url.URL) *Link {
 	for _, l := range entry.Links {
-		if l.URL() != nil && strings.EqualFold(strings.TrimPrefix(l.URL().Host, "www."), strings.TrimPrefix(base.Host, "www.")) {
+		if l.URL() == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimPrefix(l.URL().Host, "www."), strings.TrimPrefix(base.Host, "www.")) {
+			return &l
+		}
+		if strings.EqualFold(hosted.URL(l.URL()).Hostname(), strings.TrimPrefix(base.Hostname(), "www.")) {
+			l.Href = hosted.URL(l.URL()).String() // normalize the link URL to improve matching with other links
 			return &l
 		}
 	}

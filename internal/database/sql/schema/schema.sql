@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     [description] TEXT,
     [enclosure] INTEGER DEFAULT 0 CHECK ([enclosure] IN (0, 1)),
     [download] INTEGER DEFAULT 0 CHECK ([download] IN (0, 1)),
-
+    
     -- details
     [rank] INTEGER,
     [width] INTEGER,
@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 CREATE INDEX IF NOT EXISTS attachments_id_index ON attachments([id]);
 CREATE INDEX IF NOT EXISTS attachments_href_index ON attachments([href]);
+CREATE INDEX IF NOT EXISTS attachments_mimetype_index ON attachments([mimetype]);
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS metadata (
@@ -296,12 +297,29 @@ CREATE TABLE IF NOT EXISTS item_attachments (
     [feed_id] TEXT REFERENCES feeds([id]) ON DELETE CASCADE,
     [item_id] TEXT REFERENCES items([id]) ON DELETE CASCADE,
     [attachment_id] TEXT NOT NULL REFERENCES attachments([id]) ON DELETE CASCADE,
+
+    -- sort metadata
+    [mimetype] TEXT,
+    [enclosure] INTEGER DEFAULT 0 CHECK ([enclosure] IN (0, 1)),
+    [priority] INTEGER GENERATED ALWAYS AS (
+        CASE
+            WHEN [mimetype] = 'text/x-url' THEN 1
+            WHEN [mimetype] LIKE 'video/%' THEN 2
+            WHEN [mimetype] LIKE 'audio/%' THEN 3
+            WHEN [mimetype] LIKE 'image/%' THEN 4
+            WHEN [mimetype] LIKE 'application/pdf%' THEN 5
+            ELSE 99
+        END        
+    ) STORED,
+    [rank] INTEGER,
     PRIMARY KEY([item_id], [attachment_id])
 );
 CREATE INDEX IF NOT EXISTS item_attachments_website_id_index ON item_attachments([website_id]);
 CREATE INDEX IF NOT EXISTS item_attachments_feed_id_index ON item_attachments([feed_id]);
 CREATE INDEX IF NOT EXISTS item_attachments_item_id_index ON item_attachments([item_id]);
 CREATE INDEX IF NOT EXISTS item_attachments_attachment_id_index ON item_attachments([attachment_id]);
+CREATE INDEX IF NOT EXISTS item_attachments_item_sort_index ON item_attachments([item_id], [enclosure] DESC, [priority] ASC, [rank] ASC, [attachment_id]);
+CREATE INDEX IF NOT EXISTS item_attachments_attachment_sort_index ON item_attachments([enclosure] DESC, [priority] ASC, [rank] ASC, [attachment_id]);
 
 -- Item-Links join table
 CREATE TABLE IF NOT EXISTS item_links (
@@ -473,48 +491,50 @@ SELECT
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
             'link_id', [items].[link_id],
             'attachments', COALESCE((
-                SELECT json_group_array(json([attachments_view].[attachment]))
-                FROM [attachments_view] 
-                WHERE 
-                    [attachments_view].[item_id] = [items].[id] AND
-                    [attachments_view].[display] = 1
+                SELECT json_group_array(json([an].[attachment]))
+                FROM (
+                    SELECT [attachments_view].[attachment]
+                    FROM [attachments_view]
+                    WHERE
+                        [attachments_view].[item_id] = [items].[id] AND
+                        [attachments_view].[display] = 1
+                    ORDER BY
+                        [attachments_view].[enclosure] DESC,
+                        [attachments_view].[priority] ASC,
+                        [attachments_view].[rank] ASC
+                ) AS [an]
             ), json('[]'))
         ),
-        'feed', COALESCE((
-            SELECT
-                json_object(
-                    'id', [feeds].[id],
-                    'kind', [feeds].[kind],
-                    'url', [feeds].[url],
-                    'html_url', NULLIF([feeds].[html_url], ''),
-                    'title', [feeds].[title],
-                    'description', [feeds].[description],
-                    'language', [feeds].[language],
-                    'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
-                    'website', json(NULL),
-                    'status', json([feeds].[status])
-                )
-            FROM [feeds]
-            WHERE [feeds].[id] = [items].[feed_id]
-        ), json('{}')),
-        'website', COALESCE((
-            SELECT
-                json_object(
-                    'id', [websites].[id],
-                    'html_url', NULLIF([websites].[html_url], ''),
-                    'favicon_url', NULLIF([websites].[favicon_url], ''),
-                    'cover_url', NULLIF([websites].[cover_url], ''),
-                    'mentions_url', NULLIF([websites].[mentions_url], ''),
-                    'email', [websites].[email],
-                    'name', [websites].[name],
-                    'username', [websites].[username],
-                    'description', [websites].[description],
-                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
-                )
-            FROM [websites]
-            WHERE [websites].[id] = [items].[website_id]
-            LIMIT 1
-        ), json('{}'))
+        'feed', CASE
+            WHEN [feeds].[id] IS NULL THEN json('{}')
+            ELSE json_object(
+                'id', [feeds].[id],
+                'kind', [feeds].[kind],
+                'url', [feeds].[url],
+                'html_url', NULLIF([feeds].[html_url], ''),
+                'title', [feeds].[title],
+                'description', [feeds].[description],
+                'language', [feeds].[language],
+                'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
+                'website', json(NULL),
+                'status', json([feeds].[status])
+            )
+        END,
+        'website', CASE
+            WHEN [websites].[id] IS NULL THEN json('{}')
+            ELSE json_object(
+                'id', [websites].[id],
+                'html_url', NULLIF([websites].[html_url], ''),
+                'favicon_url', NULLIF([websites].[favicon_url], ''),
+                'cover_url', NULLIF([websites].[cover_url], ''),
+                'mentions_url', NULLIF([websites].[mentions_url], ''),
+                'email', [websites].[email],
+                'name', [websites].[name],
+                'username', [websites].[username],
+                'description', [websites].[description],
+                'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+            )
+        END
     ) AS [post],
     [items].[id],
     [items].[url],
@@ -526,6 +546,8 @@ SELECT
     [items].[feed_id],
     [items].[website_id]
 FROM items
+LEFT JOIN [feeds] ON [feeds].[id] = [items].[feed_id]
+LEFT JOIN [websites] ON [websites].[id] = [items].[website_id]
 ORDER BY
     [items].[feed_at] DESC,
     [items].[id] DESC
@@ -661,9 +683,13 @@ SELECT
     [attachments].[width],
     [attachments].[height],
     [attachments].[display],
+    [attachments].[download],
     [item_attachments].[item_id],
     [item_attachments].[feed_id],
-    [item_attachments].[website_id]
+    [item_attachments].[website_id],
+    [item_attachments].[enclosure],
+    [item_attachments].[priority],
+    [item_attachments].[rank]
 FROM
     [attachments]
     INNER JOIN [item_attachments] ON [item_attachments].[attachment_id] = [attachments].[id]

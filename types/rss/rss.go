@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/herdworks/hyperfeed-go/types/hosted"
 	"golang.org/x/net/html/charset"
 )
 
@@ -222,6 +223,10 @@ func (link *Link) IsExternal(base *url.URL) bool {
 	}
 	if strings.EqualFold(link.Rel, "shorturl") {
 		return false // DaringFireball "short URL" links
+	}
+	if strings.EqualFold(hosted.URL(link.URL()).Hostname(), strings.TrimPrefix(base.Hostname(), "www.")) {
+		link.Href = hosted.URL(link.URL()).String() // normalize the link URL to improve matching with other links
+		return false // medium.com and other hosted urls
 	}
 	return !strings.EqualFold(strings.TrimPrefix(link.URL().Host, "www."), strings.TrimPrefix(base.Host, "www."))
 }

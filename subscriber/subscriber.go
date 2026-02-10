@@ -613,8 +613,8 @@ func (subscriber *Subscriber) SaveAttachmentRelations(ctx context.Context, w io.
 		defer subscriber.Database.EndTransaction(transaction, err)
 		for _, item := range feed.Items {
 			for _, attachment := range item.Attachments {
-				columns := []string{"website_id", "feed_id", "item_id", "attachment_id"}
-				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), attachment.Identifier()}
+				columns := []string{"website_id", "feed_id", "item_id", "attachment_id", "mimetype", "enclosure", "rank"}
+				values := []any{item.Feed.Website.Identifier(), item.Feed.Identifier(), item.Identifier(), attachment.Identifier(), attachment.Mimetype, attachment.Enclosure, attachment.Rank}
 				if err = subscriber.Database.RelateRows(ctx, transaction, "item_attachments", columns, values); err != nil {
 					return errors.Join(ErrDatabase, errors.New("inserting item-attachment relation"), err)
 				}
