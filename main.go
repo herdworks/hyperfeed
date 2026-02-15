@@ -27,7 +27,7 @@ func main() {
 	var config subscriber.Config = *subscriber.DefaultFeederConfig
 	var subscriber *subscriber.Subscriber = &subscriber.Subscriber{}
 	var feeds []*hyperfeed.Feed
-	var timeout int
+	var timeout, workers int
 	var opmlPath, feedHref string
 	var ctx context.Context = context.Background()
 	var args []string = os.Args[1:]
@@ -61,6 +61,12 @@ func main() {
 	if timeoutString, err := get(args, "--timeout"); err == nil && timeoutString != "" {
 		if timeout, err = strconv.Atoi(timeoutString); err != nil {
 			fmt.Printf("Error parsing timeout duration %q: %v\n", timeoutString, err)
+			os.Exit(1)
+		}
+	}
+	if workersString, err := get(args, "--workers"); err == nil && workersString != "" {
+		if workers, err = strconv.Atoi(workersString); err != nil {
+			fmt.Printf("Error parsing workers count %q: %v\n", workersString, err)
 			os.Exit(1)
 		}
 	}
@@ -107,7 +113,7 @@ func main() {
 
 	// Refresh feeds
 	if slices.Contains(args, "refresh") {
-		if err = subscriber.Refresh(ctx, feeds, timeout, w); err != nil {
+		if err = subscriber.Refresh(ctx, feeds, timeout, workers, w); err != nil {
 			fmt.Printf("Error refreshing subscriber: %v\n", err)
 			os.Exit(1)
 		}
@@ -149,6 +155,7 @@ func usage() (usage string) {
 		{"-o, --opml <path>", "Refresh feeds in the provided OPML file"},
 		{"-f, --feed <href>", "Refresh a single feed at the provided HREF"},
 		{"    --timeout <seconds>", "Timeout duration for network operations (in seconds)"},
+		{"    --workers <count>", "Maximum number of concurrent feed workers (0 = unlimited)"},
 		{"    --logfile <path>", "Output progress to logfile instead of stdout"},
 		{"-h, --help", "Print this help message"},
 	}

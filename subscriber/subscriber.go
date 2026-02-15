@@ -88,13 +88,16 @@ func (subscriber *Subscriber) Backup(ctx context.Context, destinationPath string
 }
 
 // Refresh refreshes all subscribed feeds concurrently
-func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, w io.Writer) (err error) {
+func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, workers int, w io.Writer) (err error) {
 	var client *http.Client
 	var ticker *errgroup.Group
 	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
 	subscriber.Status = &Status{UpdatedAt: start}
 	ticker, cancellation = errgroup.WithContext(ctx)
+	if workers > 0 {
+		ticker.SetLimit(workers)
+	}
 	if w == nil {
 		w = os.Stdout
 	}

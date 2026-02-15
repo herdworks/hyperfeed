@@ -123,7 +123,7 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 // - If no other condition applies, use the AddedAt timestamp
 func (item *Item) TimelineAt(offset int) (ts time.Time) {
 	newFeed := count(item.Feed.Status.LastStatusCodes, 200, 304) == 1 // if the feed has only ever returned one successful response, it's our first time seeing items from this feed
-	ts = Earliest(item.PublishedAt, item.ModifiedAt) // actual item timestamp
+	ts = Earliest(item.PublishedAt, item.ModifiedAt)                  // actual item timestamp
 	if offset > 0 {
 		offset = -offset // use a negative offset to retain the original order of items with "zero" timestamps (within a given feed)
 	}
