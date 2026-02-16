@@ -210,6 +210,11 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 	attachments = append(attachments, linkAttachments...)
 	mediaAttachments := hyperfeed.ParseItemMediaAttachments(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w)
 	attachments = append(attachments, mediaAttachments...)
+	for index := range attachments {
+		if attachments[index].Mimetype == "" || attachments[index].Mimetype == "application/octet-stream" {
+			attachments[index].Mimetype = hyperfeed.URLMimeType(attachments[index].Href.URL(), true)
+		}
+	}
 	return attachments, nil
 }
 
@@ -365,6 +370,11 @@ func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Ite
 	attachments = append(attachments, linkAttachments...)
 	mediaAttachments := hyperfeed.ParseItemMediaAttachments(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w)
 	attachments = append(attachments, mediaAttachments...)
+	for index := range attachments {
+		if attachments[index].Mimetype == "" || attachments[index].Mimetype == "application/octet-stream" {
+			attachments[index].Mimetype = hyperfeed.URLMimeType(attachments[index].Href.URL(), true)
+		}
+	}
 	return attachments, nil
 }
 
@@ -486,6 +496,11 @@ func (parser *JSONFeedParser) Attachments(jsonfeeditem *jsonfeed.Item, item *hyp
 	attachments = append(attachments, linkAttachments...)
 	mediaAttachments := hyperfeed.ParseItemMediaAttachments(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonfeeditem.ContentHTML, jsonfeeditem.ContentText, jsonfeeditem.Summary))), w)
 	attachments = append(attachments, mediaAttachments...)
+	for index := range attachments {
+		if attachments[index].Mimetype == "" || attachments[index].Mimetype == "application/octet-stream" {
+			attachments[index].Mimetype = hyperfeed.URLMimeType(attachments[index].Href.URL(), true)
+		}
+	}
 	return attachments, nil
 }
 

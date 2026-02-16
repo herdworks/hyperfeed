@@ -2,12 +2,14 @@ package database
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestBackupOnline(t *testing.T) {
+	var w io.Writer = os.Stdout
 	ctx := context.Background()
 	srcPath := filepath.Join("testdata", "backup_src.db")
 	destPath := filepath.Join("testdata", "backup_dest.db")
@@ -35,7 +37,7 @@ func TestBackupOnline(t *testing.T) {
 		t.Fatalf("insert row: %v", err)
 	}
 
-	if err := db.Backup(ctx, destPath); err != nil {
+	if err := db.Backup(ctx, destPath, w); err != nil {
 		t.Fatalf("backup: %v", err)
 	}
 

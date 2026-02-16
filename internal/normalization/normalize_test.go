@@ -197,6 +197,7 @@ func TestIdentifierNormalization(t *testing.T) {
 		{"https://example.com/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
 		{"https://example.com:443/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
 		{"https://example.com/path?a=1&b=2", "c7fd3768059cbba04b6fc985a96aeb2a5f34ff37"},
+		{"https://hypertexting.website", "508a34c0dfbf41535df62eb671ead48445478b92"},
 		{"", "8a5edab282632443219e051e4ade2d1d5bbc671c"}, // the empty url identifier
 	}
 	for _, tc := range tests {

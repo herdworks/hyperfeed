@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 
@@ -208,4 +210,31 @@ func (attachment *Attachment) Hash() string {
 		attachment.Duration,
 		attachment.Mimetype,
 	)
+}
+
+func URLMimeType(u *url.URL, followQuery bool) string {
+	var defaultMimetype string = "application/octet-stream"
+	var mimetype, mediatype string
+	var redirectParam string
+	var redirectUrl *url.URL
+	var err error
+	if u == nil {
+		return defaultMimetype
+	} else if mimetype = mime.TypeByExtension(path.Ext(u.Path)); mimetype != "" {
+		if mediatype, _, err = mime.ParseMediaType(mimetype); err != nil {
+			return mimetype
+		} else if mediatype != "" {
+			return mediatype
+		}
+	}
+	if !followQuery {
+		return defaultMimetype
+	}
+	if redirectParam = u.Query().Get("url"); redirectParam == "" {
+		return defaultMimetype
+	}
+	if redirectUrl, err = u.Parse(redirectParam); err != nil {
+		return defaultMimetype
+	}
+	return URLMimeType(redirectUrl, false) // recursion
 }
