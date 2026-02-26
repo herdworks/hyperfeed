@@ -19,6 +19,11 @@ import (
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrInvalidPath    = errors.New("invalid path")
+
+	TrackingParameters = []string{
+		"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+		"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",
+	}
 )
 
 var CleanPathSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -29,10 +34,10 @@ var CleanPathReservedFileNames = []string{
 // ============================ Helper Functions ==============================
 
 // URL returns a canonicalized copy of u:
+// - Returns nil if incoming url is nil.
 // - Lowercases scheme and host
 // - Removes default ports (http:80, https:443)
 // - Sorts query parameters (by key and value)
-// - Returns nil if u is nil.
 // - Removes trailing slash from path (except for root "/")
 func URL(incoming *url.URL) *url.URL {
 	if incoming == nil {
@@ -46,7 +51,8 @@ func URL(incoming *url.URL) *url.URL {
 		normalized.Host = normalized.Hostname() // remove default HTTP/HTTPS ports
 	}
 	if normalized.Host != "" {
-		normalized.Host = strings.ToLower(normalized.Host) // lowercase host
+		normalized.Host = strings.ToLower(normalized.Host)            // lowercase host
+		normalized.Host = strings.TrimPrefix(normalized.Host, "www.") // remove "www." prefix
 	}
 	if normalized.Path == "" {
 		normalized.Path = "/" // ensure non-empty path
@@ -56,7 +62,9 @@ func URL(incoming *url.URL) *url.URL {
 	if normalized.Path != "/" && strings.HasSuffix(normalized.Path, "/") {
 		normalized.Path = strings.TrimSuffix(normalized.Path, "/") // remove trailing slash except for root
 	}
+	SanitizeParams(&normalized)
 	normalized.RawQuery = normalized.Query().Encode() // Encode sorts keys
+	normalized.ForceQuery = false
 	return &normalized
 }
 
@@ -118,30 +126,26 @@ func Path(u *url.URL) string {
 		return ""
 	}
 	u = URL(u)
-	u = SanitizeParams(u)
+	SanitizeParams(u)
 	p := url.URL{Path: u.Path, RawQuery: u.RawQuery}
 	return p.String()
 }
 
 // SanitizeParams removes tracking and secret query parameters from a URL.
-func SanitizeParams(u *url.URL) *url.URL {
-	if u == nil {
-		return nil
+func SanitizeParams(incoming *url.URL) {
+	if incoming == nil {
+		return
 	}
-	v := *URL(u) // normalize first, then copy
-	if v.RawQuery == "" {
-		return &v
+	if incoming.RawQuery == "" {
+		return
 	}
-	trackers := []string{
-		"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-		"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",
+	query := incoming.Query()
+	for _, t := range TrackingParameters {
+		query.Del(t)
 	}
-	q := v.Query()
-	for _, t := range trackers {
-		q.Del(t)
-	}
-	v.RawQuery = q.Encode()
-	return &v
+	incoming.RawQuery = query.Encode()
+	incoming.ForceQuery = false
+	return
 }
 
 // Identifier returns a HyperFeed identifier (first 40 chars of SHA256 hex)
@@ -149,6 +153,12 @@ func SanitizeParams(u *url.URL) *url.URL {
 // Inspired by Git's SHA-256-based object naming.
 // https://git-scm.com/docs/hash-function-transition
 func Identifier(incoming string) string {
+	if strings.HasPrefix(incoming, "http://") {
+		incoming = strings.TrimPrefix(incoming, "http://")
+	} else if strings.HasPrefix(incoming, "https://") {
+		incoming = strings.TrimPrefix(incoming, "https://")
+	}
+	incoming = strings.ToLower(incoming)
 	sum := sha256.Sum256([]byte(incoming))
 	return hex.EncodeToString(sum[:])[:40]
 }

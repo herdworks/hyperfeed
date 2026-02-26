@@ -11,9 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -35,6 +33,7 @@ type Options struct {
 type DatabaseRecord[T DatabaseRow] struct {
 	Value T
 }
+
 type DatabaseRow interface {
 	DatabaseReadable
 	DatabaseWritable
@@ -48,11 +47,12 @@ type DatabaseReadable interface {
 	DatabaseObject() string         // JSON object selector is a json_object(...) expression or a column name that returns JSON
 }
 type DatabaseWritable interface {
-	DatabaseTable() string           // TABLE name
-	DatabaseTableIdentifier() string // primary key column selector
-	DatabaseInsertColumns() []string // columns for INSERT/UPSERT statements
-	DatabaseInsertValues() []any     // values for INSERT/UPSERT statements
-	DatabaseUpdatesSet() []string    // columns and placeholders for UPSERT statements
+	DatabaseTable() string                      // TABLE name
+	DatabaseTableIdentifier() string            // primary key column selector
+	DatabaseInsertColumns() []string            // columns for INSERT/UPSERT statements
+	DatabaseInsertParameters([]string) []string // placeholders for INSERT/UPSERT statements
+	DatabaseInsertValues() []any                // values for INSERT/UPSERT statements
+	DatabaseUpdatesSet([]string) []string       // columns and placeholders for UPSERT statements
 }
 type DatabaseHashable interface {
 	Hash() string
@@ -64,11 +64,13 @@ type DatabaseHashable interface {
 var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrConfig         = errors.New("database configuration invalid")
+	ErrTransaction    = errors.New("database transaction error")
+	ErrSchemaVersion  = errors.New("database schema version missing")
 	// TODO: replace errors.New() and fmt.Errorf() with error variables
 )
 
-//go:embed sql/*
-var sqlFS embed.FS // embeds database/sql/* files into the binary
+//go:embed sql/maintenance sql/migration sql/schema
+var sqlFS embed.FS // embeds database/sql scripts into the binary (recursive)
 
 // ============================ Database Methods =================================
 
@@ -140,32 +142,186 @@ func (db *Database) Configure(ctx context.Context) (err error) {
 
 func (db *Database) Initialize(ctx context.Context) (err error) {
 	var schemaBytes []byte
-	if schemaBytes, err = db.Embedded("sql/schema.sql"); err != nil {
-		return fmt.Errorf("database: load schema: %w", err)
+	var schemaPath string = "sql/schema/schema.sql"
+	if schemaBytes, err = db.Embedded(schemaPath); err != nil {
+		return fmt.Errorf("database %q schema load error: %w", schemaPath, err)
 	}
 	if err := db.DB.PingContext(ctx); err != nil {
 		return err
 	}
+
+	// schema
 	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
-		return fmt.Errorf("database: apply schema: %w", err)
+		return fmt.Errorf("database %q schema apply error: %w", db.Path, err)
 	}
-	if err = db.SchemaVersioning(ctx); err != nil {
-		return fmt.Errorf("database: schema versioning: %w", err)
+
+	// migration
+	if err = db.Migrate(ctx); err != nil {
+		return fmt.Errorf("database %q migration error: %w", db.Path, err)
+	}
+
+	// maintenance
+	if err = db.Maintenance(ctx); err != nil {
+		return fmt.Errorf("database %q maintenance error: %w", db.Path, err)
+	}
+
+	return nil
+}
+
+// Migrate applies any pending migration scripts to the database.
+func (db *Database) Migrate(ctx context.Context) (err error) {
+	var scripts []MigrationScript
+	var currentVersion, nextVersion, migratedVersion int
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check current schema version and exit if already at latest version
+	if currentVersion, err = db.SchemaVersion(ctx); err != nil {
+		return fmt.Errorf("database: schema version: %w", err)
+	} else if currentVersion > SchemaVersionLatest {
+		return fmt.Errorf(
+			"database %q schema version %d is newer than supported version %d",
+			db.Path,
+			currentVersion,
+			SchemaVersionLatest,
+		)
+	} else if currentVersion == SchemaVersionLatest {
+		fmt.Printf("database %q schema version: %d\n", db.Path, currentVersion)
+		return nil
+	} else {
+		nextVersion = currentVersion + 1
+	}
+
+	// Get migration scripts for the next version
+	if scripts, err = (MigrationScript{}).List(nextVersion); err != nil {
+		return fmt.Errorf("database %q migration scripts: %w", db.Path, err)
+	} else if len(scripts) == 0 {
+		// TODO: Hook up backup + rebuild fallback for unsupported versions.
+		return fmt.Errorf("database %q no migration scripts found for version %d", db.Path, nextVersion)
+	}
+
+	// Apply migration scripts in order
+	for _, script := range scripts {
+		fmt.Printf("migration %q discovered\n", script.Path)
+		if script.IsTransaction() {
+			return fmt.Errorf("migration %q must not manage transactions", script.Path)
+		}
+	}
+
+	if err := db.withImmediateTransaction(ctx, fmt.Sprintf("migration %q", db.Path), func(ctx context.Context, conn *sql.Conn) error {
+		for _, script := range scripts {
+			if _, err := conn.ExecContext(ctx, string(script.Bytes)); err != nil {
+				return fmt.Errorf("migration %q exec: %w", script.Path, err)
+			}
+		}
+		if err := conn.QueryRowContext(ctx, "SELECT version FROM hyperfeed_schema WHERE id = 1").Scan(&migratedVersion); err != nil {
+			return fmt.Errorf("migration %q schema version error: %w", db.Path, err)
+		}
+		if migratedVersion != nextVersion {
+			return fmt.Errorf("migration %q error: expected schema version %d, got %d", db.Path, nextVersion, migratedVersion)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if nextVersion != SchemaVersionLatest {
+		return db.Migrate(ctx)
 	}
 	return nil
 }
 
-func (db *Database) SchemaVersioning(ctx context.Context) (err error) {
-	var versionQuery string = "INSERT OR REPLACE INTO hyperfeed (lib_version, lib_schema_version, lib_release_date, added_at) VALUES (?, ?, ?, ?);"
-	if _, err = db.DB.ExecContext(
-		ctx,
-		versionQuery,
-		hyperfeed.LibVersion,
-		hyperfeed.LibSchemaVersion,
-		hyperfeed.LibReleaseDate.UTC().Format(time.RFC3339),
-		time.Now().UTC().Format(time.RFC3339),
-	); err != nil {
-		return fmt.Errorf("database: set version: %w", err)
+// Maintenance applies any pending maintenance scripts to the database.
+func (db *Database) Maintenance(ctx context.Context) (err error) {
+	var scripts []MaintenanceScript
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if scripts, err = (MaintenanceScript{}).List(); err != nil {
+		return fmt.Errorf("database: maintenance scripts: %w", err)
+	}
+	for _, script := range scripts {
+		if exists, err := script.Applied(ctx, db); err != nil {
+			return fmt.Errorf("database: maintenance check %q: %w", script.Path, err)
+		} else if exists {
+			fmt.Printf("maintenance %q skipped\n", script.Path)
+			continue
+		}
+		fmt.Printf("maintenance %q apply\n", script.Path)
+		if script.IsTransaction() {
+			return fmt.Errorf("database: maintenance %q must not manage transactions", script.Path)
+		}
+		if err := db.withImmediateTransaction(ctx, fmt.Sprintf("database: maintenance %q", script.Path), func(ctx context.Context, conn *sql.Conn) error {
+			if _, err := conn.ExecContext(ctx, string(script.Bytes)); err != nil {
+				return fmt.Errorf("database: maintenance %q exec: %w", script.Path, err)
+			}
+			return nil
+		}); err != nil {
+			if script.nooped(err) {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// SchemaVersion returns the current database schema version.
+func (db *Database) SchemaVersion(ctx context.Context) (version int, err error) {
+	var query string = `SELECT version FROM hyperfeed_schema WHERE id = 1`
+	if db == nil || db.DB == nil {
+		return 0, errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err = db.DB.QueryRowContext(ctx, query).Scan(&version); errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrSchemaVersion
+	} else if err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+func (db *Database) withImmediateTransaction(ctx context.Context, label string, check func(context.Context, *sql.Conn) error) (err error) {
+	var conn *sql.Conn
+	var rollbackCtx context.Context
+	if db == nil || db.DB == nil {
+		return errors.Join(ErrConfig, errors.New("database is nil"))
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	rollbackCtx = context.WithoutCancel(ctx)
+	if conn, err = db.DB.Conn(ctx); err != nil {
+		return fmt.Errorf("%s begin connection error: %w", label, err)
+	} else {
+		defer conn.Close()
+	}
+
+	if _, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("%s begin error: %w", label, err)
+	}
+
+	if err = check(ctx, conn); err != nil {
+		if _, rollbackErr := conn.ExecContext(rollbackCtx, "ROLLBACK"); rollbackErr != nil {
+			return fmt.Errorf("%s rollback error: %v (original error: %v)", label, rollbackErr, err)
+		}
+		return err
+	}
+
+	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
+		if _, rollbackErr := conn.ExecContext(rollbackCtx, "ROLLBACK"); rollbackErr != nil {
+			return fmt.Errorf("%s commit error: %v (rollback: %v)", label, err, rollbackErr)
+		}
+		return fmt.Errorf("%s commit error: %w", label, err)
 	}
 	return nil
 }
@@ -229,82 +385,149 @@ func (db *Database) Vacuum(ctx context.Context) error {
 	return db.Exec(ctx, "VACUUM")
 }
 
+func (db *Database) BeginTransaction(ctx context.Context, options *sql.TxOptions) (tx *sql.Tx, err error) {
+	return db.DB.BeginTx(ctx, options)
+}
+func (db *Database) EndTransaction(tx *sql.Tx, err error) error {
+	if err != nil {
+		return tx.Rollback()
+	}
+	return nil
+}
+
 // ============================ Database CRUD methods ==========================
 
 func (db *Database) ReadRow(ctx context.Context, row DatabaseRow) (err error) {
-	var query string = db.SelectStatement(row)
-	var result *sql.Row = db.DB.QueryRowContext(ctx, query, row.Identifier())
+	var query string = fmt.Sprintf(
+		"SELECT %s FROM %s WHERE %s = :identifier;",
+		row.DatabaseObject(),
+		row.DatabaseView(),
+		row.DatabaseViewIdentifier(),
+	)
+	var args []any = []any{
+		sql.Named("identifier", row.Identifier()),
+	}
+	var result *sql.Row = db.DB.QueryRowContext(ctx, query, args...)
 	var jsonBytes []byte
 	if err = result.Scan(&jsonBytes); errors.Is(err, sql.ErrNoRows) {
 		return nil // no rows found is not an error for this method
 	} else if err != nil {
 		return fmt.Errorf("database record read: scan: %w", err)
 	}
-	if err = json.Unmarshal(jsonBytes, &row); err != nil {
-		return fmt.Errorf("database record %T unmarshal error: %w", &row, err)
+	if err = json.Unmarshal(jsonBytes, row); err != nil {
+		return fmt.Errorf("database record %T unmarshal error: %w", row, err)
 	}
 	return nil
 }
-func (db *Database) InsertRow(ctx context.Context, row DatabaseRow) (err error) {
-	_, err = db.DB.ExecContext(ctx, db.InsertStatement(row), row.DatabaseInsertValues()...)
+func (db *Database) InsertRow(ctx context.Context, transaction *sql.Tx, row DatabaseRow) (err error) {
+	var query string = fmt.Sprintf(
+		"INSERT OR IGNORE INTO %s (%s) VALUES (%s);",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(row.DatabaseInsertParameters(row.DatabaseInsertColumns()), ", "),
+	)
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	}
 	return err
 }
-func (db *Database) UpsertRow(ctx context.Context, row DatabaseRow) (err error) {
-	_, err = db.DB.ExecContext(ctx, db.UpsertStatement(row), row.DatabaseInsertValues()...)
+
+func (db *Database) UpsertRow(ctx context.Context, transaction *sql.Tx, row DatabaseRow) (err error) {
+	var query string = fmt.Sprintf(
+		"INSERT INTO %s (%s)\nVALUES (%s)\nON CONFLICT DO UPDATE SET %s;",
+		row.DatabaseTable(),
+		strings.Join(row.DatabaseInsertColumns(), ", "),
+		strings.Join(row.DatabaseInsertParameters(row.DatabaseInsertColumns()), ", "),
+		strings.Join(row.DatabaseUpdatesSet(row.DatabaseInsertColumns()), ", "),
+	)
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, row.DatabaseInsertValues()...)
+	}
 	return err
 }
-func (db *Database) RelateRows(ctx context.Context, table string, columns []string, values []any) (err error) {
+func (db *Database) RelateRows(ctx context.Context, transaction *sql.Tx, table string, columns []string, values []any) (err error) {
+	var params []string
 	if len(columns) != len(values) {
 		return fmt.Errorf("relation mismatch (%d values for %d columns)", len(values), len(columns))
 	}
-	_, err = db.DB.ExecContext(ctx, db.RelationStatement(table, columns), values...)
+	for range columns {
+		params = append(params, "?")
+	}
+	query := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
+	if transaction != nil {
+		_, err = transaction.ExecContext(ctx, query, values...)
+	} else {
+		_, err = db.DB.ExecContext(ctx, query, values...)
+	}
 	return err
 }
 
 // ============================ Helper Methods ===================================
-func (Database) SelectStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"SELECT %s FROM %s WHERE %s = ?;",
-		row.DatabaseObject(),
-		row.DatabaseView(),
-		row.DatabaseViewIdentifier(),
-	)
-}
 
-func (Database) InsertStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"INSERT OR IGNORE INTO %s(%s) VALUES(%s);",
-		row.DatabaseTable(),
-		strings.Join(row.DatabaseInsertColumns(), ", "),
-		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
-	)
-}
-
-func (Database) UpsertStatement(row DatabaseRow) (query string) {
-	return fmt.Sprintf(
-		"INSERT INTO %s(%s) VALUES(%s) ON CONFLICT DO UPDATE SET %s;",
-		row.DatabaseTable(),
-		strings.Join(row.DatabaseInsertColumns(), ", "),
-		strings.Join(Database{}.WriteParameters(row.DatabaseInsertColumns()), ", "),
-		strings.Join(row.DatabaseUpdatesSet(), ", "),
-	)
-}
-
-func (Database) RelationStatement(table string, columns []string) string {
-	var params []string
-	for range columns {
-		params = append(params, "?")
-	}
-	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES(%s)", table, strings.Join(columns, ", "), strings.Join(params, ", "))
-}
-
-func (Database) WriteParameters(columns []string) (params []string) {
-	for range columns {
-		params = append(params, "?")
-	}
-	return params
-}
-
+// Databse.RecordsMatch()
+// TODO: For testing purposes only?
 func (Database) RecordsMatch(a, b DatabaseRow) bool {
+	if a == nil || b == nil {
+		return false
+	}
 	return a.Hash() == b.Hash()
+}
+
+func ListRecords[T DatabaseRow](ctx context.Context, db *Database) (records []T, err error) {
+	var kind T
+	var query string = fmt.Sprintf("SELECT %s FROM %s;", kind.DatabaseObject(), kind.DatabaseView())
+	var rows *sql.Rows
+	if rows, err = db.DB.QueryContext(ctx, query); err != nil {
+		return nil, fmt.Errorf("database record list query: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var record T
+		var recordBytes []byte
+		if err = rows.Scan(&recordBytes); err != nil {
+			return nil, fmt.Errorf("database record list scan: %w", err)
+		}
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			return nil, fmt.Errorf("database record list unmarshal: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("database record list rows: %w", err)
+	}
+	return records, nil
+}
+
+func LastRecord[T DatabaseRow](ctx context.Context, db *Database, orderedBy string, order string) (record *T, err error) {
+	var kind T
+	var sql string = fmt.Sprintf(
+		"SELECT %s FROM %s ORDER BY %s %s LIMIT 1;",
+		kind.DatabaseObject(),
+		kind.DatabaseView(),
+		orderedBy,
+		order,
+	)
+	rows, err := db.DB.QueryContext(ctx, sql)
+	if err != nil {
+		return nil, fmt.Errorf("database record list query: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var recordBytes []byte
+		if err = rows.Scan(&recordBytes); err != nil {
+			return nil, fmt.Errorf("database record list scan: %w", err)
+		}
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			return nil, fmt.Errorf("database record list unmarshal: %w", err)
+		}
+		return record, nil
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("database record list rows: %w", err)
+	}
+	return nil, fmt.Errorf("no matching records")
 }

@@ -1,34 +1,45 @@
 # HyperFeed Database
 
-This package implements HyperFeed's local database (SQLite).
-It persists normalized subscription lists, feeds, items, and arbitrary metadata.
-Frequently updated scheduler state (ETag, Last-Modified, backoff, stats) is maintained by the
-`scheduler` package (see that package's README).
+This package implements HyperFeed's embedded SQLite database and migration system.
+It persists subscription lists, websites, feeds, items, attachments, bylines, links, and metadata.
+Runtime fetch state is stored in the JSON `status` columns on feeds and websites.
 
-Database uses the [`mattn/go-sqlite3`](https://github.com/mattn/go-sqlite3) driver, which
-requires cgo and a working C compiler. Builds targeting iOS or macOS need Xcode's toolchain;
-other platforms require a standard C toolchain.
+Database uses the `mattn/go-sqlite3` driver, which requires cgo and a working C compiler.
+Builds targeting iOS or macOS need Xcode's toolchain, and other platforms require a standard C toolchain.
 
-## Schema
+## Schema And Versioning
 
-The database schema includes the following tables:
+The latest schema lives in `internal/database/sql/schema/schema.sql`.
+New databases are created from `schema.sql` and seeded at `SchemaVersionLatest`.
+`SchemaVersionLatest` is defined in `internal/database/version.go` and must match the schema seed version.
+The `hyperfeed_schema_insert_trigger` enforces the initial version equals `SchemaVersionLatest`.
+The `hyperfeed_schema_update_trigger` enforces monotonic version increments by exactly one.
 
-* `subscription_lists`
-* `feeds`
-* `items`
-* `metadata`
-* `feed_metadata` (join)
-* `item_metadata` (join)
-* `subscription_metadata` (join)
+## Migrations
+
+Migrations live in `internal/database/sql/migration` and are named `<to_version>_<short_description>.sql`.
+Migrations only run when an existing database version is lower than `SchemaVersionLatest`.
+Each migration set targets exactly one version step and must update `hyperfeed_schema.version` as the final statement.
+The migration runner wraps each version step in a single `BEGIN IMMEDIATE` transaction.
+Migration scripts must not include transaction statements of their own.
+See `internal/database/MIGRATION.md` for the full policy and checklist.
+
+## Maintenance
+
+Maintenance scripts live in `internal/database/sql/maintenance` and run after migrations.
+Maintenance scripts must be idempotent and must record themselves in `hyperfeed_scripts`.
+Maintenance scripts are wrapped in a `BEGIN IMMEDIATE` transaction by the runner.
 
 ## Usage
 
 ```go
 ctx := context.Background()
-opts := database.Options{Path: "hyperfeed.db"}
 
-db, err := database.Open(ctx, opts)
-if err != nil {
+db := &database.Database{Path: "hyperfeed.db"}
+if err := db.Open(ctx); err != nil {
+    log.Fatal(err)
+}
+if err := db.Initialize(ctx); err != nil {
     log.Fatal(err)
 }
 defer db.Close()
@@ -44,8 +55,9 @@ if err != nil {
 defer rows.Close()
 ```
 
-## Maintenance
+## Operations
 
 * `db.Backup(ctx, destPath)` copies the database to a new location.
 * `db.Vacuum(ctx)` compacts the database.
-* `database.Import(ctx, path, reader)` and `db.Export(ctx, writer)` move databases in and out of the process.
+* `db.Migrate(ctx)` applies versioned migrations when needed.
+* `db.Maintenance(ctx)` runs maintenance scripts after migrations.

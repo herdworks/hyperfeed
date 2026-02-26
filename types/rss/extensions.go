@@ -3,6 +3,8 @@ package rss
 import (
 	"encoding/xml"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 // Extension preserves any XML element outside the core spec during parsing.
@@ -20,6 +22,9 @@ const (
 	// iTunes Podcasts: https://podcasters.apple.com/support/823-podcast-requirements
 	ExtensionNamespaceItunesPodcast string = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 
+	// PodcastIndex // "Podcasting 2.0"
+	ExtensionNamespacePodcastIndex string = "https://podcastindex.org/namespace/1.0"
+
 	// Google Play Podcasts
 	// https://www.google.com/schemas/play-podcasts/1.0/play-podcasts.xsd
 	// https://support.google.com/podcast-publishers/answer/9889544?visit_id=638961521969445342-2535738675&rd=1
@@ -29,15 +34,42 @@ const (
 	// https://www.rssboard.org/media-rss
 	ExtensionNamespaceYahooMediaRSS string = "http://search.yahoo.com/mrss/"
 
-	// Other common extension namespaces
-	ExtensionNamespaceAtom                string = "http://www.w3.org/2005/Atom"
-	ExtensionNamespaceRSSContent          string = "http://purl.org/rss/1.0/modules/content/"
-	ExtensionNamespaceDublinCoreTerms     string = "http://purl.org/dc/terms/"
-	ExtensionNamespaceDublicCoreMetadata  string = "http://purl.org/dc/elements/1.1/"
+	// Dublin Core
+	ExtensionNamespaceDublinCoreTerms    string = "http://purl.org/dc/terms/"
+	ExtensionNamespaceDublicCoreMetadata string = "http://purl.org/dc/elements/1.1/"
+
+	// Scripting
 	ExtensionNamespaceScriptingNewsSource string = "http://source.scripting.com/"
+
+	// Other common extension namespaces
+	ExtensionNamespaceAtom       string = "http://www.w3.org/2005/Atom"
+	ExtensionNamespaceRSS        string = "http://purl.org/rss/1.0/"
+	ExtensionNamespaceRSSContent string = "http://purl.org/rss/1.0/modules/content/"
+
+	// YouTube XML
+	ExtensionNamespaceYouTube string = "http://www.youtube.com/xml/schemas/2015"
 )
 
-// ============================ Extension Methods =============================
+// METHODS
+// =============================================================================
+
+func (e *Extension) HasAttribute(name string) (exists bool) {
+	for _, attr := range e.Attrs {
+		if strings.EqualFold(attr.Name.Local, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *Extension) GetAttribute(name string) (value string) {
+	for _, attr := range e.Attrs {
+		if strings.EqualFold(attr.Name.Local, name) {
+			return attr.Value
+		}
+	}
+	return ""
+}
 
 // UnmarshalXML captures attributes, text, inner XML, and any nested extensions.
 func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
@@ -57,44 +89,19 @@ func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
-// func (r *RSS) ParseChannelExtensionAuthors() (authors []Author) {
-// 	var author Author = Author{}
-// 	if r.Channel.Title != "" {
-// 		author.Name = r.Channel.Title // use feed title as default author name
-// 	}
-// 	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
-// 		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
-// 			author.Name = name.Text
-// 		}
-// 		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
-// 			author.Email = email.Text
-// 		}
-// 	}
-// 	if !author.IsEmpty() {
-// 		authors = append(authors, author)
-// 	}
-// 	return authors
-// }
-// func (r *RSS) ParseItemExtensionAuthors(rssitem *RSSItem) (authors []Author) {
-// 	var author Author = Author{}
-// 	if r.Channel.Title != "" {
-// 		author.Name = r.Channel.Title
-// 	}
-// 	if ownerMetadata := GetItunesMetadata(r.Channel.Extensions, "owner"); ownerMetadata != nil {
-// 		if name := GetItunesMetadata(ownerMetadata.Extensions, "name"); name != nil {
-// 			author.Name = name.Text
-// 		}
-// 		if email := GetItunesMetadata(ownerMetadata.Extensions, "email"); email != nil {
-// 			author.Email = email.Text
-// 		}
-// 	}
-// 	if !author.IsEmpty() {
-// 		authors = append(authors, author)
-// 	}
-// 	return authors
-// }
+// FUNCTIONS
+// =============================================================================
 
-func GetExtensionMetadata(extensions []Extension, namespace string, name string) *Extension {
+func GetExtensionProperties(extensions []Extension, namespace string) (properties []*Extension) {
+	for _, ext := range extensions {
+		if ext.XMLName.Space == namespace {
+			properties = append(properties, &ext)
+		}
+	}
+	return properties
+}
+
+func GetExtensionProperty(extensions []Extension, namespace string, name string) *Extension {
 	for _, ext := range extensions {
 		if ext.XMLName.Space == namespace && ext.XMLName.Local == name {
 			return &ext
@@ -104,19 +111,27 @@ func GetExtensionMetadata(extensions []Extension, namespace string, name string)
 }
 
 func GetItunesMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceItunesPodcast, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceItunesPodcast, name)
+}
+
+func GetPodcastIndexMetadata(extensions []Extension, name string) *Extension {
+	return GetExtensionProperty(extensions, ExtensionNamespacePodcastIndex, name)
+}
+
+func GetGooglePlayMetadata(extensions []Extension, name string) *Extension {
+	return GetExtensionProperty(extensions, ExtensionNamespaceGooglePlayPodcasts, name)
 }
 
 func GetYahooMediaRSSMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceYahooMediaRSS, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceYahooMediaRSS, name)
 }
 
 func GetRSSContentMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceRSSContent, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceRSSContent, name)
 }
 
 func GetDublinCoreMetadata(extensions []Extension, name string) *Extension {
-	return GetExtensionMetadata(extensions, ExtensionNamespaceDublicCoreMetadata, name)
+	return GetExtensionProperty(extensions, ExtensionNamespaceDublicCoreMetadata, name)
 }
 
 func GetItunesOwner(metadata []Extension) (author string) {
@@ -130,6 +145,82 @@ func GetItunesOwner(metadata []Extension) (author string) {
 		}
 	}
 	return fmt.Sprintf("%s <%s>", name, email)
+}
+
+func GetPodcastEpisodeDurationSeconds(item *Item) (seconds int) {
+	var duration *Extension
+	if duration = GetItunesMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetPodcastIndexMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetYahooMediaRSSMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = GetGooglePlayMetadata(item.Extensions, "duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	}
+	return 0
+}
+func GetItunesDurationSeconds(duration *Extension) (seconds int) {
+	if duration == nil {
+		return 0
+	}
+	switch d := GetItunesDurationDigits(duration.Text); len(d) {
+	case 3:
+		// HH:MM:SS format
+		seconds += d[0] * 3600
+		seconds += d[1] * 60
+		seconds += d[2]
+		return seconds
+	case 2:
+		// MM:SS format
+		seconds += d[0] * 60
+		seconds += d[1]
+		return seconds
+	case 1:
+		// SS format
+		return d[0]
+	default:
+		return 0
+	}
+}
+
+func GetItunesDurationDigits(duration string) (parts []int) {
+	for _, part := range strings.Split(duration, ":") {
+		if p, err := strconv.Atoi(part); err != nil {
+			return []int{0}
+		} else {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
+func GetPodcastCoverArtwork(channel *Channel, item *Item) (href string) {
+	// check item-level artwork first
+	if iTunesImage := GetItunesMetadata(item.Extensions, "image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := GetPodcastIndexMetadata(item.Extensions, "image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := GetYahooMediaRSSMetadata(item.Extensions, "thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+
+	// use channel-level artwork as fallback
+	if channel.Image != nil && channel.Image.URL != "" {
+		return channel.Image.URL
+	}
+	if iTunesImage := GetItunesMetadata(channel.Extensions, "image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := GetPodcastIndexMetadata(channel.Extensions, "image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := GetYahooMediaRSSMetadata(channel.Extensions, "thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+	return ""
 }
 
 func GetDublinCoreCreator(metadata []Extension) (creator string) {

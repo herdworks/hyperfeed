@@ -1,6 +1,13 @@
 package jsonfeed
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"net/url"
+	"regexp"
+	"strings"
+
+	"github.com/herdworks/hyperfeed-go/types/href"
+)
 
 // jsonfeed.Feed represents a JSONFeed document as defined by https://jsonfeed.org/version/1.1
 type Feed struct {
@@ -19,6 +26,8 @@ type Feed struct {
 	Expired     bool     `json:"expired,omitempty"`
 	Hubs        []Hub    `json:"hubs,omitempty"`
 	Items       []Item   `json:"items,omitempty"`
+
+	Origin *url.URL `json:"-"`
 }
 
 // Author represents an author in a JSON Feed document.
@@ -63,6 +72,12 @@ type Item struct {
 	Attachments   []Attachment `json:"attachments,omitempty"`
 }
 
+// Variables
+// =============================================================================
+var (
+	htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+)
+
 // METHODS
 // =============================================================================
 func (feed *Feed) FeedVersion() string {
@@ -74,6 +89,37 @@ func (feed *Feed) FeedVersion() string {
 	default:
 		return "unknown"
 	}
+}
+
+func (feed *Feed) IsPodcast() bool {
+	for _, item := range feed.Items {
+		if item.IsPodcastEpisode() {
+			return true
+		}
+	}
+	return false
+}
+
+// Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.
+func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
+	if h, err := href.Parse(item.ExternalURL); err == nil && h != nil && h.Host != "" && !h.SameOrigin(base) {
+		urls = append(urls, h.URL())
+	}
+	return urls
+}
+
+func (item *Item) IsPodcastEpisode() bool {
+	if item == nil {
+		return false
+	}
+	for _, attachment := range item.Attachments {
+		if strings.HasPrefix(attachment.MimeType, "audio/") || strings.HasPrefix(attachment.MimeType, "video/") {
+			return true
+		} else if attachment.DurationInSeconds > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // FUNCTIONS
@@ -98,4 +144,11 @@ func Parse(doc []byte) (jf *Feed, err error) {
 		}
 	}
 	return jf, nil
+}
+
+func HTML(text string) string {
+	if text != "" && !htmlTagPattern.MatchString(text) {
+		return "<p>" + text + "</p>"
+	}
+	return text
 }

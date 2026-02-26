@@ -65,4 +65,5 @@ func TestJSONFeedParser(t *testing.T) {
 		t.Fatalf("expected first item to have a canonical id")
 	}
 	t.Logf("Daring Fireball has %d items", len(jf.Items))
+	t.Logf("Daring Fireball has %d authors: %v", len(jf.Authors), jf.Authors)
 }

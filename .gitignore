@@ -6,8 +6,13 @@ hyperfeed
 **/testdata/Test*
 repl
 *.db*
+*.xml
+*.html
+*.opml
+*.plist
 
 ## state files
+.cache/go-build
 .gocache
 
 ## wip

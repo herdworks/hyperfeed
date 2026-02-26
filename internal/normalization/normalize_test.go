@@ -95,34 +95,30 @@ func TestIsCommonSubdomain(t *testing.T) {
 }
 
 func TestSanitizeParams(t *testing.T) {
-	in := "https://example.com/post?utm_source=x&utm_medium=y&utm_campaign=z&gclid=123&keep=ok"
-	u, _ := url.Parse(in)
-	got := SanitizeParams(u)
-	if got.Query().Get("keep") != "ok" {
-		t.Fatalf("keep param missing; got %v", got.RawQuery)
+	tests := []struct {
+		href string
+		want string // expected Host field
+	}{
+		{
+			"https://example.com/path?utm_source=newsletter&utm_medium=email&keep=this&gclid=12345",
+			"https://example.com/path?keep=this",
+		},
+		{
+			"https://example.com/path?a=1&b=2",
+			"https://example.com/path?a=1&b=2",
+		},
 	}
-	removed := []string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer"}
-	for _, k := range removed {
-		if got.Query().Has(k) {
-			t.Fatalf("param %q not removed; got %v", k, got.RawQuery)
+	for _, tc := range tests {
+		got, err := url.Parse(tc.href)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.href, err)
+		}
+		SanitizeParams(got)
+		if got.String() != tc.want {
+			t.Fatalf("SanitizeParams(%q) = %q; want %q", tc.href, got.String(), tc.want)
 		}
 	}
-	// Should return a new pointer (pure function)
-	if got == u {
-		t.Fatalf("SanitizeParams should return a new pointer (not modify in place)")
-	}
-	// Original should be unchanged
-	if u.RawQuery != "utm_source=x&utm_medium=y&utm_campaign=z&gclid=123&keep=ok" {
-		t.Fatalf("original URL was mutated: %q", u.RawQuery)
-	}
 
-	// Idempotent: no tracking params present
-	in2 := "https://example.com/path?a=1&b=2"
-	u2, _ := url.Parse(in2)
-	got2 := SanitizeParams(u2)
-	if got2.RawQuery != "a=1&b=2" {
-		t.Fatalf("unexpected query after sanitize: %q", got2.RawQuery)
-	}
 }
 
 func TestURLNormalization(t *testing.T) {
@@ -132,11 +128,11 @@ func TestURLNormalization(t *testing.T) {
 	}{
 		{
 			"HTTP://WWW.Example.com:80/a?b=2&a=1",
-			"http://www.example.com/a?a=1&b=2",
+			"http://example.com/a?a=1&b=2",
 		},
 		{
 			"http://www.example.com:81/a?a=1&b=2",
-			"http://www.example.com:81/a?a=1&b=2",
+			"http://example.com:81/a?a=1&b=2",
 		},
 		{
 			"https://EXAMPLE.com:443/x?z=9&y=8",
@@ -147,7 +143,7 @@ func TestURLNormalization(t *testing.T) {
 		u, _ := url.Parse(tc.href)
 		got := URL(u)
 		if got.String() != tc.want {
-			t.Fatalf("URL(%q) = %q; want %q", tc.href, got.String(), tc.want)
+			t.Fatalf("URL(%q)\n\twanted: %q\n\t   got: %q", tc.href, tc.want, got.String())
 		}
 	}
 }
@@ -186,5 +182,37 @@ func TestCleanPath(t *testing.T) {
 				t.Fatalf("CleanPath(%q) = %q; want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIdentifierNormalization(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"http://example.com", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"https://example.com/", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"http://EXAMPLE.com", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"http://example.com:80", "73d986e009065f182c10bcb6a45db3d6eda9498f"},
+		{"https://example.com/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
+		{"https://example.com:443/path", "59375e5be64547c8656db5aae41209179e0e0d3f"},
+		{"https://example.com/path?a=1&b=2", "c7fd3768059cbba04b6fc985a96aeb2a5f34ff37"},
+		{"https://hypertexting.website", "508a34c0dfbf41535df62eb671ead48445478b92"},
+		{"", "8a5edab282632443219e051e4ade2d1d5bbc671c"}, // the empty url identifier
+	}
+	for _, tc := range tests {
+		t.Logf("normalize %q identifier\n", tc.input)
+		u, err := url.Parse(tc.input)
+		if err != nil {
+			t.Fatalf("url %q parser error: %v", tc.input, err)
+		}
+		u = URL(u)
+		t.Logf("normaled %q url\n", u.String())
+		got := Identifier(u.String())
+		if got != tc.want {
+			t.Fatalf("normalized %q identifier error\n\twanted: %q\n\t   got: %q", tc.input, tc.want, got)
+		} else {
+			t.Logf("normalized %q identifier: %q", u.String(), got)
+		}
 	}
 }

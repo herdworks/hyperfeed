@@ -12,13 +12,8 @@ type Counter struct {
 
 func (c *Counter) Increment(value int) {
 	c.Lock.Lock()
+	defer c.Lock.Unlock()
 	c.Count += value
-	c.Lock.Unlock()
-}
-
-func (c *Counter) Reset() {
-	c.Count = 0
-	c.Lock = sync.RWMutex{}
 }
 
 // json marshal method

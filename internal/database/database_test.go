@@ -5,9 +5,12 @@ import (
 	"net/url"
 	"path/filepath"
 	"testing"
+	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed-go/types/opml"
+	hypergraph "github.com/herdworks/hypergraph-go/types"
 )
 
 func TestOpenAndSchema(t *testing.T) {
@@ -73,7 +76,7 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	// Parse OPML test data
-	subscriptions := &hyperfeed.OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
+	subscriptions := &opml.OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
 	if err := subscriptions.Load(); err != nil {
 		t.Fatalf("load opml: %v", err)
 	}
@@ -118,6 +121,7 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	var err error
 	var ctx context.Context = context.Background()
 	var db *Database = &Database{Path: filepath.Join("testdata", "crud.db")}
+	ts, _ := time.Parse(time.RFC3339, "2026-01-28T22:00:00Z")
 	tests := []struct {
 		name   string
 		writer DatabaseRow
@@ -125,16 +129,32 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		err    error
 	}{
 		{
+			name: "SubscriptionList record",
+			writer: &hyperfeed.SubscriptionList{
+				Path:      "following.opml",
+				CreatedAt: ts.UTC(),
+			},
+			reader: &hyperfeed.SubscriptionList{
+				Path: "following.opml",
+			},
+		},
+		{
+			name:   "Website record",
+			writer: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com", FaviconURL: "https://example.com/favicon.ico"}},
+			reader: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+			err:    nil,
+		},
+		{
 			name: "Feed record",
 			writer: &hyperfeed.Feed{
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
 				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
 				Title:   "Example Feed",
-				Authors: []hyperfeed.Author{},
-				Status:  &hyperfeed.FeedStatus{},
+				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
 			},
 			reader: &hyperfeed.Feed{
-				URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
+				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
 			},
 			err: nil,
 		},
@@ -149,11 +169,17 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Validate inputs
+			if tc.writer == nil || tc.reader == nil {
+				t.Fatal("test case writer and reader must be non-nil")
+			}
 			if db.RecordsMatch(tc.writer, tc.reader) {
 				t.Fatalf("pre-test row and reader should differ;\n\trow:    %#v\n\treader: %#v", tc.writer, tc.reader)
 			}
 			// Test upsert
-			if err = db.UpsertRow(ctx, tc.writer); err != nil {
+			if err = db.UpsertRow(ctx, nil, tc.writer); err != nil {
+				t.Fatalf("insert feed: %v", err)
+			}
+			if err = db.UpsertRow(ctx, nil, tc.writer); err != nil {
 				t.Fatalf("insert feed: %v", err)
 			}
 			// Test read
@@ -168,4 +194,50 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		})
 	}
 
+}
+
+func TestReadRowPopulatesProvidedStruct(t *testing.T) {
+	var err error
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "readrow.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	writer := &hyperfeed.Website{
+		Entity: hypergraph.Entity{
+			HTMLURL:    "https://example.com",
+			FaviconURL: "https://example.com/favicon.ico",
+			Name:       "Example",
+		},
+	}
+	if err = db.UpsertRow(ctx, nil, writer); err != nil {
+		t.Fatalf("insert website: %v", err)
+	}
+
+	reader := &hyperfeed.Website{
+		Entity: hypergraph.Entity{
+			HTMLURL: "https://example.com",
+		},
+	}
+	if err = db.ReadRow(ctx, reader); err != nil {
+		t.Fatalf("read website: %v", err)
+	}
+
+	if reader.FaviconURL != writer.FaviconURL {
+		t.Fatalf("expected favicon %q, got %q", writer.FaviconURL, reader.FaviconURL)
+	}
+	if reader.Name != writer.Name {
+		t.Fatalf("expected name %q, got %q", writer.Name, reader.Name)
+	}
+	if reader.ID == "" {
+		t.Fatalf("expected website ID to be set")
+	}
 }

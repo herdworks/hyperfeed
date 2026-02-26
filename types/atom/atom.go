@@ -4,6 +4,9 @@ import (
 	"encoding/xml"
 	"net/url"
 	"regexp"
+	"strings"
+
+	"github.com/herdworks/hyperfeed-go/types/hosted"
 )
 
 // This file is a derivative work of "golang.org/x/tools/blog/atom" and is
@@ -51,14 +54,17 @@ import (
 //
 // reference: https://www.ietf.org/rfc/rfc4287.txt
 type Atom struct {
-	XMLName xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
-	XMLNS   string    `xml:"xmlns:hypergraph,attr"`
-	Title   string    `xml:"title"`
-	ID      string    `xml:"id"`
-	Links   []Link    `xml:"link"`
-	Authors []*Author `xml:"author,omitempty"`
-	Entries []*Entry  `xml:"entry"`
-	Updated TimeStamp `xml:"updated"`
+	XMLName  xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
+	XMLNS    string    `xml:"xmlns:hypergraph,attr"`
+	Title    string    `xml:"title"`
+	Subtitle string    `xml:"subtitle,omitempty"`
+	ID       string    `xml:"id"`
+	Links    []Link    `xml:"link"`
+	Authors  []*Author `xml:"author,omitempty"`
+	Entries  []*Entry  `xml:"entry"`
+	Updated  TimeStamp `xml:"updated"`
+
+	Origin *url.URL `xml:"-" json:"-"`
 }
 
 type Entry struct {
@@ -69,8 +75,8 @@ type Entry struct {
 	Updated      TimeStamp `xml:"updated"`
 	Authors      []*Author `xml:"author"`
 	Contributors []*Author `xml:"contributor"` // extension from golang.org/x/tools/blog/atom
-	Summary      *Text     `xml:"summary"`
-	Content      *Text     `xml:"content"`
+	Summary      Text      `xml:"summary"`
+	Content      Text      `xml:"content"`
 }
 
 type Link struct {
@@ -98,6 +104,10 @@ type Text struct {
 
 type TimeStamp = string
 
+// VARIABLES
+// =============================================================================
+var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+
 // METHODS
 // =============================================================================
 func (atom *Atom) Render() (string, error) {
@@ -109,13 +119,54 @@ func (atom *Atom) Render() (string, error) {
 }
 
 // Atom.Link()
-func (atom *Atom) Link(rel string) *Link {
+func (atom *Atom) Link(rel string) (link *Link) {
+	if atom != nil && atom.Origin != nil {
+		// default link
+		link = &Link{Href: atom.Origin.ResolveReference(&url.URL{Path: "/"}).String(), Rel: "origin"}
+	}
+	if atom == nil {
+		return link
+	}
 	for _, l := range atom.Links {
 		if l.Rel == rel {
 			return &l
 		}
 	}
-	return nil
+	return link
+}
+
+// Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.
+func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
+	if entry == nil || entry.Links == nil {
+		return urls
+	}
+	for _, link := range entry.Links {
+		if u := link.URL(); u != nil && link.IsExternal(base) {
+			urls = append(urls, u)
+		}
+	}
+	return urls
+}
+
+func (atom *Atom) IsPodcast() bool {
+	for _, entry := range atom.Entries {
+		if entry.IsPodcastEpisode() {
+			return true
+		}
+	}
+	return false
+}
+
+func (entry *Entry) IsPodcastEpisode() bool {
+	if entry == nil {
+		return false
+	}
+	for _, link := range entry.Links {
+		if strings.HasPrefix(link.Type, "audio/") || strings.HasPrefix(link.Type, "video/") {
+			return true
+		}
+	}
+	return false
 }
 
 // Entry.Link()
@@ -131,6 +182,29 @@ func (entry *Entry) Link(rel string) *Link {
 	return nil
 }
 
+// Entry.InternalLink()
+// returns the first link whose host matches the base URL host
+func (entry *Entry) InternalLink(base *url.URL) *Link {
+	for _, l := range entry.Links {
+		if l.URL() == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimPrefix(l.URL().Host, "www."), strings.TrimPrefix(base.Host, "www.")) {
+			return &l
+		}
+		if strings.EqualFold(hosted.URL(l.URL()).Hostname(), strings.TrimPrefix(base.Hostname(), "www.")) {
+			l.Href = hosted.URL(l.URL()).String() // normalize the link URL to improve matching with other links
+			return &l
+		}
+	}
+	for _, l := range entry.Links {
+		if l.Rel == "alternate" || l.Rel == "" {
+			return &l // fallback to alternate/empty rel
+		}
+	}
+	return &entry.Links[0] // fallback to first link? (this should not happen)
+}
+
 // Link.URL()
 func (link *Link) URL() (u *url.URL) {
 	if link == nil || link.Href == "" {
@@ -138,6 +212,20 @@ func (link *Link) URL() (u *url.URL) {
 	}
 	u, _ = url.Parse(link.Href) // ignore error, return nil on failure
 	return u
+}
+
+// Link.IsExternal()
+func (link *Link) IsExternal(base *url.URL) bool {
+	if link == nil || link.URL() == nil || link.URL().Host == "" {
+		return false
+	}
+	if base == nil {
+		return true
+	}
+	if strings.EqualFold(link.Rel, "shorturl") {
+		return false // DaringFireball "short URL" links
+	}
+	return !strings.EqualFold(strings.TrimPrefix(link.URL().Host, "www."), strings.TrimPrefix(base.Host, "www."))
 }
 
 // FUNCTIONS
@@ -161,11 +249,24 @@ func Parse(doc []byte) (*Atom, error) {
 	return atom, err
 }
 
-func FirstTextBody(values ...*Text) string {
+func First(values ...*Text) *Text {
+	if len(values) == 0 {
+		return nil
+	}
 	for _, v := range values {
 		if v != nil && v.Body != "" {
-			return v.Body
+			return v
 		}
 	}
-	return ""
+	return values[0]
+}
+
+func HTML(text Text) string {
+	if text.Type == "html" || text.Type == "xhtml" {
+		return text.Body
+	}
+	if !htmlTagPattern.MatchString(text.Body) && text.Body != "" {
+		return "<p>" + text.Body + "</p>"
+	}
+	return text.Body
 }
