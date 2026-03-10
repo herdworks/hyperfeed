@@ -150,7 +150,7 @@ func (parser *RSSFeedParser) Items(added time.Time, w io.Writer) (items []*hyper
 	for index, rssitem := range parser.RSS.Channel.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = rssitem.GUID.Value
-		item.URL = parser.RSS.ItemLink(&rssitem, parser.Feed.HTMLURL.URL())
+		item.URL, _ = href.Parse(parser.RSS.ItemLink(&rssitem, parser.Feed.HTMLURL.URL()))
 		item.Title = html.UnescapeString(strings.TrimSpace(rssitem.Title))
 		if item.Summary, err = markdown.Convert(rssitem.Description); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.description error: %v\n", err)
@@ -316,7 +316,7 @@ func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		item := &hyperfeed.Item{Feed: parser.Feed}
 		item.GUID = entry.ID
 		if link := entry.InternalLink(parser.Feed.URL.URL()); link != nil {
-			item.URL, _ = url.Parse(link.Href)
+			item.URL, _ = href.Parse(link.Href)
 		}
 		publishedTime, _ := time.Parse(time.RFC3339, entry.Published)
 		modifiedTime, _ := time.Parse(time.RFC3339, entry.Updated)
@@ -446,7 +446,7 @@ func (parser *JSONFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 func (parser *JSONFeedParser) Items(added time.Time, w io.Writer) (items []*hyperfeed.Item, err error) {
 	for index, jsonitem := range parser.JSON.Items {
 		item := &hyperfeed.Item{Feed: parser.Feed}
-		item.URL, _ = url.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
+		item.URL, _ = href.Parse(hyperfeed.First(jsonitem.URL, jsonitem.ID)) // prefer URL, fallback to ID
 		publishedTime, _ := time.Parse(time.RFC3339, jsonitem.DatePublished)
 		modifiedTime, _ := time.Parse(time.RFC3339, jsonitem.DateModified)
 		item.Title = html.UnescapeString(strings.TrimSpace(jsonitem.Title))

@@ -18,8 +18,8 @@ import (
 type Item struct {
 	*DatabaseRecord
 
-	ID  string   `json:"id,omitempty"`
-	URL *url.URL `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
+	ID  string     `json:"id,omitempty"`
+	URL *href.Href `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
 
 	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
 	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
@@ -68,7 +68,7 @@ func (item *Item) Identifier() string {
 		return ""
 	}
 	if item.ID == "" {
-		u := normalized.URL(item.URL)
+		u := normalized.URL(item.URL.URL())
 		item.ID = normalized.Identifier(fmt.Sprintf("%s/%s/%s", item.Feed.WebsiteIdentifier(), u, item.GUID))
 	}
 	return item.ID
@@ -86,7 +86,7 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 		return
 	}
 	if item.URL != nil {
-		item.URL = href.ResolveHref(base, item.URL, w).URL()
+		item.URL = href.ResolveHref(base, item.URL, w)
 	}
 	for i, b := range item.Bylines {
 		if b.Href != nil {

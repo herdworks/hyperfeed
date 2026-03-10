@@ -38,8 +38,8 @@ type Feed struct {
 	Website     Website       `json:"website,omitempty"` // the Website this feed is associated with
 	Status      Status        `json:"status,omitempty"`  // fetch status
 
-	Items []*Item `json:"-"` // the most recent items for this feed
-	Bytes []byte  `json:"-"` // the most recent contents (raw bytes) for this feed
+	Items []*Item `json:"items,omitempty"` // the most recent items for this feed
+	Bytes []byte  `json:"-"`               // the most recent contents (raw bytes) for this feed
 }
 
 // FeedRateLimit captures rate limiting signals via HTTP 429/5xx status codes and related headers.

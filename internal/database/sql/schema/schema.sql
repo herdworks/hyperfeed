@@ -241,9 +241,9 @@ CREATE INDEX IF NOT EXISTS metadata_ref_index ON metadata([namespace], [name]);
 -- Used for storing discovered feeds & websites
 CREATE TABLE IF NOT EXISTS discovery (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
-    [kind] TEXT,
+    [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     [url] TEXT,
-    [feed_url] TEXT,
     [html_url] TEXT,
     [favicon_url] TEXT,
     [cover_url] TEXT,
@@ -254,6 +254,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [description] TEXT,
     [username] TEXT,
     [language] TEXT,
+    [occurrences] INTEGER DEFAULT 1,
 
     PRIMARY KEY ([id])
 );
@@ -604,7 +605,7 @@ FROM
             [item_links]
             JOIN [items] ON [items].[id] = [item_links].[item_id]
         WHERE
-            [items].[feed_at] >= datetime('now', '-7 days')
+            [items].[feed_at] >= datetime('now', '-3 days')
         GROUP BY
             [item_links].[link_id]
         HAVING
@@ -693,4 +694,39 @@ SELECT
 FROM
     [attachments]
     INNER JOIN [item_attachments] ON [item_attachments].[attachment_id] = [attachments].[id]
+;
+
+CREATE VIEW IF NOT EXISTS discovery_view AS
+SELECT
+    json_object(
+        'id', [discovery].[id],
+        'url', [discovery].[url],
+        'html_url', [discovery].[html_url],
+        'favicon_url', [discovery].[favicon_url],
+        'cover_url', [discovery].[cover_url],
+        'mentions_url', [discovery].[mentions_url],
+        'email', [discovery].[email],
+        'name', [discovery].[name],
+        'title', [discovery].[title],
+        'description', [discovery].[description],
+        'username', [discovery].[username],
+        'language', [discovery].[language],
+        'occurrences', [discovery].[occurrences],
+        'created_at', [discovery].[created_at],
+        'updated_at', [discovery].[updated_at]
+    ) AS 'discovery',
+    [discovery].[id],
+    [discovery].[url],
+    [discovery].[html_url],
+    [discovery].[username],
+    [discovery].[created_at],
+    [discovery].[updated_at]
+FROM
+    [discovery]
+LEFT OUTER JOIN [feeds] ON [discovery].[id] = [feeds].[id]
+WHERE
+    [feeds].[id] IS NULL
+ORDER BY
+    [discovery].[updated_at] DESC,
+    [discovery].[occurrences] DESC
 ;
