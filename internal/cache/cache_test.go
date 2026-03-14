@@ -241,7 +241,7 @@ func TestCacheFilePutOperation(t *testing.T) {
 			PublishedAt: cacheTime,
 		},
 		{
-			URL:         &href.Href{Scheme: "https", Host: "example.com", Path: "/blog/hello-again/"},
+			URL: &href.Href{Scheme: "https", Host: "example.com", Path: "/blog/hello-again/"},
 
 			Feed:        feeds[1],
 			PublishedAt: cacheTime,

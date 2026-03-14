@@ -1,4 +1,4 @@
-package hyperfeed
+package version
 
 import (
 	"fmt"

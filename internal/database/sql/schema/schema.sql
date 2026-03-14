@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [kind] TEXT,
     [url] TEXT UNIQUE,
     [html_url] TEXT,
+    [email] TEXT,
     [title] TEXT,
     [description] TEXT,
     [language] TEXT,
@@ -134,7 +135,7 @@ CREATE TABLE IF NOT EXISTS items (
     [feed_at] TIMESTAMP,
     [guid] TEXT,
     [url] TEXT,
-    [external_hrefs] TEXT NOT NULL DEFAULT '[]', -- JSON array of external URL strings
+    [comments_url] TEXT,
     [title] TEXT,
     [summary] TEXT,
     [content] TEXT,
@@ -144,7 +145,6 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE INDEX IF NOT EXISTS items_id_index ON items([id]);
 CREATE INDEX IF NOT EXISTS items_url_index ON items([url]);
-CREATE INDEX IF NOT EXISTS items_external_hrefs_index ON items([external_hrefs]);
 CREATE INDEX IF NOT EXISTS items_published_at_index ON items([published_at] DESC);
 CREATE INDEX IF NOT EXISTS items_modified_at_index ON items([modified_at] DESC);
 CREATE INDEX IF NOT EXISTS items_added_at_index ON items([added_at] DESC);
@@ -257,6 +257,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [username] TEXT,
     [language] TEXT,
     [occurrences] INTEGER DEFAULT 1,
+    [snooze] INTEGER DEFAULT 0,
 
     PRIMARY KEY ([id])
 );
@@ -390,6 +391,7 @@ SELECT
         'kind', [feeds].[kind],
         'url', [feeds].[url],
         'html_url', NULLIF([feeds].[html_url], ''),
+        'email', [feeds].[email],
         'title', [feeds].[title],
         'description', [feeds].[description],
         'language', [feeds].[language],
@@ -431,7 +433,7 @@ SELECT
     json_object(
         'id', [items].[id],
         'url', [items].[url],
-        'external_hrefs', json([items].[external_hrefs]),
+        'comments_url', json([items].[comments_url]),
         'published_at', [items].[published_at],
         'modified_at', [items].[modified_at],
         'added_at', [items].[added_at],
@@ -478,7 +480,7 @@ SELECT
         'item', json_object(
             'id', [items].[id],
             'url', [items].[url],
-            'external_hrefs', json([items].[external_hrefs]),
+            'comments_url', json([items].[comments_url]),
             'published_at', [items].[published_at],
             'modified_at', [items].[modified_at],
             'added_at', [items].[added_at],
@@ -517,6 +519,7 @@ SELECT
                 'kind', [feeds].[kind],
                 'url', [feeds].[url],
                 'html_url', NULLIF([feeds].[html_url], ''),
+                'email', [feeds].[email],
                 'title', [feeds].[title],
                 'description', [feeds].[description],
                 'language', [feeds].[language],
@@ -718,6 +721,7 @@ SELECT
         'username', [discovery].[username],
         'language', [discovery].[language],
         'occurrences', [discovery].[occurrences],
+        'snooze', [discovery].[snooze],
         'created_at', [discovery].[created_at],
         'updated_at', [discovery].[updated_at]
     ) AS 'discovery',

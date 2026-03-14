@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"net/url"
 	"strings"
 	"time"
 
@@ -18,8 +17,9 @@ import (
 type Item struct {
 	*DatabaseRecord
 
-	ID  string     `json:"id,omitempty"`
-	URL *href.Href `json:"url,omitempty"` // URL is the canonical link for the item (permalink).
+	ID          string     `json:"id,omitempty"`
+	URL         *href.Href `json:"url,omitempty"`          // URL is the canonical link for the item (permalink).
+	CommentsURL *href.Href `json:"comments_url,omitempty"` // CommentsURL is the URL for the item's comments page (if available)
 
 	PublishedAt time.Time `json:"published_at,omitempty"` // source item created timestamp
 	ModifiedAt  time.Time `json:"modified_at,omitempty"`  // source item last modified timestamp
@@ -35,9 +35,6 @@ type Item struct {
 	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, Atom enclosure Links, JSONFeed attachments, and scraped media (images, videos, audio, documents, and other files)
 	Categories       []string     `json:"categories,omitempty"`
 	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
-
-	// Comments is a URL pointing to a comments page for the item.
-	Comments *url.URL `json:"comments,omitempty"`
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
@@ -155,6 +152,7 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"id",
 		"url",
+		"comments_url",
 		"title",
 		"summary",
 		"content",
@@ -176,6 +174,11 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 		args = append(args, sql.Named("url", item.URL.String()))
 	} else {
 		args = append(args, sql.Named("url", nil))
+	}
+	if item.CommentsURL != nil {
+		args = append(args, sql.Named("comments_url", item.CommentsURL.String()))
+	} else {
+		args = append(args, sql.Named("comments_url", nil))
 	}
 	args = append(args, sql.Named("title", item.Title))
 	args = append(args, sql.Named("summary", strings.TrimSpace(item.Summary)))
@@ -199,6 +202,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 	return []string{
 		"url = excluded.url",
+		"comments_url = excluded.comments_url",
 		"external_hrefs = excluded.external_hrefs",
 		"title = excluded.title",
 		"summary = excluded.summary",

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -123,7 +122,9 @@ func (parser *RSSFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 		// RSS does not have a standard mentions field, will source from HyperGraph later
 	}
 	if parser.Feed.Website.Email == "" {
-		parser.Feed.Website.Email, _ = rss.ParseAuthor(parser.RSS.Channel.ManagingEditor)
+		email, _ := rss.ParseAuthor(parser.RSS.Channel.ManagingEditor)
+		parser.Feed.Website.Email = email
+		parser.Feed.Email = email
 	}
 	if parser.Feed.Website.Name == "" {
 		_, parser.Feed.Website.Name = rss.ParseAuthor(parser.RSS.Channel.ManagingEditor)
@@ -158,7 +159,7 @@ func (parser *RSSFeedParser) Items(added time.Time, w io.Writer) (items []*hyper
 		if item.Content, err = markdown.Convert(rss.HTML(rssitem.ContentEncoded)); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.content:encoded error: %v\n", err)
 		}
-		item.Comments, _ = url.Parse(rssitem.Comments.Value)
+		item.CommentsURL, _ = href.Parse(rssitem.Comments.Value)
 		item.PublishedAt, _ = rss.Date(rssitem.PubDate)
 		item.ModifiedAt = item.PublishedAt // rss items don't have a modified date
 		item.AddedAt = added
@@ -283,6 +284,7 @@ func (parser *AtomFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 		for _, author := range parser.Atom.Authors {
 			if author.Email != "" {
 				parser.Feed.Website.Email = author.Email
+				parser.Feed.Email = author.Email
 				break
 			}
 		}
@@ -327,7 +329,7 @@ func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		if item.Content, err = markdown.Convert(atom.HTML(entry.Content)); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.content error: %v\n", err)
 		}
-		item.Comments = nil // Atom entries do not have a comments field
+		item.CommentsURL = nil // Atom entries do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
@@ -456,7 +458,7 @@ func (parser *JSONFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		if item.Content, err = markdown.Convert(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText))); err != nil {
 			fmt.Fprintf(w, "markdown JSONFeed item.Content error: %v\n", err)
 		}
-		item.Comments = nil // Atom entries do not have a comments field
+		item.CommentsURL = nil // JSONFeed items do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added

@@ -17,6 +17,7 @@ import (
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
+	version "github.com/herdworks/hyperfeed-go/types/version"
 )
 
 // TYPES
@@ -347,7 +348,7 @@ func Request(ctx context.Context, method string, href string, headers http.Heade
 		return nil, err
 	}
 	if headers.Get("User-Agent") == "" {
-		headers.Set("User-Agent", hyperfeed.LibUserAgent)
+		headers.Set("User-Agent", version.LibUserAgent)
 	}
 	request.Header = headers
 	return request, nil

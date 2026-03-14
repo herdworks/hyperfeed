@@ -13,13 +13,14 @@ import (
 	"github.com/herdworks/hyperfeed-go/subscriber"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	"github.com/herdworks/hyperfeed-go/types/href"
+	version "github.com/herdworks/hyperfeed-go/types/version"
 )
 
 // ============================ Package Variables ============================
 var (
-	LibVersion    = hyperfeed.LibVersion
+	LibVersion    = version.LibVersion
 	SchemaVersion = database.SchemaVersionLatest
-	ReleaseDate   = hyperfeed.LibReleaseDate
+	ReleaseDate   = version.LibReleaseDate
 )
 
 // ============================ Main Entry Point =============================

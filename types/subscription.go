@@ -8,7 +8,7 @@ import (
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	"github.com/herdworks/hyperfeed-go/types/opml"
+	opml "github.com/herdworks/hyperfeed-go/types/opml"
 )
 
 type SubscriptionList struct {
