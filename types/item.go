@@ -203,7 +203,6 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 	return []string{
 		"url = excluded.url",
 		"comments_url = excluded.comments_url",
-		"external_hrefs = excluded.external_hrefs",
 		"title = excluded.title",
 		"summary = excluded.summary",
 		"content = excluded.content",
