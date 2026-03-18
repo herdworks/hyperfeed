@@ -103,6 +103,7 @@ func (parser *RSSFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 	parser.Feed.Description = parser.RSS.Channel.Description
 	parser.Feed.Language = parser.RSS.Channel.Language
 	parser.Feed.Metadata = hyperfeed.Metadata{}
+	parser.Feed.Email = parser.RSS.Channel.GetEmail()
 
 	// Feed.Website properties
 	if website := parser.Feed.WebsiteURL(); website == nil {
@@ -122,9 +123,7 @@ func (parser *RSSFeedParser) Parse(w io.Writer) (*hyperfeed.Feed, error) {
 		// RSS does not have a standard mentions field, will source from HyperGraph later
 	}
 	if parser.Feed.Website.Email == "" {
-		email, _ := rss.ParseAuthor(parser.RSS.Channel.ManagingEditor)
-		parser.Feed.Website.Email = email
-		parser.Feed.Email = email
+		parser.Feed.Website.Email = parser.Feed.Email
 	}
 	if parser.Feed.Website.Name == "" {
 		_, parser.Feed.Website.Name = rss.ParseAuthor(parser.RSS.Channel.ManagingEditor)

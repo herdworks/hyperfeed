@@ -134,7 +134,7 @@ func (feeder *Feeder) Ready() (ready bool, err error) {
 		return false, ErrUnhealthy // feed is unhealthy; checkup required
 	} else if feeder.Feed.Status.UpdatedAt.IsZero() || feeder.Feed.Status.LastSuccessAt.IsZero() {
 		return true, nil // new feed
-	} else if feeder.Feed.Status.UpdatedAt == feeder.Feed.Status.LastCanceledAt {
+	} else if time.Time.Equal(feeder.Feed.Status.UpdatedAt, feeder.Feed.Status.LastCanceledAt) {
 		return true, nil // last attempt was canceled; allow immediate retry
 	}
 

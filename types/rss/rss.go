@@ -189,6 +189,17 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 	return nil
 }
 
+func (channel *Channel) GetEmail() (email string) {
+	if _, email := ParseAuthor(channel.ManagingEditor); email != "" {
+		return email
+	} else if owner := GetItunesMetadata(channel.Extensions, "owner"); owner != nil {
+		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
+			return email.Text
+		}
+	}
+	return
+}
+
 // Item.ExternalURLs() returns a slice of external URLs found in the item's links.
 func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
 	if item == nil || item.Links == nil {

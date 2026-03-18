@@ -121,14 +121,15 @@ func (status *Status) Cooldown(interval time.Duration) (cooldown time.Duration) 
 
 // CheckUp evaluates the current status and returns true if the feed is healthy (i.e. not a zombie)
 func (status *Status) Healthy() bool {
-	if status.TooSlow || status.Zombie {
+	if status.TooSlow || status.Zombie || status.FetchErrors >= 10 {
 		return false
 	}
+	// NOTE: too many feeds are getting flagged as TooSlow so let's revisit this after we have more data.
+	// if count(status.LastStatusCodes, 0) >= 16 {
+	// 	status.TooSlow = true
+	// }
 	if status.FetchErrors >= 10 {
-		return false
-	}
-	if count(status.LastStatusCodes, 0) >= 10 {
-		status.TooSlow = true
+		status.Zombie = true
 	}
 	if len(status.LastStatusCodes) >= 10 && count(status.LastStatusCodes, 200) == 0 && count(status.LastStatusCodes, 304) == 0 {
 		status.Zombie = true
@@ -137,26 +138,26 @@ func (status *Status) Healthy() bool {
 }
 
 func (status *Status) Fetched() bool {
-	return status.UpdatedAt == status.LastSuccessAt
+	return time.Time.Equal(status.UpdatedAt, status.LastSuccessAt)
 }
 
 func (status *Status) TimedOut() bool {
-	return status.UpdatedAt == status.LastCanceledAt
+	return time.Time.Equal(status.UpdatedAt, status.LastCanceledAt)
 }
 
 func (status *Status) RateLimited() bool {
-	return status.UpdatedAt == status.LastAttemptAt && status.RateLimit.Recent429s > 0
+	return time.Time.Equal(status.UpdatedAt, status.LastAttemptAt) && status.RateLimit.Recent429s > 0
 }
 
 func (status *Status) Skipped() bool {
-	return status.UpdatedAt != status.LastAttemptAt
+	return !time.Time.Equal(status.UpdatedAt, status.LastAttemptAt)
 }
 
 func (status *Status) Failed() bool {
 	switch {
-	case status.UpdatedAt == status.LastAttemptAt && status.FetchErrors > 0:
+	case time.Time.Equal(status.UpdatedAt, status.LastAttemptAt) && status.FetchErrors > 0:
 		return true
-	case status.UpdatedAt == status.LastAttemptAt && status.UpdatedAt == status.LastErrorAt:
+	case time.Time.Equal(status.UpdatedAt, status.LastAttemptAt) && time.Time.Equal(status.UpdatedAt, status.LastErrorAt):
 		return true
 	default:
 		return false
