@@ -613,7 +613,7 @@ FROM
             [item_links]
             JOIN [items] ON [items].[id] = [item_links].[item_id]
         WHERE
-            [items].[feed_at] >= datetime('now', '-3 days')
+            [items].[feed_at] >= datetime('now', '-48 hours')
         GROUP BY
             [item_links].[link_id]
         HAVING

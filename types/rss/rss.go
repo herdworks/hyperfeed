@@ -7,12 +7,17 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/herdworks/hyperfeed-go/types/hosted"
+	xmlns "github.com/herdworks/hyperfeed-go/types/xmlns"
 	"golang.org/x/net/html/charset"
 )
+
+// TYPES
+// =============================================================================
 
 // RSS represents an RSS feed (0.91/0.92/2.0).
 // See https://www.rssboard.org/rss-specification
@@ -44,7 +49,7 @@ type Channel struct {
 	SkipDays       *Days      `xml:"skipDays"`
 	Items          []Item     `xml:"item"`
 
-	Extensions []Extension `xml:",any" json:"-"`
+	Extensions xmlns.Extensions `xml:",any" json:"-"`
 }
 
 type Item struct {
@@ -61,7 +66,7 @@ type Item struct {
 	Source         *Source     `xml:"source"`
 
 	// Extensions captures additional namespaced elements under <item>.
-	Extensions []Extension `xml:",any" json:"-"`
+	Extensions xmlns.Extensions `xml:",any" json:"-"`
 }
 
 type Link struct {
@@ -148,7 +153,7 @@ type Days struct {
 	Days []string `xml:"day"`
 }
 
-// Variables
+// VARIABLES
 // =============================================================================
 var (
 	ErrDateParser = fmt.Errorf("date parser error")
@@ -158,7 +163,7 @@ var (
 	htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
 )
 
-// Methods
+// METHODS
 // =============================================================================
 
 func (rss *RSS) FeedVersion() string {
@@ -180,6 +185,9 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 	if u, err := url.Parse(item.GUID.Value); err == nil && u != nil && item.GUID.IsPermaLink {
 		return u
 	}
+	if item.Comments.Value == "" {
+		return nil
+	}
 	if u, err := url.Parse(item.Comments.Value); err == nil && u != nil && !(&Link{Href: item.Comments.Value}).IsExternal(base) {
 		if u.Fragment == "comments" || u.Fragment == "respond" {
 			u.Fragment = ""
@@ -189,11 +197,42 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 	return nil
 }
 
+func (r *RSS) HTMLHref() string {
+	if r == nil {
+		return ""
+	}
+	for _, link := range r.Channel.Links {
+		if strings.EqualFold(link.Rel, "self") || link.Type == "application/rss+xml" {
+			continue // skip self-referencing feed links
+		}
+		if strings.EqualFold(link.Rel, "hub") {
+			continue // skip WebSub links (https://www.w3.org/TR/websub/)
+		}
+		if link.Href == r.Origin.String() {
+			continue // skip links that match the feed URL
+		}
+		if link.Href == "" {
+			continue // skip empty links
+		}
+		return link.Href
+	}
+	for i, item := range r.Channel.Items {
+		if i == 3 {
+			break
+		}
+		if itemLink := r.ItemLink(&item, r.Origin); itemLink != nil {
+			itemLink.Path = "/"
+			return itemLink.String()
+		}
+	}
+	return r.Origin.ResolveReference(&url.URL{Path: "/"}).String()
+}
+
 func (channel *Channel) GetEmail() (email string) {
 	if _, email := ParseAuthor(channel.ManagingEditor); email != "" {
 		return email
-	} else if owner := GetItunesMetadata(channel.Extensions, "owner"); owner != nil {
-		if email := GetItunesMetadata(owner.Extensions, "email"); email != nil {
+	} else if owner := channel.Extensions.GetItunesMetadata("owner"); owner != nil {
+		if email := owner.Extensions.GetItunesMetadata("email"); email != nil {
 			return email.Text
 		}
 	}
@@ -211,6 +250,19 @@ func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		}
 	}
 	return urls
+}
+
+func (item *Item) PodcastDescription() string {
+	if item == nil {
+		return ""
+	}
+	if desc := item.Extensions.GetProperty(xmlns.ItunesPodcastNS, "summary"); desc != nil {
+		return desc.Text
+	}
+	if desc := item.Extensions.GetProperty(xmlns.ItunesPodcastNS, "subtitle"); desc != nil {
+		return desc.Text
+	}
+	return item.Description
 }
 
 // Link.URL()
@@ -270,7 +322,7 @@ func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err erro
 }
 
 func (text *Text) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
-	if start.Name.Space == "" || strings.EqualFold(start.Name.Space, ExtensionNamespaceRSS) {
+	if start.Name.Space == "" || strings.EqualFold(start.Name.Space, xmlns.RSSNS) {
 		if err = d.DecodeElement(&text.Value, &start); err != nil {
 			return err
 		}
@@ -280,7 +332,7 @@ func (text *Text) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err erro
 	return nil
 }
 
-// Functions
+// FUNCTIONS
 // =============================================================================
 
 // rss.Detected()
@@ -342,74 +394,6 @@ func Date(from string) (t time.Time, err error) {
 	return time.Time{}, ErrDateParser
 }
 
-func (r *RSS) HTMLHref() string {
-	if r == nil {
-		return ""
-	}
-	for _, link := range r.Channel.Links {
-		if strings.EqualFold(link.Rel, "self") || link.Type == "application/rss+xml" {
-			continue // skip self-referencing feed links
-		}
-		if strings.EqualFold(link.Rel, "hub") {
-			continue // skip WebSub links (https://www.w3.org/TR/websub/)
-		}
-		if link.Href == r.Origin.String() {
-			continue // skip links that match the feed URL
-		}
-		if link.Href == "" {
-			continue // skip empty links
-		}
-		return link.Href
-	}
-	for i, item := range r.Channel.Items {
-		if i == 3 {
-			break
-		}
-		if itemLink := r.ItemLink(&item, r.Origin); itemLink != nil {
-			itemLink.Path = "/"
-			return itemLink.String()
-		}
-	}
-	return r.Origin.ResolveReference(&url.URL{Path: "/"}).String()
-}
-
-func (r *RSS) IsPodcast() bool {
-	if len(GetExtensionProperties(r.Channel.Extensions, ExtensionNamespaceItunesPodcast)) > 0 {
-		return true
-	}
-	for _, item := range r.Channel.Items {
-		if item.IsPodcastEpisode() {
-			return true
-		}
-	}
-	return false
-}
-
-func (item *Item) IsPodcastEpisode() bool {
-	if item == nil {
-		return false
-	}
-	for _, enclosure := range item.Enclosures {
-		if strings.HasPrefix(enclosure.Type, "audio/") || strings.HasPrefix(enclosure.Type, "video/") {
-			return true
-		}
-	}
-	return false
-}
-
-func (item *Item) PodcastDescription() string {
-	if item == nil {
-		return ""
-	}
-	if desc := GetExtensionProperty(item.Extensions, ExtensionNamespaceItunesPodcast, "summary"); desc != nil {
-		return desc.Text
-	}
-	if desc := GetExtensionProperty(item.Extensions, ExtensionNamespaceItunesPodcast, "subtitle"); desc != nil {
-		return desc.Text
-	}
-	return item.Description
-}
-
 // ParseAuthor extracts name and email from an RSS author string.
 //
 // NOTE: <author> elements are not well-defined in RSS 2.0 and may contain just an email, just a name, or both in various formats.
@@ -445,4 +429,93 @@ func HTML(text string) string {
 	// 	return fmt.Sprintf("<p>%s</p>", text)
 	// }
 	return text
+}
+
+func GetItunesOwner(metadata xmlns.Extensions) (author string) {
+	var name, email string
+	if ownerMetadata := metadata.GetItunesMetadata("owner"); ownerMetadata != nil {
+		if n := ownerMetadata.Extensions.GetItunesMetadata("name"); n != nil {
+			name = n.Text
+		}
+		if e := ownerMetadata.Extensions.GetItunesMetadata("email"); e != nil {
+			email = e.Text
+		}
+	}
+	return fmt.Sprintf("%s <%s>", name, email)
+}
+
+func GetPodcastEpisodeDurationSeconds(item *Item) (seconds int) {
+	var duration *xmlns.Extension
+	if duration = item.Extensions.GetItunesMetadata("duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = item.Extensions.GetPodcastIndexMetadata("duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = item.Extensions.GetYahooMediaRSSMetadata("duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	} else if duration = item.Extensions.GetGooglePlayMetadata("duration"); duration != nil {
+		return GetItunesDurationSeconds(duration)
+	}
+	return 0
+}
+func GetItunesDurationSeconds(duration *xmlns.Extension) (seconds int) {
+	if duration == nil {
+		return 0
+	}
+	switch d := GetItunesDurationDigits(duration.Text); len(d) {
+	case 3:
+		// HH:MM:SS format
+		seconds += d[0] * 3600
+		seconds += d[1] * 60
+		seconds += d[2]
+		return seconds
+	case 2:
+		// MM:SS format
+		seconds += d[0] * 60
+		seconds += d[1]
+		return seconds
+	case 1:
+		// SS format
+		return d[0]
+	default:
+		return 0
+	}
+}
+
+func GetItunesDurationDigits(duration string) (parts []int) {
+	for _, part := range strings.Split(duration, ":") {
+		if p, err := strconv.Atoi(part); err != nil {
+			return []int{0}
+		} else {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
+func GetPodcastCoverArtwork(channel *Channel, item *Item) (href string) {
+	// check item-level artwork first
+	if iTunesImage := item.Extensions.GetItunesMetadata("image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := item.Extensions.GetPodcastIndexMetadata("image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := item.Extensions.GetYahooMediaRSSMetadata("thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+
+	// use channel-level artwork as fallback
+	if channel.Image != nil && channel.Image.URL != "" {
+		return channel.Image.URL
+	}
+	if iTunesImage := channel.Extensions.GetProperty(xmlns.ItunesPodcastNS, "image"); iTunesImage != nil && iTunesImage.HasAttribute("href") {
+		return iTunesImage.GetAttribute("href")
+	}
+	if podcastImage := channel.Extensions.GetProperty(xmlns.PodcastIndexNS, "image"); podcastImage != nil && podcastImage.HasAttribute("href") {
+		return podcastImage.GetAttribute("href")
+	}
+	if mediaThumbnail := channel.Extensions.GetProperty(xmlns.YahooMediaRSSNS, "thumbnail"); mediaThumbnail != nil && mediaThumbnail.HasAttribute("url") {
+		return mediaThumbnail.GetAttribute("url")
+	}
+	return ""
 }

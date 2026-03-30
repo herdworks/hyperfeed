@@ -16,6 +16,7 @@ import (
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
 	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed-go/types/xmlns"
 	hypergraph "github.com/herdworks/hypergraph-go/types"
 	"golang.org/x/net/html"
 )
@@ -64,8 +65,8 @@ func (attachment *Attachment) Identifier() string {
 // ParseItemLinkAttachments() generates link attachments from a []*url.URL slice
 func ParseItemLinkAttachments(item *Item, urls []*url.URL, w io.Writer) (attachments []Attachment) {
 	for _, u := range urls {
-		if base, err := href.Parse(item.URL); err != nil || base == nil || base.SameOrigin(u) {
-			continue // skip invalid or same-origin links
+		if base, err := href.Parse(item.URL); err == nil && base != nil && base.SameOrigin(u) {
+			continue // skip same-origin links
 		}
 		var attachment Attachment = Attachment{Sources: []Source{}, Mimetype: "text/x-url"}
 		attachment.Href, _ = href.Parse(u)
@@ -139,8 +140,8 @@ func (attachment *Attachment) Displayable() bool {
 	}
 	if max(attachment.Width, attachment.Height) == 0 {
 		return true // if dimensions are unknown, assume it's displayable
-	} else if max(attachment.Width, attachment.Height) > 512 {
-		return true // if either dimension is larger than 512px, it's likely a displayable image/video
+	} else if max(attachment.Width, attachment.Height) >= 480 {
+		return true // if either dimension is larger than 480px, it's likely a displayable image/video
 	}
 	return false // otherwise, it's likely a small icon or tracking pixel
 }
@@ -210,6 +211,30 @@ func (attachment *Attachment) Hash() string {
 		attachment.Duration,
 		attachment.Mimetype,
 	)
+}
+
+func ParseExtensionAttachments(extensions xmlns.Extensions) (attachments []Attachment) {
+	// DublinCore extensions
+	if source := extensions.GetProperty(xmlns.DublinCoreTermsNS, "source"); source != nil {
+		attachment := Attachment{Mimetype: "text/x-url"}
+		attachment.Href, _ = href.Parse(source.Text)
+		attachment.Enclosure = false
+		attachment.Rank = len(attachments) + 1
+		attachments = append(attachments, attachment)
+	}
+
+	// MediaRSS extensions
+	if thumbnail := extensions.GetProperty(xmlns.YahooMediaRSSNS, "group", "thumbnail"); thumbnail != nil {
+		attachment := Attachment{}
+		attachment.Href, _ = href.Parse(thumbnail.GetAttribute("url"))
+		attachment.Width, _ = thumbnail.GetAttributeInt("width")
+		attachment.Height, _ = thumbnail.GetAttributeInt("height")
+		attachment.Enclosure = false
+		attachment.Rank = len(attachments) + 1
+		attachments = append(attachments, attachment)
+	}
+
+	return attachments
 }
 
 func URLMimeType(u *url.URL, followQuery bool) string {

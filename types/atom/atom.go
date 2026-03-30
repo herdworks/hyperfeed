@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/herdworks/hyperfeed-go/types/hosted"
+	"github.com/herdworks/hyperfeed-go/types/xmlns"
 )
 
 // This file is a derivative work of "golang.org/x/tools/blog/atom" and is
@@ -64,7 +65,8 @@ type Atom struct {
 	Entries  []*Entry  `xml:"entry"`
 	Updated  TimeStamp `xml:"updated"`
 
-	Origin *url.URL `xml:"-" json:"-"`
+	Origin     *url.URL         `xml:"-" json:"-"`
+	Extensions xmlns.Extensions `xml:",any"`
 }
 
 type Entry struct {
@@ -77,6 +79,8 @@ type Entry struct {
 	Contributors []*Author `xml:"contributor"` // extension from golang.org/x/tools/blog/atom
 	Summary      Text      `xml:"summary"`
 	Content      Text      `xml:"content"`
+
+	Extensions xmlns.Extensions `xml:",any"`
 }
 
 type Link struct {
@@ -146,27 +150,6 @@ func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		}
 	}
 	return urls
-}
-
-func (atom *Atom) IsPodcast() bool {
-	for _, entry := range atom.Entries {
-		if entry.IsPodcastEpisode() {
-			return true
-		}
-	}
-	return false
-}
-
-func (entry *Entry) IsPodcastEpisode() bool {
-	if entry == nil {
-		return false
-	}
-	for _, link := range entry.Links {
-		if strings.HasPrefix(link.Type, "audio/") || strings.HasPrefix(link.Type, "video/") {
-			return true
-		}
-	}
-	return false
 }
 
 // Entry.Link()

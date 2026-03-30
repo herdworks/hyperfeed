@@ -139,6 +139,18 @@ func (item *Item) TimelineAt(offset int) (ts time.Time) {
 	return item.AddedAt.UTC() // default to added timestamp
 }
 
+func (item *Item) ContainsPodcastMedia() bool {
+	if item == nil {
+		return false
+	}
+	for _, attachment := range item.Attachments {
+		if strings.HasPrefix(attachment.Mimetype, "audio/") || strings.HasPrefix(attachment.Mimetype, "video/") {
+			return true
+		}
+	}
+	return false
+}
+
 func (*Item) DatabaseObject() string {
 	return "item"
 }

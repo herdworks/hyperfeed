@@ -28,10 +28,9 @@ type HyperLink struct {
 }
 
 // ParseLinks() extracts links from an item's HTML content
-func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) {
+func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, err error) {
 	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
-	var err error
 	if item.URL != nil {
 		document.Href = item.URL.String()
 		if h, e := href.Parse(item.URL.String()); e == nil {
@@ -58,10 +57,10 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 	if document.HTML, err = html.Parse(bytes.NewReader(htmlBytes)); err == nil {
 		document.Root = document.HTML
 	} else {
-		return links
+		return links, err
 	}
 	if err = document.Scrape(ctx, true, nil, 5, w); err != nil {
-		return links
+		return links, err
 	}
 	for _, i := range document.Metadata.HyperLinks.Hrefs {
 		var h *href.Href
@@ -83,7 +82,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink) 
 		website = &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
 		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
 	}
-	return links
+	return links, err
 }
 
 func (link *HyperLink) Identifier() string {

@@ -39,6 +39,8 @@ type Feed struct {
 	Website     Website       `json:"website,omitempty"` // the Website this feed is associated with
 	Status      Status        `json:"status,omitempty"`  // fetch status
 
+	// TODO: add feed.Byline or feed.Bylines
+
 	Items []*Item `json:"items,omitempty"` // the most recent items for this feed
 	Bytes []byte  `json:"-"`               // the most recent contents (raw bytes) for this feed
 }

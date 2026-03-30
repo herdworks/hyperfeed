@@ -4,7 +4,7 @@
 -- Drop the existing view.
 DROP VIEW IF EXISTS hot_hyperlinks_view;
 
--- Recreate the view with a -3 day window.
+-- Recreate the view with a -48 hour window.
 CREATE VIEW IF NOT EXISTS hot_hyperlinks_view AS
 SELECT
     json_object(
@@ -37,7 +37,7 @@ FROM
             [item_links]
             JOIN [items] ON [items].[id] = [item_links].[item_id]
         WHERE
-            [items].[feed_at] >= datetime('now', '-3 days')
+            [items].[feed_at] >= datetime('now', '-48 hours')
         GROUP BY
             [item_links].[link_id]
         HAVING
@@ -54,5 +54,5 @@ LIMIT 100
 
 -- Record this maintenance script.
 INSERT INTO [hyperfeed_scripts] ([id], [description])
-VALUES ('sql/maintenance/2026-03-13-update-hothyperlinks-view.sql', 'drop and recreate hot_hyperlinks_view with -3 day window')
+VALUES ('sql/maintenance/2026-03-25-update-hothyperlinks-view.sql', 'drop and recreate hot_hyperlinks_view with -48 hour window')
 ON CONFLICT DO UPDATE SET [completed_at] = CURRENT_TIMESTAMP;
