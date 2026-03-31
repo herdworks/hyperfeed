@@ -135,6 +135,9 @@ func (attachment *Attachment) Displayable() bool {
 	if attachment == nil {
 		return false
 	}
+	if attachment.Mimetype == "text/x-url" {
+		return true
+	}
 	if strings.Contains(attachment.Href.String(), "/tracking/") {
 		return false // skip tracking pixels
 	}

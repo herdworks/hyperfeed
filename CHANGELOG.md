@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog], and this project adheres to [Semantic Versioning].
 
+## 0.19.3 (2026-03-31)
+
+* Force link attachments (mimetype `text/x-url`) to `display=1`
+* Add a maintenance script to fix non-displayable link attachments
+
 ## 0.19.2 (2026-03-31)
 
 * Added `hypergraph add` test harness command (usage: `hypergraph add https://clone.fyi/rss.xml`)
