@@ -182,8 +182,8 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 			return base.ResolveReference(link.URL())
 		}
 	}
-	if u, err := url.Parse(item.GUID.Value); err == nil && u != nil && item.GUID.IsPermaLink {
-		return u
+	if link := (Link{Href: item.GUID.Value, Rel: "guid"}); item.GUID.IsPermaLink && !link.IsExternal(base) {
+		return link.URL()
 	}
 	if item.Comments.Value == "" {
 		return nil

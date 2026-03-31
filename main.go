@@ -12,7 +12,7 @@ import (
 	"github.com/herdworks/hyperfeed-go/internal/database"
 	"github.com/herdworks/hyperfeed-go/subscriber"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	"github.com/herdworks/hyperfeed-go/types/href"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 	version "github.com/herdworks/hyperfeed-go/types/version"
 )
 
@@ -109,6 +109,27 @@ func main() {
 			os.Exit(1)
 		} else {
 			fmt.Println(string(out))
+		}
+	}
+
+	// Add feed
+	if slices.Contains(args, "add") {
+		for _, arg := range args[1:] {
+			var u *href.Href
+			var feed hyperfeed.Feed
+			var err error
+			fmt.Printf("feed %q add\n", arg)
+			if u, err = href.Parse(arg); err != nil {
+				fmt.Printf("feed %q error: %s\n", arg, err)
+				os.Exit(1)
+			}
+			feed = hyperfeed.Feed{URL: u}
+			feed.ID = feed.Identifier()
+			if err = subscriber.Database.UpsertRow(ctx, nil, &feed); err != nil {
+				fmt.Printf("feed %q error: %s\n", arg, err)
+				os.Exit(1)
+			}
+			fmt.Printf("feed %q added\n", arg)
 		}
 	}
 

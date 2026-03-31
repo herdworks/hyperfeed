@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog], and this project adheres to [Semantic Versioning].
 
+## 0.19.2 (2026-03-31)
+
+* Added `hypergraph add` test harness command (usage: `hypergraph add https://clone.fyi/rss.xml`)
+* Fixed RSS item GUID permalink parser (was resolving external links as item URLs)
+* Updated `github.com/herdworks/hypergraph-go` to `v0.19.1` with improved feed detection
+
+## 0.19.1 (2026-03-30)
+
+* Updated `github.com/herdworks/hypergraph-go` dependency to `v0.19.0`.
+
 ## 0.19.0 (2026-03-30)
 
 Added support for Atom XMLNS extensions, improved RSS link & link attachment parsing, normalized "podcast" detection. Improved YouTube feed parsing!
