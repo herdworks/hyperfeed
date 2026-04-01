@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog], and this project adheres to [Semantic Versioning].
 
+## 0.19.4 (2026-04-01)
+
+* Added `activities` table and `activities_view` for persisted activity records.
+* Added `hyperfeed.Activity` and `ActivityKind` with database serialization helpers.
+* Changed `discovery` schema and maintenance scripts to store an `origin` field for discovery provenance.
+
 ## 0.19.3 (2026-03-31)
 
 * Force link attachments (mimetype `text/x-url`) to `display=1`
