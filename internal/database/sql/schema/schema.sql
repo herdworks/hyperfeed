@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [origin] TEXT,
     [url] TEXT,
     [html_url] TEXT,
     [favicon_url] TEXT,
@@ -261,6 +262,26 @@ CREATE TABLE IF NOT EXISTS discovery (
 
     PRIMARY KEY ([id])
 );
+
+-- Activity table
+--
+-- Used for storing hyperfeed activities (events).
+-- Feeds table
+CREATE TABLE IF NOT EXISTS activities (
+    [id] TEXT,
+    [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [kind] TEXT NOT NULL,
+    [uri] TEXT,
+    [seen] INTEGER DEFAULT 0 CHECK ([seen] IN (0, 1)),
+    [data] TEXT NOT NULL DEFAULT '{}', -- Activity.Data JSON string
+
+    PRIMARY KEY ([id])
+);
+CREATE INDEX IF NOT EXISTS activities_id_index ON activities([id]);
+CREATE INDEX IF NOT EXISTS activities_kind_index ON activities([kind]);
+CREATE INDEX IF NOT EXISTS activities_created_at_index ON activities([created_at] DESC);
+CREATE INDEX IF NOT EXISTS activities_updated_at_index ON activities([updated_at] DESC);
 
 -- Metadata-Relation join table
 CREATE TABLE IF NOT EXISTS metadata_relation (
@@ -739,4 +760,27 @@ WHERE
 ORDER BY
     [discovery].[updated_at] DESC,
     [discovery].[occurrences] DESC
+;
+
+CREATE VIEW IF NOT EXISTS activities_view AS
+SELECT
+    json_object(
+        'id', [activities].[id],
+        'created_at', [activities].[created_at],
+        'updated_at', [activities].[updated_at],
+        'kind', [activities].[kind],
+        'uri', [activities].[uri],
+        'seen', [activities].[seen],
+        'data', json([activities].[data])
+    ) AS 'activity',
+    [activities].[id],
+    [activities].[created_at],
+    [activities].[updated_at],
+    [activities].[kind],
+    [activities].[uri],
+    [activities].[seen]
+FROM
+    [activities]
+ORDER BY
+    [activities].[created_at] DESC
 ;
