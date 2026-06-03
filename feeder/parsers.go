@@ -179,11 +179,12 @@ func (parser *RSSFeedParser) Items(added time.Time, w io.Writer) (items []*hyper
 		if item.Links, err = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(rssitem.ContentEncoded, rssitem.Description)), w); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs(w)
+		item.DeduplicateAttachments()
 		if item.ContainsPodcastMedia() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
 		}
-		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil
@@ -220,6 +221,19 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 			attachment.Poster, _ = href.Parse(poster)
 		}
 		attachment.Mimetype = enclosure.Type
+		attachments = append(attachments, attachment)
+	}
+	for _, link := range rssitem.Links {
+		if !link.IsEnclosure() {
+			continue
+		}
+		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
+		if attachment.Href, err = href.Parse(link.Href); err != nil {
+			return nil, err
+		}
+		attachment.Title = link.Title
+		attachment.Size = int64(link.Length)
+		attachment.Mimetype = link.Type
 		attachments = append(attachments, attachment)
 	}
 
@@ -373,11 +387,12 @@ func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		if item.Links, err = hyperfeed.ParseLinks(item, []byte(hyperfeed.First(entry.Content.Body, entry.Summary.Body)), w); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs(w)
+		item.DeduplicateAttachments()
 		if item.ContainsPodcastMedia() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
 		}
-		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil
@@ -397,7 +412,7 @@ func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Ite
 	// enclosure attachments
 	for _, link := range entry.Links {
 		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
-		if link.Rel != "enclosure" {
+		if !strings.EqualFold(link.Rel, "enclosure") {
 			continue
 		}
 		attachment.Href, _ = href.Parse(link.Href)
@@ -522,11 +537,12 @@ func (parser *JSONFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		if item.Links, err = hyperfeed.ParseLinks(item, []byte(jsonfeed.HTML(hyperfeed.First(jsonitem.ContentHTML, jsonitem.ContentText, jsonitem.Summary))), w); err != nil {
 			return nil, err
 		}
+		item.ResolveRelativeURLs(w)
+		item.DeduplicateAttachments()
 		if item.ContainsPodcastMedia() {
 			item.IsPodcastEpisode = true
 			parser.Feed.IsPodcast = true
 		}
-		item.ResolveRelativeURLs(w)
 		items = append(items, item)
 	}
 	return items, nil

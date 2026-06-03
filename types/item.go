@@ -151,6 +151,101 @@ func (item *Item) ContainsPodcastMedia() bool {
 	return false
 }
 
+func (item *Item) DeduplicateAttachments() {
+	if item == nil || len(item.Attachments) < 2 {
+		return
+	}
+	attachments := []Attachment{}
+	seen := map[string]int{}
+	for _, attachment := range item.Attachments {
+		if attachment.Href == nil || attachment.Href.String() == "" {
+			attachments = append(attachments, attachment)
+			continue
+		}
+		key := normalized.URL(attachment.Href.URL()).String()
+		if index, ok := seen[key]; ok {
+			attachments[index] = mergeAttachments(attachments[index], attachment)
+			continue
+		}
+		seen[key] = len(attachments)
+		attachments = append(attachments, attachment)
+	}
+	item.Attachments = attachments
+}
+
+func mergeAttachments(existing, incoming Attachment) Attachment {
+	existing.Enclosure = existing.Enclosure || incoming.Enclosure
+	existing.Download = existing.Download || incoming.Download
+	if existing.ID == "" {
+		existing.ID = incoming.ID
+	}
+	if existing.Href == nil {
+		existing.Href = incoming.Href
+	}
+	if existing.Poster == nil {
+		existing.Poster = incoming.Poster
+	}
+	if incoming.Mimetype != "" && (existing.Mimetype == "" || existing.Mimetype == "application/octet-stream") {
+		existing.Mimetype = incoming.Mimetype
+	}
+	if existing.Title == "" {
+		existing.Title = incoming.Title
+	}
+	if existing.Description == "" {
+		existing.Description = incoming.Description
+	}
+	if existing.Size == 0 {
+		existing.Size = incoming.Size
+	}
+	if existing.Duration == 0 {
+		existing.Duration = incoming.Duration
+	}
+	if existing.PlaybackPosition == 0 {
+		existing.PlaybackPosition = incoming.PlaybackPosition
+	}
+	if existing.Width == 0 {
+		existing.Width = incoming.Width
+	}
+	if existing.Height == 0 {
+		existing.Height = incoming.Height
+	}
+	existing.Sources = mergeAttachmentSources(existing.Sources, incoming.Sources)
+	return existing
+}
+
+func mergeAttachmentSources(existing, incoming []Source) []Source {
+	seen := map[string]int{}
+	for index, source := range existing {
+		if source.Href == nil || source.Href.String() == "" {
+			continue
+		}
+		seen[normalized.URL(source.Href.URL()).String()] = index
+	}
+	for _, source := range incoming {
+		if source.Href != nil && source.Href.String() != "" {
+			key := normalized.URL(source.Href.URL()).String()
+			if index, ok := seen[key]; ok {
+				if source.Mimetype != "" && source.Mimetype != "application/octet-stream" && (existing[index].Mimetype == "" || existing[index].Mimetype == "application/octet-stream") {
+					existing[index].Mimetype = source.Mimetype
+				}
+				if existing[index].Width == 0 {
+					existing[index].Width = source.Width
+				}
+				if existing[index].Height == 0 {
+					existing[index].Height = source.Height
+				}
+				if existing[index].Container == "" {
+					existing[index].Container = source.Container
+				}
+				continue
+			}
+			seen[key] = len(existing)
+		}
+		existing = append(existing, source)
+	}
+	return existing
+}
+
 func (*Item) DatabaseObject() string {
 	return "item"
 }

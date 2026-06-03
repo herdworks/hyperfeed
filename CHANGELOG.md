@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog], and this project adheres to [Semantic Versioning].
 
+## Unreleased
+
+* Added Atom, RSS, and JSON Feed parser regression tests for related/external links versus enclosure attachments.
+* Added `Item.DeduplicateAttachments()` to merge duplicate item attachments by normalized href while preserving first-seen order and filling missing metadata.
+* Changed Atom parsing to ignore `rel="enclosure"` links when selecting item URLs or external link attachments, and to match enclosure links case-insensitively.
+* Changed RSS parsing to treat item-level `atom:link rel="enclosure"` entries as enclosure attachments instead of external link attachments.
+* Changed RSS parsing to ignore item-level `rel="enclosure"` links when selecting item URLs or external link attachments.
+* Fixed `ActivityKind.String()` to return the raw string value without `fmt.Sprintf`.
+
 ## 0.19.4 (2026-04-01)
 
 * Added `activities` table and `activities_view` for persisted activity records.

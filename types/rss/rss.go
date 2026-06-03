@@ -70,10 +70,12 @@ type Item struct {
 }
 
 type Link struct {
-	Href  string `xml:",chardata"`
-	Rel   string `xml:"rel,attr,omitempty"` // for Atom links
-	Type  string `xml:"type,attr,omitempty"`
-	Space string `xml:"xmlns,attr,omitempty"`
+	Href   string `xml:",chardata"`
+	Rel    string `xml:"rel,attr,omitempty"` // for Atom links
+	Type   string `xml:"type,attr,omitempty"`
+	Space  string `xml:"xmlns,attr,omitempty"`
+	Title  string `xml:"title,attr,omitempty"`
+	Length uint   `xml:"length,attr,omitempty"`
 
 	uri *url.URL `xml:"-" json:"-"`
 }
@@ -175,6 +177,9 @@ func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
 		return nil
 	}
 	for _, link := range item.Links {
+		if link.IsEnclosure() {
+			continue
+		}
 		if link.IsExternal(base) {
 			continue
 		}
@@ -245,6 +250,9 @@ func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		return urls
 	}
 	for _, link := range item.Links {
+		if link.IsEnclosure() {
+			continue
+		}
 		if u := link.URL(); u != nil && link.IsExternal(base) {
 			urls = append(urls, u)
 		}
@@ -274,6 +282,10 @@ func (link *Link) URL() (u *url.URL) {
 		link.uri, _ = url.Parse(link.Href) // ignore error, return nil on failure
 	}
 	return link.uri
+}
+
+func (link *Link) IsEnclosure() bool {
+	return link != nil && strings.EqualFold(link.Rel, "enclosure")
 }
 
 // Link.IsExternal()
@@ -308,6 +320,8 @@ func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err erro
 		link.Href = atomLink.Href
 		link.Rel = atomLink.Rel
 		link.Type = atomLink.Type
+		link.Title = atomLink.Title
+		link.Length = atomLink.Length
 		link.Space = start.Name.Space
 	case start.Name.Local == "link":
 		// handle standard <link> elements

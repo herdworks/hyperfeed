@@ -145,6 +145,9 @@ func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		return urls
 	}
 	for _, link := range entry.Links {
+		if strings.EqualFold(link.Rel, "enclosure") {
+			continue
+		}
 		if u := link.URL(); u != nil && link.IsExternal(base) {
 			urls = append(urls, u)
 		}
@@ -169,6 +172,9 @@ func (entry *Entry) Link(rel string) *Link {
 // returns the first link whose host matches the base URL host
 func (entry *Entry) InternalLink(base *url.URL) *Link {
 	for _, l := range entry.Links {
+		if strings.EqualFold(l.Rel, "enclosure") {
+			continue
+		}
 		if l.URL() == nil {
 			continue
 		}
@@ -181,11 +187,19 @@ func (entry *Entry) InternalLink(base *url.URL) *Link {
 		}
 	}
 	for _, l := range entry.Links {
+		if strings.EqualFold(l.Rel, "enclosure") {
+			continue
+		}
 		if l.Rel == "alternate" || l.Rel == "" {
 			return &l // fallback to alternate/empty rel
 		}
 	}
-	return &entry.Links[0] // fallback to first link? (this should not happen)
+	for _, l := range entry.Links {
+		if !strings.EqualFold(l.Rel, "enclosure") {
+			return &l
+		}
+	}
+	return nil
 }
 
 // Link.URL()

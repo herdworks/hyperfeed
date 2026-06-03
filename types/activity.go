@@ -100,5 +100,5 @@ func (activity *Activity) Hash() string {
 }
 
 func (kind ActivityKind) String() string {
-	return fmt.Sprintf("%s", kind)
+	return string(kind)
 }
