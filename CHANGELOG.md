@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## 0.20.0 (2026-06-03)
+
 * Added Atom, RSS, and JSON Feed parser regression tests for related/external links versus enclosure attachments.
 * Added `Item.DeduplicateAttachments()` to merge duplicate item attachments by normalized href while preserving first-seen order and filling missing metadata.
 * Changed Atom parsing to ignore `rel="enclosure"` links when selecting item URLs or external link attachments, and to match enclosure links case-insensitively.
