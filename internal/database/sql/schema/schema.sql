@@ -454,7 +454,7 @@ SELECT
     json_object(
         'id', [items].[id],
         'url', [items].[url],
-        'comments_url', json([items].[comments_url]),
+        'comments_url', NULLIF([items].[comments_url], ''),
         'published_at', [items].[published_at],
         'modified_at', [items].[modified_at],
         'added_at', [items].[added_at],
@@ -501,7 +501,7 @@ SELECT
         'item', json_object(
             'id', [items].[id],
             'url', [items].[url],
-            'comments_url', json([items].[comments_url]),
+            'comments_url', NULLIF([items].[comments_url], ''),
             'published_at', [items].[published_at],
             'modified_at', [items].[modified_at],
             'added_at', [items].[added_at],

@@ -1,4 +1,7 @@
--- Maintenance script: drop and recreate the discovery view with updated schema.
+-- Maintenance script: drop and recreate the discovery table and view at the
+-- canonical schema.sql shape. Heals stale v2 databases created before the
+-- discovery table reached its current iteration. Recorded in hyperfeed_scripts,
+-- so databases that already ran it are skipped.
 -- This script will be wrapped in a transaction; no need to wrap in BEGIN/COMMIT.
 
 DROP VIEW IF EXISTS discovery_view;
@@ -8,6 +11,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [origin] TEXT,
     [url] TEXT,
     [html_url] TEXT,
     [favicon_url] TEXT,
@@ -21,6 +25,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [username] TEXT,
     [language] TEXT,
     [occurrences] INTEGER DEFAULT 1,
+    [snooze] INTEGER DEFAULT 0,
 
     PRIMARY KEY ([id])
 );
@@ -42,6 +47,7 @@ SELECT
         'username', [discovery].[username],
         'language', [discovery].[language],
         'occurrences', [discovery].[occurrences],
+        'snooze', [discovery].[snooze],
         'created_at', [discovery].[created_at],
         'updated_at', [discovery].[updated_at]
     ) AS 'discovery',
@@ -63,5 +69,5 @@ ORDER BY
 
 -- Record this maintenance script.
 INSERT INTO [hyperfeed_scripts] ([id], [description])
-VALUES ('sql/maintenance/discovery-5.sql', 'drop and recreate the discovery view with updated schema')
+VALUES ('sql/maintenance/discovery-5.sql', 'drop and recreate the discovery table and view with the canonical schema')
 ON CONFLICT DO UPDATE SET [completed_at] = CURRENT_TIMESTAMP;

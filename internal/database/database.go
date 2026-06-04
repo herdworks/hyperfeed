@@ -228,6 +228,7 @@ func (db *Database) Migrate(ctx context.Context) (err error) {
 	}); err != nil {
 		return err
 	}
+	fmt.Printf("database %q migrated to schema version: %d\n", db.Path, nextVersion)
 
 	if nextVersion != SchemaVersionLatest {
 		return db.Migrate(ctx)

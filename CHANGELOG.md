@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added schema migration version 3 to recreate canonical SQL views from `schema.sql` and exercise the migration path for fresh version 2 databases.
+* Added `Subscriber.Open()` for callers that need to open an existing database connection without running initialization, migrations, or maintenance.
+* Changed `items_view` and `posts_view` to emit `comments_url` as a nullable string instead of passing plain URLs through SQLite `json()`.
+* Changed discovery maintenance to heal stale version 2 databases by restoring the canonical discovery table and view shape, including `origin` and `snooze`.
+* Added regression coverage for version 2 to 3 migrations, stale version 2 initialization repair, and comments URL view behavior.
+
 ## 0.20.0 (2026-06-03)
 
 * Added Atom, RSS, and JSON Feed parser regression tests for related/external links versus enclosure attachments.

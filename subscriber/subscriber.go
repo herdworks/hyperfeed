@@ -309,6 +309,35 @@ func (subscriber *Subscriber) Init(ctx context.Context, config *Config) (err err
 	return nil
 }
 
+// Open opens the Subscriber database without initializing it (no schema
+// creation, migration, or maintenance). Use Init for the canonical
+// create+migrate entrypoint; Open is for callers that only need an open
+// connection (e.g. refresh) and expect migrations to have already run.
+func (subscriber *Subscriber) Open(ctx context.Context, config *Config) (err error) {
+	if subscriber.Database == nil {
+		subscriber.Database = &database.Database{} // init empty database
+	}
+	if subscriber.Config == nil {
+		subscriber.Config = config // use provided config
+	}
+	if subscriber.Config == nil {
+		cc := *DefaultFeederConfig // copy of default config
+		subscriber.Config = &cc    // init subscriber.Config with defaults
+	}
+	if subscriber.Config.DatabasePath == "" {
+		if pwd, err := os.Getwd(); err == nil {
+			subscriber.Config.DatabasePath = filepath.Join(pwd, "hyperfeed.db") // default to current working directory
+		}
+	}
+	subscriber.Database.Path = filepath.Clean(subscriber.Config.DatabasePath)
+
+	// Open the database, creating it if necessary
+	if err = subscriber.Database.Open(ctx); err != nil {
+		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
+	}
+	return nil
+}
+
 // Load loads the SubscriptionList from its OPML URI and updates the feeds table
 func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptionsPath string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
 	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}

@@ -44,6 +44,189 @@ func TestOpenAndSchema(t *testing.T) {
 	}
 }
 
+func TestMigrateV2toV3(t *testing.T) {
+	var err error
+	var version int
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "migrate_v2_v3.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy migrate_v2_v3.db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open migrate_v2_v3.db: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Close()
+		db.Destroy()
+	})
+
+	// Apply the base schema only — fresh databases initialize at version 2.
+	schemaBytes, err := db.Embedded("sql/schema/schema.sql")
+	if err != nil {
+		t.Fatalf("schema load: %v", err)
+	}
+	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
+		t.Fatalf("schema apply: %v", err)
+	}
+	if version, err = db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version: %v", err)
+	} else if version != 2 {
+		t.Fatalf("expected fresh schema version 2, got %d", version)
+	}
+
+	// Migrate applies 3_from_2.sql and lands on the latest version.
+	if err = db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if version, err = db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version after migrate: %v", err)
+	} else if version != SchemaVersionLatest {
+		t.Fatalf("expected schema version %d after migrate, got %d", SchemaVersionLatest, version)
+	}
+
+	// Seed an item with a plain-text comments URL — real-world data that
+	// json()-wrapped view columns choke on ("malformed JSON" at query time).
+	_, err = db.DB.ExecContext(ctx,
+		"INSERT INTO items (id, feed_at, url, comments_url, title) VALUES ('item-c', '2026-06-01T00:00:00Z', 'https://example.com/1', 'https://example.com/1#comments', 'one');")
+	if err != nil {
+		t.Fatalf("seed item with comments_url: %v", err)
+	}
+
+	// All canonical views are queryable post-migration, evaluating every
+	// column over real rows (lazy json() errors only surface at step time).
+	for _, view := range canonicalViews {
+		if err = scanAllRows(ctx, db, view); err != nil {
+			t.Errorf("view %q query: %v", view, err)
+		}
+	}
+
+	// The comments URL round-trips through the post JSON as a plain string.
+	var commentsURL string
+	row := db.DB.QueryRowContext(ctx, "SELECT json_extract(post, '$.item.comments_url') FROM posts_view WHERE id = 'item-c'")
+	if err = row.Scan(&commentsURL); err != nil {
+		t.Fatalf("posts_view comments_url: %v", err)
+	}
+	if commentsURL != "https://example.com/1#comments" {
+		t.Errorf("expected comments_url to round-trip, got %q", commentsURL)
+	}
+
+	// Migrate is a no-op at the latest version.
+	if err = db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate at latest version: %v", err)
+	}
+}
+
+// scanAllRows steps through every row of a view with all columns selected.
+// SQLite evaluates view expressions (including json()) at step time, so this
+// surfaces lazy errors like "malformed JSON" that count(*) queries skip.
+func scanAllRows(ctx context.Context, db *Database, view string) error {
+	rows, err := db.Query(ctx, "SELECT * FROM "+view)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+	}
+	return rows.Err()
+}
+
+var canonicalViews = []string{
+	"subscriptionlists_view",
+	"websites_view",
+	"feeds_view",
+	"items_view",
+	"posts_view",
+	"links_view",
+	"hot_hyperlinks_view",
+	"responses_view",
+	"bylines_view",
+	"attachments_view",
+	"discovery_view",
+	"activities_view",
+}
+
+func TestInitializeHealsStaleV2Database(t *testing.T) {
+	// Simulates a stale v2 database from a build that predates the
+	// maintenance-added columns (e.g. a TestFlight install that skipped the
+	// maintenance era entirely): canonical columns missing, old views, no
+	// hyperfeed_scripts records. Initialize must migrate to v3 AND heal the
+	// table shapes so every canonical view is queryable.
+	var err error
+	var version int
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "stale_v2.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy stale_v2.db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open stale_v2.db: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Close()
+		db.Destroy()
+	})
+
+	// Apply the base schema, then strip it back to the stale v2 shape.
+	schemaBytes, err := db.Embedded("sql/schema/schema.sql")
+	if err != nil {
+		t.Fatalf("schema load: %v", err)
+	}
+	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
+		t.Fatalf("schema apply: %v", err)
+	}
+	for _, view := range canonicalViews {
+		if _, err = db.DB.ExecContext(ctx, "DROP VIEW IF EXISTS "+view); err != nil {
+			t.Fatalf("drop view %q: %v", view, err)
+		}
+	}
+	for _, stale := range []string{
+		"ALTER TABLE websites DROP COLUMN following_url;",
+		"ALTER TABLE feeds DROP COLUMN email;",
+		"ALTER TABLE items DROP COLUMN comments_url;",
+		"ALTER TABLE discovery DROP COLUMN snooze;",
+		"ALTER TABLE discovery DROP COLUMN origin;",
+		"DELETE FROM hyperfeed_scripts;",
+	} {
+		if _, err = db.DB.ExecContext(ctx, stale); err != nil {
+			t.Fatalf("stale shape %q: %v", stale, err)
+		}
+	}
+
+	// Initialize runs schema + migrate + maintenance — the launch-time path.
+	if err = db.Initialize(ctx); err != nil {
+		t.Fatalf("initialize stale v2: %v", err)
+	}
+	if version, err = db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version: %v", err)
+	} else if version != SchemaVersionLatest {
+		t.Fatalf("expected schema version %d, got %d", SchemaVersionLatest, version)
+	}
+
+	// The maintenance-added columns are healed.
+	for table, column := range map[string]string{
+		"websites": "following_url",
+		"feeds":    "email",
+		"items":    "comments_url",
+	} {
+		var count int
+		row := db.DB.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", table, column)
+		if err = row.Scan(&count); err != nil {
+			t.Fatalf("pragma_table_info(%q): %v", table, err)
+		}
+		if count != 1 {
+			t.Errorf("expected column %s.%s after initialize", table, column)
+		}
+	}
+
+	// Every canonical view is queryable (lazy view validation requires
+	// stepping through real rows, not just count(*)).
+	for _, view := range canonicalViews {
+		if err = scanAllRows(ctx, db, view); err != nil {
+			t.Errorf("view %q query after heal: %v", view, err)
+		}
+	}
+}
+
 func TestVacuum(t *testing.T) {
 	var err error
 	ctx := context.Background()
