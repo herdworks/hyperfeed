@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.22.0 (2026-06-06)
+
 * Added `reader` package: scheme-dispatched byte reading for feed and OPML sources. `reader.Client` returns an `*http.Client` that handles `file://` URLs (local filesystem reads with `If-Modified-Since`/mtime 304 semantics) alongside http/https; `reader.Normalize` converts bare paths and empty-scheme URLs to absolute `file://` URLs; `reader.Read` performs one-shot scheme-dispatched reads with a `MaxContentLength` cap.
 * Added remote OPML support: `subscriber.LoadSubscriptionList` (new), `ImportFeeds`, and `PreviewFeeds` accept local paths, `file://` URLs, or `http(s)://` URLs, dispatched by scheme.
 Import persists the subscription list and feeds, Preview persists nothing.
