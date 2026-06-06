@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
+	"io"
+	"os"
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	href "github.com/herdworks/hyperfeed-go/types/href"
 	opml "github.com/herdworks/hyperfeed-go/types/opml"
 )
 
@@ -16,9 +18,9 @@ type SubscriptionList struct {
 
 	ID string `json:"id,omitempty"` // stable HyperFeed SubscriptionList identifier (e.g. hash of URI+owner)
 
-	// URI *url.URL `json:"uri,omitempty"` // URI is the location of the OPML file representing the subscription list.
-
-	Path string `json:"path,omitempty"` // Path is the string representation of SubscriptionList.URI
+	// URI is the location of the OPML document representing the subscription
+	// list (a file://, http://, or https:// URL; see reader.Normalize).
+	URI *href.Href `json:"uri,omitempty"`
 
 	// OPML holds the parsed OPML document.
 	OPML *opml.OPML `json:"-"`
@@ -63,9 +65,12 @@ type SubscriptionStatus struct {
 
 // =========================== SubscriptionList Methods =======================
 
-func (sl *SubscriptionList) Load() (err error) {
-	sl.OPML = &opml.OPML{URI: &url.URL{Path: sl.Path}}
-	if err = sl.OPML.Load(); err != nil {
+// Parse parses pre-read OPML bytes into the SubscriptionList (no I/O).
+// Callers are responsible for reading the bytes from sl.URI (local file or
+// remote URL), e.g. via the reader package.
+func (sl *SubscriptionList) Parse(data []byte) (err error) {
+	sl.OPML = &opml.OPML{}
+	if err = sl.OPML.Unmarshal(data); err != nil {
 		return err
 	}
 	sl.Title = sl.OPML.Head.Title
@@ -81,9 +86,87 @@ func (sl *SubscriptionList) Load() (err error) {
 	return nil
 }
 
+// InitFeeds interprets the parsed OPML outlines as the subscription-list
+// pattern, returning one Feed per subscription outline. This is where
+// subscription-list rules live, as distinct from the OPML spec (which is a
+// general-purpose outlining format).
+//
+// Subscription-list feeds are always http/https. Outlines whose feed URL is
+// not http/https (e.g. file://) are skipped, so OPML import can never
+// introduce a local-file feed regardless of where the OPML itself was read
+// from. Local feeds enter the system only via direct database access.
+func (sl *SubscriptionList) InitFeeds(w io.Writer) (feeds []*Feed, err error) {
+	if w == nil {
+		w = os.Stdout
+	}
+	for _, outline := range sl.OPML.Body.Outlines {
+		var feed *Feed = &Feed{
+			Title: outline.Text,
+		}
+		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
+			return feeds, err
+		}
+		if s := feed.URL.URL().Scheme; s != "http" && s != "https" {
+			fmt.Fprintf(w, "subscription skipped: non-web feed URL %q (OPML feeds must be http/https)\n", outline.XMLURL)
+			continue
+		}
+		if outline.HTMLURL != "" {
+			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
+			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
+		}
+		feed.Status.LastStatusCodes = []int{}
+		feeds = append(feeds, feed)
+	}
+	return feeds, nil
+}
+
+// MarshalOPML renders the SubscriptionList as an OPML subscription-list
+// document — one subscription outline per Feed — returning indented OPML XML
+// bytes. The inverse of Parse + InitFeeds. When redacted is true, feed URLs
+// are emitted with credentials removed.
+func (sl *SubscriptionList) MarshalOPML(redacted bool) (out []byte, err error) {
+	var doc opml.OPML = opml.OPML{
+		Version: "2.0",
+		Head: opml.Head{
+			Title:      sl.Title,
+			OwnerId:    sl.Owner.ID,
+			OwnerName:  sl.Owner.Name,
+			OwnerEmail: sl.Owner.Email,
+		},
+	}
+	if !sl.CreatedAt.IsZero() {
+		doc.Head.DateCreated = sl.CreatedAt.Format(time.RFC1123Z)
+	}
+	if !sl.UpdatedAt.IsZero() {
+		doc.Head.DateModified = sl.UpdatedAt.Format(time.RFC1123Z)
+	}
+	for _, feed := range sl.Feeds {
+		var outline opml.Outline = opml.Outline{
+			Text:        feed.Title,
+			Title:       feed.Title,
+			Description: feed.Description,
+			Type:        feed.Kind,
+			XMLURL:      feed.URL.String(),
+			HTMLURL:     feed.HTMLURL.String(),
+		}
+		if redacted {
+			// RedactedURL returns a nil *url.URL for a nil Href; fall back to
+			// the nil-safe Href.String() value already set above.
+			if u := feed.URL.RedactedURL(); u != nil {
+				outline.XMLURL = u.String()
+			}
+		}
+		doc.Body.Outlines = append(doc.Body.Outlines, &outline)
+	}
+	return doc.MarshalIndent("", "\t")
+}
+
 func (subscription *SubscriptionList) Identifier() string {
-	if subscription == nil || subscription.ID != "" {
-		subscription.ID = normalized.Identifier(subscription.Path)
+	if subscription == nil {
+		return ""
+	}
+	if subscription.ID == "" && subscription.URI != nil {
+		subscription.ID = normalized.Identifier(subscription.URI.String())
 	}
 	return subscription.ID
 }
@@ -111,7 +194,7 @@ func (*SubscriptionList) DatabaseInsertColumns() []string {
 func (subscription *SubscriptionList) DatabaseInsertValues() (args []any) {
 	statusBytes, _ := json.Marshal(subscription.Status)
 	args = append(args, sql.Named("id", subscription.Identifier()))
-	args = append(args, sql.Named("uri", subscription.Path))
+	args = append(args, sql.Named("uri", subscription.URI.String()))
 	args = append(args, sql.Named("title", subscription.Title))
 	args = append(args, sql.Named("owner_name", subscription.Owner.Name))
 	args = append(args, sql.Named("owner_email", subscription.Owner.Email))
@@ -140,7 +223,7 @@ func (subscription *SubscriptionList) Hash() string {
 	return fmt.Sprintf(
 		"%s|%s|%s|%s",
 		subscription.Identifier(),
-		subscription.Path,
+		subscription.URI.String(),
 		subscription.Title,
 		subscription.CreatedAt.UTC().Format(time.RFC3339),
 	)

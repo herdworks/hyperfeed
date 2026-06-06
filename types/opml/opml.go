@@ -1,12 +1,9 @@
 package opml
 
 import (
-	"encoding/xml"
-	"net/url"
-
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -15,8 +12,6 @@ import (
 // OPML Types
 // Spec: https://opml.org/spec2.opml
 type OPML struct {
-	URI *url.URL `json:"-" yaml:"-"`
-
 	XMLName xml.Name `xml:"opml" json:"opml"`
 	Head    Head     `xml:"head" json:"head"`
 	Body    Body     `xml:"body" json:"body"`
@@ -59,24 +54,6 @@ type Outlines []*Outline
 
 // ============================ OPML Methods ==================================
 
-// opml.Load()
-//
-// Read OPML file from disk and unmarshal it into an OPML struct.
-//
-// Usage:
-//
-//	var opml *OPML
-//	var err error
-//	if opml.URI, err = url.Parse("path/to/opml/file.opml"); err != nil { return err }
-//	if err = opml.Load(); err != nil { return err }
-func (opml *OPML) Load() error {
-	data, err := os.ReadFile(opml.URI.Path)
-	if err != nil {
-		return err
-	}
-	return opml.Unmarshal(data)
-}
-
 func (opml *OPML) Validate() error {
 	for _, outline := range opml.Body.Outlines {
 		if err := outline.Validate(); err != nil {
@@ -84,6 +61,13 @@ func (opml *OPML) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (opml *OPML) DateCreated() (time.Time, error) {
+	return parseDate(opml.Head.DateCreated)
+}
+func (opml *OPML) DateModified() (time.Time, error) {
+	return parseDate(opml.Head.DateModified)
 }
 
 func (opml *OPML) Unmarshal(data []byte) error {
@@ -108,44 +92,24 @@ func (opml *OPML) ToJSONIndented(prefix string, indent string) ([]byte, error) {
 	return json.MarshalIndent(opml, prefix, indent)
 }
 
-func (opml *OPML) DateCreated() (time.Time, error) {
-	return parseDate(opml.Head.DateCreated)
-}
-func (opml *OPML) DateModified() (time.Time, error) {
-	return parseDate(opml.Head.DateModified)
-}
-
-func (opml *OPML) AddOutline(outline *Outline) (err error) {
-	if err = outline.Validate(); err != nil {
-		return err
-	}
-	opml.Body.Outlines = append(opml.Body.Outlines, outline)
-	return nil
-}
-func (opml *OPML) AddSubscription(outline *Outline) (err error) {
-	outline.Type = "rss"
-	outline.Version = "RSS"
-	return opml.AddOutline(outline)
-}
-
 // ============================ Outline Methods ===============================
 
+// Validate checks the outline against the general purpose OPML 2.0 spec, which 
+// requires only the text attribute. 
+// 
+// Rules governing specific OPML patterns (e.g. subscription lists requiring 
+// type and xmlUrl) belong to the consumers of those patterns.
 func (outline *Outline) Validate() error {
-	if outline.Type == "" {
-		return fmt.Errorf("outline.type is required")
-	}
 	if outline.Text == "" {
 		return fmt.Errorf("outline.text is required")
-	}
-	if outline.XMLURL == "" {
-		return fmt.Errorf("outline.xmlUrl is required")
 	}
 	return nil
 }
 
 // ============================ Helper Functions ==============================
 
-func ParseOPML(doc []byte) (opml *OPML, err error) {
+// Parse unmarshals an OPML document from XML bytes.
+func Parse(doc []byte) (opml *OPML, err error) {
 	opml = &OPML{}
 	err = opml.Unmarshal(doc)
 	return opml, err

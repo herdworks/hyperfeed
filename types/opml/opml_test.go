@@ -1,13 +1,13 @@
 package opml
 
 import (
-	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestOPMLLoad(t *testing.T) {
+func TestParse(t *testing.T) {
 	tests := []struct {
 		name     string
 		filepath string
@@ -25,9 +25,13 @@ func TestOPMLLoad(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			opml := &OPML{URI: &url.URL{Path: tc.filepath}}
-			if err := opml.Load(); err != nil {
-				t.Fatalf("Failed to load OPML: %v", err)
+			data, err := os.ReadFile(tc.filepath)
+			if err != nil {
+				t.Fatalf("Failed to read OPML: %v", err)
+			}
+			opml, err := Parse(data)
+			if err != nil {
+				t.Fatalf("Failed to parse OPML: %v", err)
 			}
 			t.Logf("opml %q has %d outlines", tc.filepath, len(opml.Body.Outlines))
 		})

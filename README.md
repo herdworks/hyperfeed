@@ -18,14 +18,14 @@ HyperFeed doesn't differentiate between text-based feeds and other content types
 To run hyperfeed from source:
 
 ```shell
-go run main.go path/to/following.opml
+go run ./cmd/hyperfeed --opml path/to/following.opml refresh
 ```
 
 Alternatively, build and run hyperfeed as a tidy ~12MB binary:
 
 ```shell
-go build -o hyperfeed
-./hyperfeed path/to/following.opml
+go build ./cmd/hyperfeed
+./hyperfeed --opml path/to/following.opml refresh
 ```
 
 Or embed HyperFeed into an existing go app:
@@ -33,18 +33,23 @@ Or embed HyperFeed into an existing go app:
 ```go
 import "github.com/herdworks/hyperfeed-go/subscriber"
 
-var uri *url.URL = &url.URL{ Path: "./path/to/following.opml" }
+var s subscriber.Subscriber
+var config subscriber.Config = subscriber.Config{DatabasePath: "./hyperfeed.db"}
 
-if err = subscriber.Init(ctx, uri, nil); err != nil {
+if err := s.Init(ctx, &config); err != nil {
   // handle init errors
 }
-if err = subscriber.Load(ctx); err != nil {
-  // handle load errors
+// ImportFeeds reads an OPML subscription list from a uri (a local path,
+// file:// URL, or http(s):// URL), persists it, and returns the feeds;
+// use PreviewFeeds to resolve feeds without writing anything.
+feeds, err := s.ImportFeeds(ctx, "./path/to/following.opml", os.Stdout)
+if err != nil {
+  // handle import errors
 }
-if err = subscriber.Refresh(ctx); err != nil {
+if err := s.Refresh(ctx, feeds, 30, 100, os.Stdout); err != nil {
   // handle refresh errors
 }
-fmt.Println(subscriber.SubscriptionList.Status.Print())
+fmt.Println(s.Status.Print())
 ```
 
 ## How it works

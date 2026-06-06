@@ -78,7 +78,7 @@ func TestSubscriberInit(t *testing.T) {
 
 			// Load subscriptionlist (if provided)
 			if tc.uri != nil {
-				if _, err = subscriber.LoadSubscriptions(ctx, tc.uri.Path, w); tc.err != nil && errors.Is(err, tc.err) {
+				if _, err = subscriber.ImportFeeds(ctx, tc.uri.Path, w); tc.err != nil && errors.Is(err, tc.err) {
 					return // got expected error
 				} else if err != nil {
 					t.Fatalf("Unexpected error\nwanted: %v\n   got: %v", tc.err, err)

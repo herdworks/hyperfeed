@@ -29,7 +29,7 @@ func main() {
 	var subscriber *subscriber.Subscriber = &subscriber.Subscriber{}
 	var feeds []*hyperfeed.Feed
 	var timeout, workers int
-	var opmlPath, feedHref string
+	var opmlURI, feedHref string
 	var ctx context.Context = context.Background()
 	var args []string = os.Args[1:]
 	var w io.Writer = os.Stdout
@@ -48,7 +48,7 @@ func main() {
 	if config.DatabasePath == "" {
 		config.DatabasePath = "hyperfeed.db"
 	}
-	if opmlPath, err = get(args, "-o", "--opml"); err != nil {
+	if opmlURI, err = get(args, "-o", "--opml"); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -78,16 +78,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Refresh subscriber.SubscriptionList from underlying OPML source (if provided)
-	if opmlPath != "" {
-		if feeds, err = subscriber.LoadFeeds(ctx, opmlPath, os.Stdout); err != nil {
+	// Import feeds from the OPML source (if provided)
+	if opmlURI != "" {
+		// ImportFeeds persists the subscription list and the resolved feeds
+		if feeds, err = subscriber.ImportFeeds(ctx, opmlURI, os.Stdout); err != nil {
 			fmt.Printf("Error loading subscriber: %v\n", err)
 			os.Exit(1)
-		} else {
-			if err = subscriber.SaveFeeds(ctx, os.Stdout, feeds); err != nil {
-				fmt.Printf("Error saving feeds: %v\n", err)
-				os.Exit(1)
-			}
 		}
 	}
 
@@ -174,7 +170,7 @@ func usage() (usage string) {
 	}
 	var options [][2]string = [][2]string{
 		{"-d, --database <path>", "Path to HyperFeed database file (required)"},
-		{"-o, --opml <path>", "Refresh feeds in the provided OPML file"},
+		{"-o, --opml <uri>", "Import feeds from the OPML subscription list at <uri> (a local path, file:// URL, or http(s):// URL)"},
 		{"-f, --feed <href>", "Refresh a single feed at the provided HREF"},
 		{"    --timeout <seconds>", "Timeout duration for network operations (in seconds)"},
 		{"    --workers <count>", "Maximum number of concurrent feed workers (0 = unlimited)"},

@@ -135,6 +135,12 @@ func (feed *Feed) DuplicateItems() (duplicates []*Item) {
 }
 
 func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer) (err error) {
+	if feed.HTMLURL == nil {
+		return nil // nothing to scrape
+	}
+	if scheme := feed.HTMLURL.URL().Scheme; scheme != "http" && scheme != "https" {
+		return nil // local/non-web feeds have nothing to scrape
+	}
 	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
 	if w == nil {
 		w = os.Stdout

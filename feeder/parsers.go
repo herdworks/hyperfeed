@@ -601,7 +601,10 @@ func NewFeedParser(feed *hyperfeed.Feed, bytes []byte) (parser FeedParser, err e
 	}
 	switch {
 	case len(bytes) == 0:
-		feed.Kind = "unknown"
+		// empty body (e.g. HTTP 304 Not Modified); preserve any previously detected kind
+		if feed.Kind == "" {
+			feed.Kind = "unknown"
+		}
 		parser = &NoFeedParser{Feed: feed}
 	case rss.Detected(bytes):
 		feed.Kind = "rss"

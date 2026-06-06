@@ -28,21 +28,6 @@ type Feeder struct {
 	*hyperfeed.Feed
 }
 
-// Config captures tunable knobs for feeder HTTP client behavior.
-type Config struct {
-	// Timeout specifies the default timeout for HTTP requests.
-	// If zero, the implementation must fall back to a safe default that balances resiliency with server friendliness.
-	Timeout time.Duration
-
-	// MaxRedirects constrains the number of redirects followed for a single request.
-	// This protects origin servers from loops and prevents the transporter from amplifying traffic.
-	MaxRedirects int
-
-	// MaxContentLength caps the number of bytes that will be buffered in memory for a single response.
-	// Implementations must stream to disk or abort once this limit is reached.
-	MaxContentLength int64
-}
-
 // VARIABLES
 // ============================================================================
 
@@ -64,12 +49,6 @@ var (
 	ErrTLSHostName    x509.HostnameError
 	ErrTLSInvalid     x509.CertificateInvalidError
 	ErrTLSUnknownCA   x509.UnknownAuthorityError
-
-	DefaultConfig = &Config{
-		Timeout:          10 * time.Second,
-		MaxRedirects:     1,
-		MaxContentLength: 4 << 20, // 4 MiB
-	}
 
 	DefaultAcceptHeaders = []string{
 		"application/rss+xml",
@@ -334,11 +313,6 @@ func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, w io.
 
 // FUNCTIONS
 // ============================================================================
-func Client(config Config) (client *http.Client) {
-	client = &http.Client{}
-	client.Timeout = config.Timeout
-	return client
-}
 
 func Request(ctx context.Context, method string, href string, headers http.Header, body io.Reader) (request *http.Request, err error) {
 	if ctx == nil {

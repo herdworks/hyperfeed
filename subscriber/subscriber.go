@@ -18,9 +18,9 @@ import (
 
 	"github.com/herdworks/hyperfeed-go/feeder"
 	"github.com/herdworks/hyperfeed-go/internal/database"
+	reader "github.com/herdworks/hyperfeed-go/reader"
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
-	"github.com/herdworks/hyperfeed-go/types/opml"
 )
 
 // TYPES
@@ -39,15 +39,10 @@ type Subscriber struct {
 // METHODS
 // =============================================================================
 
+// Export renders the subscriber's feeds table as an OPML subscription list
+// (via hyperfeed.SubscriptionList.MarshalOPML).
 func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Writer) (out []byte, err error) {
 	var feeds []*hyperfeed.Feed
-	var export opml.OPML = opml.OPML{
-		Version: "2.0",
-		Head: opml.Head{
-			Title:       "HyperFeed Subscriptions",
-			DateCreated: time.Now().Format(time.RFC1123Z),
-		},
-	}
 	if err = subscriber.Database.Open(ctx); err != nil {
 		return nil, err
 	} else {
@@ -56,21 +51,12 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 	if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
 		return nil, err
 	}
-	for _, feed := range feeds {
-		var outline opml.Outline = opml.Outline{
-			Text:        feed.Title,
-			Title:       feed.Title,
-			Description: feed.Description,
-			Type:        feed.Kind,
-			XMLURL:      feed.URL.String(),
-			HTMLURL:     feed.HTMLURL.String(),
-		}
-		if redacted {
-			outline.XMLURL = feed.URL.RedactedURL().String()
-		}
-		export.Body.Outlines = append(export.Body.Outlines, &outline)
+	var subscriptions hyperfeed.SubscriptionList = hyperfeed.SubscriptionList{
+		Title:     "HyperFeed Subscriptions",
+		CreatedAt: time.Now(),
+		Feeds:     feeds,
 	}
-	return export.MarshalIndent("", "\t")
+	return subscriptions.MarshalOPML(redacted)
 }
 
 // Backup exposes the Subscriber's database backup functionality
@@ -105,10 +91,10 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	// apply timeout
 	if timeout <= 60 {
 		fmt.Fprintf(w, "client.timeout: %ds\n", timeout)
-		client = feeder.Client(feeder.Config{Timeout: time.Duration(timeout) * time.Second})
+		client = reader.Client(reader.Config{Timeout: time.Duration(timeout) * time.Second})
 	} else {
 		fmt.Fprintf(w, "client.timeout: %dms\n", max(500, timeout))
-		client = feeder.Client(feeder.Config{Timeout: time.Duration(max(500, timeout)) * time.Millisecond})
+		client = reader.Client(reader.Config{Timeout: time.Duration(max(500, timeout)) * time.Millisecond})
 	}
 
 	// check database
@@ -265,9 +251,6 @@ var (
 
 // Ready checks if the Subscriber is properly initialized
 func (subscriber *Subscriber) Ready(ctx context.Context) (ready bool, err error) {
-	// if subscriber.SubscriptionList.Path == "" {
-	// 	return false, errors.Join(ErrReadiness, errors.New("subscription list URI is nil"))
-	// }
 	if subscriber.Config == nil {
 		return false, errors.Join(ErrReadiness, errors.New("subscriber configuration is nil"))
 	}
@@ -338,25 +321,53 @@ func (subscriber *Subscriber) Open(ctx context.Context, config *Config) (err err
 	return nil
 }
 
-// Load loads the SubscriptionList from its OPML URI and updates the feeds table
-func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptionsPath string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
-	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
+// LoadSubscriptionList reads OPML bytes from uri (a local path,
+// file:// URL, or http(s):// URL; dispatched by scheme) and parses them into
+// a SubscriptionList.
+func LoadSubscriptionList(ctx context.Context, uri string) (subscriptions *hyperfeed.SubscriptionList, err error) {
+	var u *href.Href
+	var data []byte
+	var config reader.Config = reader.Config{
+		Timeout:          30 * time.Second,
+		MaxContentLength: 16 << 20, // 16 MiB
+	}
+	if u, err = reader.Normalize(uri); err != nil {
+		return nil, err
+	}
+	// The normalized URI is the canonical location: the subscription list's
+	// derived identifier (normalized.Identifier of URI.String()) hashes the
+	// normalized form (e.g. bare paths become absolute file:// URLs).
+	subscriptions = &hyperfeed.SubscriptionList{URI: u}
+	if data, err = reader.Read(ctx, reader.Client(config), u, config); err != nil {
+		return nil, err
+	}
+	if err = subscriptions.Parse(data); err != nil {
+		return nil, err
+	}
+	return subscriptions, nil
+}
+
+// ImportFeeds reads an OPML subscription list from uri, persists it, then
+// initializes, resolves, and saves its feeds to the feeds table. This is the
+// import-and-persist pipeline; use PreviewFeeds to resolve without writing.
+func (subscriber *Subscriber) ImportFeeds(ctx context.Context, uri string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
+	var subscriptions *hyperfeed.SubscriptionList
 	if w == nil {
 		w = os.Stdout
 	}
 	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
 		return nil, err
 	}
-	if err = subscriptions.Load(); err != nil {
+	if subscriptions, err = LoadSubscriptionList(ctx, uri); err != nil {
 		return nil, err
 	}
 	if err = subscriber.SaveSubscriptionList(ctx, subscriptions); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.InitFeeds(subscriptions, w); err != nil {
+	if feeds, err = subscriptions.InitFeeds(w); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
+	if feeds, err = subscriber.ResolveFeeds(ctx, feeds); err != nil {
 		return nil, err
 	}
 	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
@@ -365,52 +376,31 @@ func (subscriber *Subscriber) LoadSubscriptions(ctx context.Context, subscriptio
 	return feeds, nil
 }
 
-func (subscriber *Subscriber) LoadFeeds(ctx context.Context, subscriptionsPath string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
-	var subscriptions *hyperfeed.SubscriptionList = &hyperfeed.SubscriptionList{Path: subscriptionsPath}
+// PreviewFeeds reads an OPML subscription list from uri and returns its
+// initialized and resolved feeds without persisting anything — neither the
+// subscription list nor the feeds are written to the database. Use ImportFeeds
+// to persist.
+func (subscriber *Subscriber) PreviewFeeds(ctx context.Context, uri string, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
+	var subscriptions *hyperfeed.SubscriptionList
 	if w == nil {
 		w = os.Stdout
 	}
 	if ready, err := subscriber.Ready(ctx); !ready || err != nil {
 		return nil, err
 	}
-	if err = subscriptions.Load(); err != nil {
+	if subscriptions, err = LoadSubscriptionList(ctx, uri); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.InitFeeds(subscriptions, w); err != nil {
+	if feeds, err = subscriptions.InitFeeds(w); err != nil {
 		return nil, err
 	}
-	if feeds, err = subscriber.ResolveFeeds(context.Background(), feeds); err != nil {
-		return nil, err
-	}
-	if err = subscriber.SaveSubscriptionList(ctx, subscriptions); err != nil {
+	if feeds, err = subscriber.ResolveFeeds(ctx, feeds); err != nil {
 		return nil, err
 	}
 	return feeds, nil
 }
 
-// InitFeeders generates a Feeder per SubscriptionList.OPML.Body.Outline in the managed Feeds slice ([]*feeder.Feeder)
-func (subscriber *Subscriber) InitFeeds(subscriptions *hyperfeed.SubscriptionList, w io.Writer) (feeds []*hyperfeed.Feed, err error) {
-	if w == nil {
-		w = os.Stdout
-	}
-	for _, outline := range subscriptions.OPML.Body.Outlines {
-		var feed *hyperfeed.Feed = &hyperfeed.Feed{
-			Title: outline.Text,
-		}
-		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
-			return feeds, err
-		}
-		if outline.HTMLURL != "" {
-			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
-			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
-		}
-		feed.Status.LastStatusCodes = []int{}
-		feeds = append(feeds, feed)
-	}
-	return feeds, nil
-}
-
-// ResolveFeeders loads existing feed state from the database (if any)
+// ResolveFeeds loads existing feed state from the database (if any)
 //
 // NOTE: The only required field to resolve a given feed is the feed.URL, which is used by feed.Identifier() to look up existing records.
 func (subscriber *Subscriber) ResolveFeeds(ctx context.Context, feeds []*hyperfeed.Feed) ([]*hyperfeed.Feed, error) {
@@ -680,7 +670,7 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 	return addedCount, updatedCount, nil
 }
 
-// ======================= SubscriptionStatus Methods =========================
+// ============================ Status Methods =================================
 
 func (status *Status) Print() string {
 	var report string = "\n"

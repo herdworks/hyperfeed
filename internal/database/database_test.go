@@ -2,14 +2,14 @@ package database
 
 import (
 	"context"
-	"net/url"
+	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	hyperfeed "github.com/herdworks/hyperfeed-go/types"
 	href "github.com/herdworks/hyperfeed-go/types/href"
-	"github.com/herdworks/hyperfeed-go/types/opml"
 	hypergraph "github.com/herdworks/hypergraph-go/types"
 )
 
@@ -258,27 +258,29 @@ func TestInsertFeedsFromOPML(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	// Parse OPML test data
-	subscriptions := &opml.OPML{URI: &url.URL{Path: filepath.Join("testdata", "nnw_default_subscriptions.opml")}}
-	if err := subscriptions.Load(); err != nil {
-		t.Fatalf("load opml: %v", err)
+	// Parse OPML test data through the owning pattern type
+	// (hyperfeed.SubscriptionList), so this test exercises the same
+	// outline→Feed path — including the http/https-only guard — as production
+	// imports, rather than reimplementing the mapping at the database layer.
+	opmlBytes, err := os.ReadFile(filepath.Join("testdata", "nnw_default_subscriptions.opml"))
+	if err != nil {
+		t.Fatalf("read opml: %v", err)
 	}
-	outlines := subscriptions.Body.Outlines
-	if len(outlines) != 14 {
-		t.Fatalf("expected 14 outlines; got %d", len(outlines))
+	var subscriptions hyperfeed.SubscriptionList
+	if err := subscriptions.Parse(opmlBytes); err != nil {
+		t.Fatalf("parse opml: %v", err)
 	}
-	for _, o := range outlines {
-		if o.XMLURL == "" {
-			t.Fatalf("outline missing xmlUrl for title %q", o.Title)
-		}
-		u, err := url.Parse(o.XMLURL)
-		if err != nil {
-			t.Fatalf("parse xmlUrl %q: %v", o.XMLURL, err)
-		}
+	feeds, err := subscriptions.InitFeeds(io.Discard)
+	if err != nil {
+		t.Fatalf("init feeds: %v", err)
+	}
+	if len(feeds) != 14 {
+		t.Fatalf("expected 14 feeds; got %d", len(feeds))
+	}
+	for _, feed := range feeds {
 		// Use URL as ID to guarantee uniqueness in this test
-		id := u.String()
-		if err := db.Exec(ctx, `INSERT INTO feeds(id, url, title) VALUES(?, ?, ?)`, id, u.String(), o.Title); err != nil {
-			t.Fatalf("insert feed %q: %v", o.Title, err)
+		if err := db.Exec(ctx, `INSERT INTO feeds(id, url, title) VALUES(?, ?, ?)`, feed.URL.String(), feed.URL.String(), feed.Title); err != nil {
+			t.Fatalf("insert feed %q: %v", feed.Title, err)
 		}
 	}
 
@@ -314,11 +316,11 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		{
 			name: "SubscriptionList record",
 			writer: &hyperfeed.SubscriptionList{
-				Path:      "following.opml",
+				URI:       &href.Href{Scheme: "file", Path: "/data/following.opml"},
 				CreatedAt: ts.UTC(),
 			},
 			reader: &hyperfeed.SubscriptionList{
-				Path: "following.opml",
+				URI: &href.Href{Scheme: "file", Path: "/data/following.opml"},
 			},
 		},
 		{

@@ -246,8 +246,14 @@ func (channel *Channel) GetEmail() (email string) {
 
 // Item.ExternalURLs() returns a slice of external URLs found in the item's links.
 func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
-	if item == nil || item.Links == nil {
+	if item == nil {
 		return urls
+	}
+	if item.Source != nil && item.Source.URL != "" {
+		link := Link{Href: item.Source.URL}
+		if u := link.URL(); u != nil && link.IsExternal(base) {
+			urls = append(urls, u)
+		}
 	}
 	for _, link := range item.Links {
 		if link.IsEnclosure() {
