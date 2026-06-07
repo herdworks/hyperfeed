@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.23.0 (2026-06-07)
+
 * Added schema migration version 4 to rebuild the `discovery` table at the canonical shape with best-effort preservation of existing rows.
 * Added top-level `occurrences` and `snooze` columns to `discovery_view`, enabling discovery visibility queries without JSON extraction.
 * Added v4 migration preflight repair for stale databases missing canonical `websites.following_url`, `feeds.email`, `items.comments_url`, and `discovery` columns before SQLite validates dependent views.
