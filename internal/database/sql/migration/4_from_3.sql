@@ -1,13 +1,12 @@
--- Maintenance script: drop and recreate the discovery table and view at the
--- canonical schema.sql shape. Heals stale v2 databases created before the
--- discovery table reached its current iteration. Recorded in hyperfeed_scripts,
--- so databases that already ran it are skipped.
--- This script will be wrapped in a transaction; no need to wrap in BEGIN/COMMIT.
+-- Migration from version 3 to version 4.
+-- Rebuild discovery at the canonical table shape and expose occurrence/snooze
+-- columns directly on discovery_view for efficient filtering.
 
 DROP VIEW IF EXISTS discovery_view;
-DROP TABLE IF EXISTS discovery;
 
-CREATE TABLE IF NOT EXISTS discovery (
+ALTER TABLE [discovery] RENAME TO [discovery_v3];
+
+CREATE TABLE [discovery] (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,10 +29,56 @@ CREATE TABLE IF NOT EXISTS discovery (
     PRIMARY KEY ([id])
 );
 
-CREATE VIEW IF NOT EXISTS discovery_view AS
+INSERT OR IGNORE INTO [discovery] (
+    [id],
+    [created_at],
+    [updated_at],
+    [origin],
+    [url],
+    [html_url],
+    [favicon_url],
+    [cover_url],
+    [mentions_url],
+    [following_url],
+    [email],
+    [name],
+    [title],
+    [description],
+    [username],
+    [language],
+    [occurrences],
+    [snooze]
+)
+SELECT
+    COALESCE(NULLIF([id], ''), lower(hex(randomblob(4)))),
+    COALESCE(NULLIF([created_at], ''), CURRENT_TIMESTAMP),
+    COALESCE(NULLIF([updated_at], ''), CURRENT_TIMESTAMP),
+    [origin],
+    [url],
+    [html_url],
+    [favicon_url],
+    [cover_url],
+    [mentions_url],
+    [following_url],
+    [email],
+    [name],
+    [title],
+    [description],
+    [username],
+    [language],
+    COALESCE([occurrences], 1),
+    COALESCE([snooze], 0)
+FROM
+    [discovery_v3]
+;
+
+DROP TABLE [discovery_v3];
+
+CREATE VIEW [discovery_view] AS
 SELECT
     json_object(
         'id', [discovery].[id],
+        'origin', [discovery].[origin],
         'url', [discovery].[url],
         'html_url', [discovery].[html_url],
         'favicon_url', [discovery].[favicon_url],
@@ -55,6 +100,8 @@ SELECT
     [discovery].[url],
     [discovery].[html_url],
     [discovery].[username],
+    [discovery].[occurrences],
+    [discovery].[snooze],
     [discovery].[created_at],
     [discovery].[updated_at]
 FROM
@@ -67,7 +114,7 @@ ORDER BY
     [discovery].[occurrences] DESC
 ;
 
--- Record this maintenance script.
-INSERT INTO [hyperfeed_scripts] ([id], [description])
-VALUES ('sql/maintenance/discovery-5.sql', 'drop and recreate the discovery table and view with the canonical schema')
-ON CONFLICT DO UPDATE SET [completed_at] = CURRENT_TIMESTAMP;
+-- Version bump (must be last).
+UPDATE hyperfeed_schema
+SET version = 4, updated_at = CURRENT_TIMESTAMP
+WHERE id = 1 AND version = 3;

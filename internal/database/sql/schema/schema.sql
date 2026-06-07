@@ -729,6 +729,7 @@ CREATE VIEW IF NOT EXISTS discovery_view AS
 SELECT
     json_object(
         'id', [discovery].[id],
+        'origin', [discovery].[origin],
         'url', [discovery].[url],
         'html_url', [discovery].[html_url],
         'favicon_url', [discovery].[favicon_url],
@@ -750,6 +751,8 @@ SELECT
     [discovery].[url],
     [discovery].[html_url],
     [discovery].[username],
+    [discovery].[occurrences],
+    [discovery].[snooze],
     [discovery].[created_at],
     [discovery].[updated_at]
 FROM

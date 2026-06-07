@@ -26,6 +26,9 @@ func (MaintenanceScript) List() (scripts []MaintenanceScript, err error) {
 	}
 
 	if databaseScripts, err = (DatabaseScript{}).List(MaintenanceScript{}.Root(), match); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 

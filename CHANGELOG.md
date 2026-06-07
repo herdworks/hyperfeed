@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added schema migration version 4 to rebuild the `discovery` table at the canonical shape with best-effort preservation of existing rows.
+* Added top-level `occurrences` and `snooze` columns to `discovery_view`, enabling discovery visibility queries without JSON extraction.
+* Added v4 migration preflight repair for stale databases missing canonical `websites.following_url`, `feeds.email`, `items.comments_url`, and `discovery` columns before SQLite validates dependent views.
+* Added regression coverage for v2-to-latest migration, v3 discovery row preservation, stale discovery-column repair, and stale v2 initialization against the v4 schema.
+* Changed `discovery_view` JSON output to include `origin` consistently with the canonical table.
+* Removed all SQL maintenance scripts; maintenance discovery now no-ops when no embedded `sql/maintenance` directory exists, and schema repair responsibility moves to versioned migrations.
+
 ## v0.22.0 (2026-06-06)
 
 * Added `reader` package: scheme-dispatched byte reading for feed and OPML sources. `reader.Client` returns an `*http.Client` that handles `file://` URLs (local filesystem reads with `If-Modified-Since`/mtime 304 semantics) alongside http/https; `reader.Normalize` converts bare paths and empty-scheme URLs to absolute `file://` URLs; `reader.Read` performs one-shot scheme-dispatched reads with a `MaxContentLength` cap.

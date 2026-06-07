@@ -44,16 +44,16 @@ func TestOpenAndSchema(t *testing.T) {
 	}
 }
 
-func TestMigrateV2toV3(t *testing.T) {
+func TestMigrateV2ToLatest(t *testing.T) {
 	var err error
 	var version int
 	ctx := context.Background()
-	db := &Database{Path: filepath.Join("testdata", "migrate_v2_v3.db")}
+	db := &Database{Path: filepath.Join("testdata", "migrate_v2_latest.db")}
 	if err = db.Destroy(); err != nil {
-		t.Fatalf("destroy migrate_v2_v3.db: %v", err)
+		t.Fatalf("destroy migrate_v2_latest.db: %v", err)
 	}
 	if err = db.Open(ctx); err != nil {
-		t.Fatalf("open migrate_v2_v3.db: %v", err)
+		t.Fatalf("open migrate_v2_latest.db: %v", err)
 	}
 	t.Cleanup(func() {
 		db.Close()
@@ -61,20 +61,14 @@ func TestMigrateV2toV3(t *testing.T) {
 	})
 
 	// Apply the base schema only — fresh databases initialize at version 2.
-	schemaBytes, err := db.Embedded("sql/schema/schema.sql")
-	if err != nil {
-		t.Fatalf("schema load: %v", err)
-	}
-	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
-		t.Fatalf("schema apply: %v", err)
-	}
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
 	if version, err = db.SchemaVersion(ctx); err != nil {
 		t.Fatalf("schema version: %v", err)
 	} else if version != 2 {
 		t.Fatalf("expected fresh schema version 2, got %d", version)
 	}
 
-	// Migrate applies 3_from_2.sql and lands on the latest version.
+	// Migrate applies all pending scripts and lands on the latest version.
 	if err = db.Migrate(ctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -116,6 +110,146 @@ func TestMigrateV2toV3(t *testing.T) {
 	}
 }
 
+func TestMigrateV3DiscoveryPreservesRowsAndAddsViewColumns(t *testing.T) {
+	var err error
+	var version int
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "migrate_v3_discovery.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy migrate_v3_discovery.db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open migrate_v3_discovery.db: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Close()
+		db.Destroy()
+	})
+
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	applyEmbeddedSQL(ctx, t, db, "sql/migration/3_from_2.sql")
+	if version, err = db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version: %v", err)
+	} else if version != 3 {
+		t.Fatalf("expected schema version 3 before v4 migration, got %d", version)
+	}
+
+	_, err = db.DB.ExecContext(ctx, `
+		INSERT INTO discovery (
+			id, created_at, updated_at, origin, url, html_url, username, occurrences, snooze
+		) VALUES (
+			'disc-1', '2026-06-01T00:00:00Z', '2026-06-02T00:00:00Z', 'unit-test',
+			'https://example.com/feed.xml', 'https://example.com', 'example', 7, 42
+		);
+	`)
+	if err != nil {
+		t.Fatalf("seed discovery: %v", err)
+	}
+
+	if err = db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate v3 discovery: %v", err)
+	}
+	if version, err = db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version after migrate: %v", err)
+	} else if version != SchemaVersionLatest {
+		t.Fatalf("expected schema version %d after migrate, got %d", SchemaVersionLatest, version)
+	}
+
+	var origin string
+	var occurrences, snooze, jsonOccurrences, jsonSnooze int
+	row := db.DB.QueryRowContext(ctx, `
+		SELECT
+			occurrences,
+			snooze,
+			json_extract(discovery, '$.origin'),
+			json_extract(discovery, '$.occurrences'),
+			json_extract(discovery, '$.snooze')
+		FROM discovery_view
+		WHERE id = 'disc-1'
+	`)
+	if err = row.Scan(&occurrences, &snooze, &origin, &jsonOccurrences, &jsonSnooze); err != nil {
+		t.Fatalf("discovery_view row: %v", err)
+	}
+	if occurrences != 7 || snooze != 42 || jsonOccurrences != 7 || jsonSnooze != 42 {
+		t.Fatalf("expected occurrences/snooze 7/42, got columns %d/%d JSON %d/%d", occurrences, snooze, jsonOccurrences, jsonSnooze)
+	}
+	if origin != "unit-test" {
+		t.Fatalf("expected origin to round-trip, got %q", origin)
+	}
+}
+
+func TestMigrateV3StaleDiscoveryAddsMissingColumns(t *testing.T) {
+	var err error
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "migrate_v3_stale_discovery.db")}
+	if err = db.Destroy(); err != nil {
+		t.Fatalf("destroy migrate_v3_stale_discovery.db: %v", err)
+	}
+	if err = db.Open(ctx); err != nil {
+		t.Fatalf("open migrate_v3_stale_discovery.db: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Close()
+		db.Destroy()
+	})
+
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	applyEmbeddedSQL(ctx, t, db, "sql/migration/3_from_2.sql")
+	if _, err = db.DB.ExecContext(ctx, `
+		INSERT INTO discovery (id, url, html_url, username, occurrences)
+		VALUES ('disc-stale', 'https://example.org/feed.xml', 'https://example.org', 'example-org', 3);
+	`); err != nil {
+		t.Fatalf("seed stale discovery: %v", err)
+	}
+	for _, statement := range []string{
+		"DROP VIEW IF EXISTS discovery_view;",
+		"ALTER TABLE discovery DROP COLUMN snooze;",
+		"ALTER TABLE discovery DROP COLUMN origin;",
+	} {
+		if _, err = db.DB.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("stale discovery shape %q: %v", statement, err)
+		}
+	}
+
+	if err = db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate stale v3 discovery: %v", err)
+	}
+
+	for _, tc := range []struct {
+		table  string
+		column string
+	}{
+		{table: "discovery", column: "origin"},
+		{table: "discovery", column: "snooze"},
+	} {
+		assertTableColumn(ctx, t, db, tc.table, tc.column)
+	}
+
+	var occurrences, snooze, jsonSnooze int
+	row := db.DB.QueryRowContext(ctx, `
+		SELECT occurrences, snooze, json_extract(discovery, '$.snooze')
+		FROM discovery_view
+		WHERE id = 'disc-stale'
+	`)
+	if err = row.Scan(&occurrences, &snooze, &jsonSnooze); err != nil {
+		t.Fatalf("stale discovery_view row: %v", err)
+	}
+	if occurrences != 3 || snooze != 0 || jsonSnooze != 0 {
+		t.Fatalf("expected stale discovery occurrences/snooze 3/0, got columns %d/%d JSON %d", occurrences, snooze, jsonSnooze)
+	}
+}
+
+func applyEmbeddedSQL(ctx context.Context, t *testing.T, db *Database, path string) {
+	t.Helper()
+	sqlBytes, err := db.Embedded(path)
+	if err != nil {
+		t.Fatalf("%s load: %v", path, err)
+	}
+	if _, err = db.DB.ExecContext(ctx, string(sqlBytes)); err != nil {
+		t.Fatalf("%s apply: %v", path, err)
+	}
+}
+
 // scanAllRows steps through every row of a view with all columns selected.
 // SQLite evaluates view expressions (including json()) at step time, so this
 // surfaces lazy errors like "malformed JSON" that count(*) queries skip.
@@ -149,7 +283,7 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 	// Simulates a stale v2 database from a build that predates the
 	// maintenance-added columns (e.g. a TestFlight install that skipped the
 	// maintenance era entirely): canonical columns missing, old views, no
-	// hyperfeed_scripts records. Initialize must migrate to v3 AND heal the
+	// hyperfeed_scripts records. Initialize must migrate to latest AND heal the
 	// table shapes so every canonical view is queryable.
 	var err error
 	var version int
@@ -167,13 +301,7 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 	})
 
 	// Apply the base schema, then strip it back to the stale v2 shape.
-	schemaBytes, err := db.Embedded("sql/schema/schema.sql")
-	if err != nil {
-		t.Fatalf("schema load: %v", err)
-	}
-	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
-		t.Fatalf("schema apply: %v", err)
-	}
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
 	for _, view := range canonicalViews {
 		if _, err = db.DB.ExecContext(ctx, "DROP VIEW IF EXISTS "+view); err != nil {
 			t.Fatalf("drop view %q: %v", view, err)
@@ -202,20 +330,18 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 		t.Fatalf("expected schema version %d, got %d", SchemaVersionLatest, version)
 	}
 
-	// The maintenance-added columns are healed.
-	for table, column := range map[string]string{
-		"websites": "following_url",
-		"feeds":    "email",
-		"items":    "comments_url",
+	// The canonical columns are healed.
+	for _, tc := range []struct {
+		table  string
+		column string
+	}{
+		{table: "websites", column: "following_url"},
+		{table: "feeds", column: "email"},
+		{table: "items", column: "comments_url"},
+		{table: "discovery", column: "origin"},
+		{table: "discovery", column: "snooze"},
 	} {
-		var count int
-		row := db.DB.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", table, column)
-		if err = row.Scan(&count); err != nil {
-			t.Fatalf("pragma_table_info(%q): %v", table, err)
-		}
-		if count != 1 {
-			t.Errorf("expected column %s.%s after initialize", table, column)
-		}
+		assertTableColumn(ctx, t, db, tc.table, tc.column)
 	}
 
 	// Every canonical view is queryable (lazy view validation requires
@@ -224,6 +350,18 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 		if err = scanAllRows(ctx, db, view); err != nil {
 			t.Errorf("view %q query after heal: %v", view, err)
 		}
+	}
+}
+
+func assertTableColumn(ctx context.Context, t *testing.T, db *Database, table, column string) {
+	t.Helper()
+	var count int
+	row := db.DB.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", table, column)
+	if err := row.Scan(&count); err != nil {
+		t.Fatalf("pragma_table_info(%q): %v", table, err)
+	}
+	if count != 1 {
+		t.Errorf("expected column %s.%s", table, column)
 	}
 }
 

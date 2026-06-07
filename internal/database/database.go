@@ -69,7 +69,7 @@ var (
 	// TODO: replace errors.New() and fmt.Errorf() with error variables
 )
 
-//go:embed sql/maintenance sql/migration sql/schema
+//go:embed sql/migration sql/schema
 var sqlFS embed.FS // embeds database/sql scripts into the binary (recursive)
 
 // ============================ Database Methods =================================
@@ -213,6 +213,9 @@ func (db *Database) Migrate(ctx context.Context) (err error) {
 	}
 
 	if err := db.withImmediateTransaction(ctx, fmt.Sprintf("migration %q", db.Path), func(ctx context.Context, conn *sql.Conn) error {
+		if err := prepareMigration(ctx, conn, nextVersion); err != nil {
+			return err
+		}
 		for _, script := range scripts {
 			if _, err := conn.ExecContext(ctx, string(script.Bytes)); err != nil {
 				return fmt.Errorf("migration %q exec: %w", script.Path, err)
@@ -271,6 +274,106 @@ func (db *Database) Maintenance(ctx context.Context) (err error) {
 			return err
 		}
 	}
+	return nil
+}
+
+func prepareMigration(ctx context.Context, conn *sql.Conn, version int) error {
+	switch version {
+	case 4:
+		return prepareSchemaV4Migration(ctx, conn)
+	default:
+		return nil
+	}
+}
+
+type migrationColumn struct {
+	name       string
+	definition string
+}
+
+func prepareSchemaV4Migration(ctx context.Context, conn *sql.Conn) error {
+	for _, table := range []struct {
+		name    string
+		columns []migrationColumn
+	}{
+		{
+			name: "websites",
+			columns: []migrationColumn{
+				{name: "following_url", definition: "[following_url] TEXT"},
+			},
+		},
+		{
+			name: "feeds",
+			columns: []migrationColumn{
+				{name: "email", definition: "[email] TEXT"},
+			},
+		},
+		{
+			name: "items",
+			columns: []migrationColumn{
+				{name: "comments_url", definition: "[comments_url] TEXT"},
+			},
+		},
+		{
+			name: "discovery",
+			columns: []migrationColumn{
+				{name: "id", definition: "[id] TEXT"},
+				{name: "created_at", definition: "[created_at] TIMESTAMP"},
+				{name: "updated_at", definition: "[updated_at] TIMESTAMP"},
+				{name: "origin", definition: "[origin] TEXT"},
+				{name: "url", definition: "[url] TEXT"},
+				{name: "html_url", definition: "[html_url] TEXT"},
+				{name: "favicon_url", definition: "[favicon_url] TEXT"},
+				{name: "cover_url", definition: "[cover_url] TEXT"},
+				{name: "mentions_url", definition: "[mentions_url] TEXT"},
+				{name: "following_url", definition: "[following_url] TEXT"},
+				{name: "email", definition: "[email] TEXT"},
+				{name: "name", definition: "[name] TEXT"},
+				{name: "title", definition: "[title] TEXT"},
+				{name: "description", definition: "[description] TEXT"},
+				{name: "username", definition: "[username] TEXT"},
+				{name: "language", definition: "[language] TEXT"},
+				{name: "occurrences", definition: "[occurrences] INTEGER DEFAULT 1"},
+				{name: "snooze", definition: "[snooze] INTEGER DEFAULT 0"},
+			},
+		},
+	} {
+		if err := ensureMigrationColumns(ctx, conn, table.name, table.columns); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ensureMigrationColumns(ctx context.Context, conn *sql.Conn, table string, migrations []migrationColumn) error {
+	rows, err := conn.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return fmt.Errorf("migration v4 %s columns: %w", table, err)
+	}
+	defer rows.Close()
+
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("migration v4 %s column scan: %w", table, err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("migration v4 %s column rows: %w", table, err)
+	}
+
+	for _, column := range migrations {
+		if columns[column.name] {
+			continue
+		}
+		if _, err := conn.ExecContext(ctx, "ALTER TABLE ["+table+"] ADD COLUMN "+column.definition); err != nil {
+			return fmt.Errorf("migration v4 %s add column %q: %w", table, column.name, err)
+		}
+	}
+
 	return nil
 }
 
