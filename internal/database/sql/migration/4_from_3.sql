@@ -74,7 +74,7 @@ FROM
 
 DROP TABLE [discovery_v3];
 
-CREATE VIEW [discovery_view] AS
+CREATE VIEW discovery_view AS
 SELECT
     json_object(
         'id', [discovery].[id],

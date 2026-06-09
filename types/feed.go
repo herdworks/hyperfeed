@@ -33,6 +33,7 @@ type Feed struct {
 	Description string        `json:"description,omitempty"`
 	Language    string        `json:"language,omitempty"`
 	IsPodcast   bool          `json:"is_podcast,omitempty"`
+	Following   bool          `json:"following"`
 	Metadata    Metadata      `json:"metadata,omitempty"` // Non-standard/extension properties
 	Interval    time.Duration `json:"interval,omitempty"` // fetch interval in minutes
 	UpdatedAt   time.Time     `json:"updated_at,omitempty"`
@@ -184,6 +185,7 @@ func (*Feed) DatabaseInsertColumns() []string {
 		"language",
 		"is_podcast",
 		"interval",
+		"following",
 		"status",
 		"website_id",
 	}
@@ -203,6 +205,7 @@ func (feed *Feed) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("language", feed.Language))
 	values = append(values, sql.Named("is_podcast", feed.IsPodcast))
 	values = append(values, sql.Named("interval", feed.Interval.String()))
+	values = append(values, sql.Named("following", feed.Following))
 	if statusBytes, _ := json.Marshal(feed.Status); statusBytes != nil {
 		values = append(values, sql.Named("status", string(statusBytes)))
 	} else {
@@ -226,6 +229,7 @@ func (feed *Feed) DatabaseUpdatesSet(_ []string) []string {
 		"language = excluded.language",
 		"is_podcast = excluded.is_podcast",
 		"interval = excluded.interval",
+		"following = excluded.following",
 		"status = excluded.status",
 		"website_id = excluded.website_id",
 	}

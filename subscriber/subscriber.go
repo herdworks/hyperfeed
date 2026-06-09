@@ -33,8 +33,56 @@ type Subscriber struct {
 	Status   *Status
 }
 
+// Config holds default Feeder configuration parameters
+type Config struct {
+	// DatabasePath is the filepath to the database used to persist feed and item state
+	DatabasePath string `json:"db_path"`
+
+	// DefaultInterval is the baseline polling interval when no hints are available.
+	// Implementations must never schedule requests more frequently than this value.
+	DefaultInterval time.Duration `json:"default_interval"`
+}
+
+// Status holds Subscriber runtime status information
+type Status struct {
+	Duration           time.Duration     `json:"duration,omitempty"`
+	UpdatedAt          time.Time         `json:"updated_at,omitempty"`
+	FeedsCount         hyperfeed.Counter `json:"feeds_count,omitempty"`
+	FeedsSkipped       hyperfeed.Counter `json:"feeds_skipped,omitempty"`
+	FeedsRateLimited   hyperfeed.Counter `json:"feeds_rate_limited,omitempty"`
+	FeedsFetched       hyperfeed.Counter `json:"feeds_fetched,omitempty"`
+	FeedsTooSlowJunior hyperfeed.Counter `json:"feeds_too_slow_junior,omitempty"`
+	FeedsFailed        hyperfeed.Counter `json:"feeds_failed,omitempty"`
+	ItemsFetched       hyperfeed.Counter `json:"items_fetched,omitempty"`
+	ItemsDuplicate     hyperfeed.Counter `json:"items_duplicate,omitempty"`
+	ItemsAdded         hyperfeed.Counter `json:"items_added,omitempty"`
+	ItemsUpdated       hyperfeed.Counter `json:"items_updated,omitempty"`
+}
+
 // VARIABLES
 // =============================================================================
+
+// errors
+var (
+	ErrNotImplemented   = errors.New("not implemented")
+	ErrReadiness        = errors.New("subscriber not ready")
+	ErrSubscriber       = errors.New("subscriber error")
+	ErrSubscriptionList = errors.New("subscription list error")
+	ErrDatabase         = errors.New("database error")
+	ErrScraper          = errors.New("scraper error")
+)
+
+// defaults
+var (
+	DefaultFeederConfig = &Config{
+		DefaultInterval: IntervalActivityHigh,
+	}
+	IntervalActivityLive   = 1 * time.Minute
+	IntervalActivityHigh   = 10 * time.Minute
+	IntervalActivityMedium = 60 * time.Minute
+	IntervalActivityLow    = 240 * time.Minute  // 4 hours
+	IntervalActivityDaily  = 1440 * time.Minute // 24 hours
+)
 
 // METHODS
 // =============================================================================
@@ -51,6 +99,12 @@ func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Wr
 	if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
 		return nil, err
 	}
+	// Only export followed feeds: this excludes both soft-deleted (unfollowed)
+	// feeds and generated feeds (e.g. the sponsored-posts feed), which carry
+	// following=0 and must never leak into an OPML backup or share.
+	feeds = slices.DeleteFunc(feeds, func(feed *hyperfeed.Feed) bool {
+		return feed == nil || !feed.Following
+	})
 	var subscriptions hyperfeed.SubscriptionList = hyperfeed.SubscriptionList{
 		Title:     "HyperFeed Subscriptions",
 		CreatedAt: time.Now(),
@@ -107,11 +161,17 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 		return err
 	}
 
-	// If no feeds provided, load all feeds in database
+	// If no feeds provided, load all FOLLOWED feeds in the database. Soft-deleted
+	// (unfollowed) feeds and generated feeds (e.g. the sponsored-posts feed)
+	// carry following=0 and are skipped here so unfollowed feeds are not
+	// re-fetched; generated feeds are refreshed via an explicit feed list.
 	if len(feeds) == 0 {
 		if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
 			return err
 		}
+		feeds = slices.DeleteFunc(feeds, func(feed *hyperfeed.Feed) bool {
+			return feed == nil || !feed.Following
+		})
 	}
 
 	// Refresh all feeds concurrently
@@ -123,7 +183,12 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 		}
 		ticker.Go(func() (e error) {
 			ff.Tick(cancellation, client, start, w) // ignore tick errors; they are recorded in f.Feed.Status
-			if ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
+			// Skip the HyperGraph website-metadata scrape for local generated
+			// feeds (file:// scheme): their website metadata is authored in the
+			// feed file, and scraping would issue a pointless network request and
+			// could clobber the authored (e.g. sponsor) card.
+			local := ff.Feed.URL != nil && ff.Feed.URL.URL() != nil && ff.Feed.URL.URL().Scheme == "file"
+			if !local && ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
 				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
 					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
 					ff.Feed.Status.LastEntityError = e.Error()
@@ -177,77 +242,6 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 	fmt.Fprintln(w, subscriber.Status.Print())
 	return nil
 }
-
-// Config holds default Feeder configuration parameters
-type Config struct {
-	// DatabasePath is the filepath to the database used to persist feed and item state
-	DatabasePath string `json:"db_path"`
-
-	// DefaultInterval is the baseline polling interval when no hints are available.
-	// Implementations must never schedule requests more frequently than this value.
-	DefaultInterval time.Duration `json:"default_interval"`
-}
-
-// Status holds Subscriber runtime status information
-type Status struct {
-	Duration           time.Duration     `json:"duration,omitempty"`
-	UpdatedAt          time.Time         `json:"updated_at,omitempty"`
-	FeedsCount         hyperfeed.Counter `json:"feeds_count,omitempty"`
-	FeedsSkipped       hyperfeed.Counter `json:"feeds_skipped,omitempty"`
-	FeedsRateLimited   hyperfeed.Counter `json:"feeds_rate_limited,omitempty"`
-	FeedsFetched       hyperfeed.Counter `json:"feeds_fetched,omitempty"`
-	FeedsTooSlowJunior hyperfeed.Counter `json:"feeds_too_slow_junior,omitempty"`
-	FeedsFailed        hyperfeed.Counter `json:"feeds_failed,omitempty"`
-	ItemsFetched       hyperfeed.Counter `json:"items_fetched,omitempty"`
-	ItemsDuplicate     hyperfeed.Counter `json:"items_duplicate,omitempty"`
-	ItemsAdded         hyperfeed.Counter `json:"items_added,omitempty"`
-	ItemsUpdated       hyperfeed.Counter `json:"items_updated,omitempty"`
-
-	// TODO: add bytes downloaded
-	// TODO: add image counts
-}
-
-func (status *Status) Log(feed *hyperfeed.Feed, _ error, _ io.Writer) {
-	status.FeedsCount.Increment(1)
-	if feed.Status.Fetched() {
-		status.FeedsFetched.Increment(1)
-		status.ItemsFetched.Increment(len(feed.Items))
-	} else if feed.Status.TimedOut() {
-		status.FeedsTooSlowJunior.Increment(1)
-	} else if feed.Status.RateLimited() {
-		status.FeedsRateLimited.Increment(1)
-	} else if feed.Status.Skipped() || !feed.Status.Healthy() {
-		status.FeedsSkipped.Increment(1)
-	} else if feed.Status.Failed() {
-		status.FeedsFailed.Increment(1)
-	}
-}
-
-// ============================ Package Variables =============================
-
-// errors
-var (
-	ErrNotImplemented   = errors.New("not implemented")
-	ErrReadiness        = errors.New("subscriber not ready")
-	ErrSubscriber       = errors.New("subscriber error")
-	ErrSubscriptionList = errors.New("subscription list error")
-	ErrDatabase         = errors.New("database error")
-	ErrScraper          = errors.New("scraper error")
-)
-
-// defaults
-var (
-	DefaultFeederConfig = &Config{
-		DefaultInterval: IntervalActivityHigh,
-	}
-	IntervalActivityLive   = 1 * time.Minute
-	IntervalActivityHigh   = 10 * time.Minute
-	IntervalActivityMedium = 60 * time.Minute
-	IntervalActivityLow    = 240 * time.Minute  // 4 hours
-	IntervalActivityDaily  = 1440 * time.Minute // 24 hours
-)
-
-// ============================ Subscriber Methods ============================
 
 // Ready checks if the Subscriber is properly initialized
 func (subscriber *Subscriber) Ready(ctx context.Context) (ready bool, err error) {
@@ -319,32 +313,6 @@ func (subscriber *Subscriber) Open(ctx context.Context, config *Config) (err err
 		return errors.Join(ErrSubscriber, fmt.Errorf("subscriber database %q open failed", subscriber.Database.Path), err)
 	}
 	return nil
-}
-
-// LoadSubscriptionList reads OPML bytes from uri (a local path,
-// file:// URL, or http(s):// URL; dispatched by scheme) and parses them into
-// a SubscriptionList.
-func LoadSubscriptionList(ctx context.Context, uri string) (subscriptions *hyperfeed.SubscriptionList, err error) {
-	var u *href.Href
-	var data []byte
-	var config reader.Config = reader.Config{
-		Timeout:          30 * time.Second,
-		MaxContentLength: 16 << 20, // 16 MiB
-	}
-	if u, err = reader.Normalize(uri); err != nil {
-		return nil, err
-	}
-	// The normalized URI is the canonical location: the subscription list's
-	// derived identifier (normalized.Identifier of URI.String()) hashes the
-	// normalized form (e.g. bare paths become absolute file:// URLs).
-	subscriptions = &hyperfeed.SubscriptionList{URI: u}
-	if data, err = reader.Read(ctx, reader.Client(config), u, config); err != nil {
-		return nil, err
-	}
-	if err = subscriptions.Parse(data); err != nil {
-		return nil, err
-	}
-	return subscriptions, nil
 }
 
 // ImportFeeds reads an OPML subscription list from uri, persists it, then
@@ -431,6 +399,16 @@ func (subscriber *Subscriber) SaveWebsites(ctx context.Context, w io.Writer, fee
 	}
 	defer subscriber.Database.EndTransaction(tx, err)
 	for _, feed := range feeds {
+		// A followed feed's website must be followed (so a newly-created website
+		// appears in the Following view; the parser reconstructs feed.Website each
+		// refresh without `following`). Only UPGRADE — never downgrade — because a
+		// website is followed iff it has ≥1 followed feed, and websites are shared
+		// (WebsiteIdentifier collapses to the root domain). Downgrades happen only
+		// via the explicit unfollow path, not as a side effect of saving a sibling
+		// feed that happens to be unfollowed.
+		if feed.Following {
+			feed.Website.Following = true
+		}
 		if err = subscriber.Database.UpsertRow(ctx, tx, &feed.Website); err != nil {
 			return errors.Join(ErrDatabase, errors.New("upserting website"), err)
 		}
@@ -622,6 +600,7 @@ func (subscriber *Subscriber) SaveAttachments(ctx context.Context, w io.Writer, 
 	fmt.Fprintf(w, "attachments written: %d\n", count)
 	return nil
 }
+
 func (subscriber *Subscriber) SaveAttachmentRelations(ctx context.Context, w io.Writer, feeds []*hyperfeed.Feed) (err error) {
 	var transaction *sql.Tx
 	var count int = 0
@@ -672,6 +651,22 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 
 // ============================ Status Methods =================================
 
+func (status *Status) Log(feed *hyperfeed.Feed, _ error, _ io.Writer) {
+	status.FeedsCount.Increment(1)
+	if feed.Status.Fetched() {
+		status.FeedsFetched.Increment(1)
+		status.ItemsFetched.Increment(len(feed.Items))
+	} else if feed.Status.TimedOut() {
+		status.FeedsTooSlowJunior.Increment(1)
+	} else if feed.Status.RateLimited() {
+		status.FeedsRateLimited.Increment(1)
+	} else if feed.Status.Skipped() || !feed.Status.Healthy() {
+		status.FeedsSkipped.Increment(1)
+	} else if feed.Status.Failed() {
+		status.FeedsFailed.Increment(1)
+	}
+}
+
 func (status *Status) Print() string {
 	var report string = "\n"
 	report += fmt.Sprintf("Feeds Total:       %6d\n", status.FeedsCount.Count)
@@ -699,4 +694,33 @@ func (status *Status) MarshalJSON() (jsonBytes []byte, err error) {
 		StatusJSON: (*StatusJSON)(status),
 	}
 	return json.Marshal(s)
+}
+
+// FUNCTIONS
+// =============================================================================
+
+// LoadSubscriptionList reads OPML bytes from uri (a local path,
+// file:// URL, or http(s):// URL; dispatched by scheme) and parses them into
+// a SubscriptionList.
+func LoadSubscriptionList(ctx context.Context, uri string) (subscriptions *hyperfeed.SubscriptionList, err error) {
+	var u *href.Href
+	var data []byte
+	var config reader.Config = reader.Config{
+		Timeout:          30 * time.Second,
+		MaxContentLength: 16 << 20, // 16 MiB
+	}
+	if u, err = reader.Normalize(uri); err != nil {
+		return nil, err
+	}
+	// The normalized URI is the canonical location: the subscription list's
+	// derived identifier (normalized.Identifier of URI.String()) hashes the
+	// normalized form (e.g. bare paths become absolute file:// URLs).
+	subscriptions = &hyperfeed.SubscriptionList{URI: u}
+	if data, err = reader.Read(ctx, reader.Client(config), u, config); err != nil {
+		return nil, err
+	}
+	if err = subscriptions.Parse(data); err != nil {
+		return nil, err
+	}
+	return subscriptions, nil
 }

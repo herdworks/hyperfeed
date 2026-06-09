@@ -17,8 +17,8 @@ BEFORE INSERT ON hyperfeed_schema
 FOR EACH ROW
 BEGIN
     SELECT CASE
-        WHEN NEW.version != 2 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
-            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 2')
+        WHEN NEW.version != 5 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 5')
     END;
 END;
 CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
@@ -31,8 +31,8 @@ BEGIN
     END;
 END;
 
--- Initialize hyperfeed_schema with version 2 if not already set
-INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (2);
+-- Initialize hyperfeed_schema with the latest schema version if not already set
+INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (5);
 
 -- Scripts table
 CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS websites (
     [username] TEXT,
     [description] TEXT,
     [verified] INTEGER DEFAULT 0 CHECK ([verified] IN (0, 1)),
+    [following] INTEGER NOT NULL DEFAULT 1 CHECK ([following] IN (0, 1)),
     [status] TEXT NOT NULL DEFAULT '{}', -- Website.Status JSON string
 
     PRIMARY KEY ([id])
@@ -90,6 +91,7 @@ CREATE INDEX IF NOT EXISTS websites_href_index ON websites([href]);
 CREATE INDEX IF NOT EXISTS websites_html_url_index ON websites([html_url]);
 CREATE INDEX IF NOT EXISTS websites_username_index ON websites([username]);
 CREATE INDEX IF NOT EXISTS websites_email_index ON websites([email]);
+CREATE INDEX IF NOT EXISTS websites_following_index ON websites([following]);
 
 -- Feeds table
 CREATE TABLE IF NOT EXISTS feeds (
@@ -104,6 +106,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     [language] TEXT,
     [is_podcast] INTEGER DEFAULT 0 CHECK ([is_podcast] IN (0, 1)),
     [interval] TEXT,
+    [following] INTEGER NOT NULL DEFAULT 1 CHECK ([following] IN (0, 1)),
     [status] TEXT NOT NULL DEFAULT '{}', -- Feed.Status JSON string
 
     -- NOTE:
@@ -121,6 +124,8 @@ CREATE INDEX IF NOT EXISTS feeds_kind_index ON feeds([kind]);
 CREATE INDEX IF NOT EXISTS feeds_url_index ON feeds([url]);
 CREATE INDEX IF NOT EXISTS feeds_html_url_index ON feeds([html_url]);
 CREATE INDEX IF NOT EXISTS feeds_updated_at_index ON feeds([updated_at] DESC);
+CREATE INDEX IF NOT EXISTS feeds_following_index ON feeds([following]);
+CREATE INDEX IF NOT EXISTS feeds_website_id_following_index ON feeds([website_id], [following]);
 
 -- Items table
 CREATE TABLE IF NOT EXISTS items (
@@ -140,6 +145,7 @@ CREATE TABLE IF NOT EXISTS items (
     [summary] TEXT,
     [content] TEXT,
     [is_podcast_episode] INTEGER DEFAULT 0 CHECK ([is_podcast_episode] IN (0, 1)),
+    [sponsored] INTEGER NOT NULL DEFAULT 0 CHECK ([sponsored] IN (0, 1)),
 
     PRIMARY KEY ([id])
 );
@@ -156,6 +162,7 @@ CREATE INDEX IF NOT EXISTS items_feed_at_id_desc ON items([feed_at] DESC, [id] D
 CREATE INDEX IF NOT EXISTS items_view_feed_at_index_asc ON items([feed_at] DESC, [published_at] DESC, [added_at] DESC);
 CREATE INDEX IF NOT EXISTS items_website_id_feed_at_desc ON items([website_id], [feed_at] DESC); -- feed frequency index
 CREATE INDEX IF NOT EXISTS items_website_id_feed_at_id_desc ON items([website_id], [feed_at] DESC, [id] DESC);
+CREATE INDEX IF NOT EXISTS items_sponsored_index ON items([sponsored]);
 
 --NOTE:  the following unique index had unintended side effects; next time we see duplicate posts,
 --       we should check to see if the duplicates have been orphaned from their parent website.
@@ -394,12 +401,14 @@ SELECT
         'name', [websites].[name],
         'username', [websites].[username],
         'description', [websites].[description],
-        'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+        'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END,
+        'following', CASE WHEN [websites].[following] = 1 THEN json('true') ELSE json('false') END
     ) AS 'website',
     [websites].[id],
     [websites].[html_url],
     [websites].[username],
-    [websites].[email]
+    [websites].[email],
+    [websites].[following]
 FROM
     [websites]
 ;
@@ -417,6 +426,7 @@ SELECT
         'description', [feeds].[description],
         'language', [feeds].[language],
         'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
+        'following', CASE WHEN [feeds].[following] = 1 THEN json('true') ELSE json('false') END,
         'website', COALESCE(
             (
                 SELECT json_object(
@@ -430,7 +440,8 @@ SELECT
                     'name', [websites].[name],
                     'username', [websites].[username],
                     'description', [websites].[description],
-                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+                    'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END,
+                    'following', CASE WHEN [websites].[following] = 1 THEN json('true') ELSE json('false') END
                 )
                 FROM [websites]
                 WHERE [websites].[id] = [feeds].[website_id]
@@ -443,7 +454,8 @@ SELECT
     [feeds].[id],
     [feeds].[url],
     [feeds].[updated_at],
-    [feeds].[website_id]
+    [feeds].[website_id],
+    [feeds].[following]
 FROM
     [feeds]
 ;
@@ -468,12 +480,13 @@ SELECT
         'title', [items].[title],
         'bylines', COALESCE((
             SELECT json_group_array(json([bylines_view].[byline]))
-            FROM [bylines_view] 
+            FROM [bylines_view]
             WHERE [bylines_view].[item_id] = [items].[id]
         ), json('[]')),
         'summary', [items].[summary],
         'content', [items].[content],
         'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
+        'sponsored', CASE WHEN [items].[sponsored] = 1 THEN json('true') ELSE json('false') END,
         'link_id', [items].[link_id],
         'attachments', COALESCE((
             SELECT json_group_array(json([attachments_view].[attachment]))
@@ -511,12 +524,13 @@ SELECT
             'title', [items].[title],
             'bylines', COALESCE((
                 SELECT json_group_array(json([bylines_view].[byline]))
-                FROM [bylines_view] 
+                FROM [bylines_view]
                 WHERE [bylines_view].[item_id] = [items].[id]
             ), json('[]')),
             'summary', [items].[summary],
             'content', [items].[content],
             'is_podcast_episode', CASE WHEN [items].[is_podcast_episode] = 1 THEN json('true') ELSE json('false') END,
+            'sponsored', CASE WHEN [items].[sponsored] = 1 THEN json('true') ELSE json('false') END,
             'link_id', [items].[link_id],
             'attachments', COALESCE((
                 SELECT json_group_array(json([an].[attachment]))
@@ -545,6 +559,7 @@ SELECT
                 'description', [feeds].[description],
                 'language', [feeds].[language],
                 'is_podcast', CASE WHEN [feeds].[is_podcast] = 1 THEN json('true') ELSE json('false') END,
+                'following', CASE WHEN [feeds].[following] = 1 THEN json('true') ELSE json('false') END,
                 'website', json(NULL),
                 'status', json([feeds].[status])
             )
@@ -562,7 +577,8 @@ SELECT
                 'name', [websites].[name],
                 'username', [websites].[username],
                 'description', [websites].[description],
-                'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END
+                'verified', CASE WHEN [websites].[verified] = 1 THEN json('true') ELSE json('false') END,
+                'following', CASE WHEN [websites].[following] = 1 THEN json('true') ELSE json('false') END
             )
         END
     ) AS [post],

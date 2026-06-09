@@ -27,6 +27,11 @@ func TestOpenAndSchema(t *testing.T) {
 		t.Fatalf("initialize test.db: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
+	if version, err := db.SchemaVersion(ctx); err != nil {
+		t.Fatalf("schema version: %v", err)
+	} else if version != SchemaVersionLatest {
+		t.Fatalf("expected fresh schema version %d, got %d", SchemaVersionLatest, version)
+	}
 
 	// Insert a subscription list record to verify tables exist.
 	err = db.Exec(ctx, "INSERT INTO subscriptionlists(id, uri) VALUES(?, ?);", "sub1", "https://example.com")
@@ -60,12 +65,13 @@ func TestMigrateV2ToLatest(t *testing.T) {
 		db.Destroy()
 	})
 
-	// Apply the base schema only — fresh databases initialize at version 2.
-	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	// Apply the current schema, strip v5 additions, and force the version back to
+	// v2 so the migration pipeline exercises each historical SQL script.
+	prepareLegacySchema(ctx, t, db, 2)
 	if version, err = db.SchemaVersion(ctx); err != nil {
 		t.Fatalf("schema version: %v", err)
 	} else if version != 2 {
-		t.Fatalf("expected fresh schema version 2, got %d", version)
+		t.Fatalf("expected simulated schema version 2, got %d", version)
 	}
 
 	// Migrate applies all pending scripts and lands on the latest version.
@@ -126,7 +132,7 @@ func TestMigrateV3DiscoveryPreservesRowsAndAddsViewColumns(t *testing.T) {
 		db.Destroy()
 	})
 
-	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	prepareLegacySchema(ctx, t, db, 2)
 	applyEmbeddedSQL(ctx, t, db, "sql/migration/3_from_2.sql")
 	if version, err = db.SchemaVersion(ctx); err != nil {
 		t.Fatalf("schema version: %v", err)
@@ -193,7 +199,7 @@ func TestMigrateV3StaleDiscoveryAddsMissingColumns(t *testing.T) {
 		db.Destroy()
 	})
 
-	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	prepareLegacySchema(ctx, t, db, 2)
 	applyEmbeddedSQL(ctx, t, db, "sql/migration/3_from_2.sql")
 	if _, err = db.DB.ExecContext(ctx, `
 		INSERT INTO discovery (id, url, html_url, username, occurrences)
@@ -250,9 +256,170 @@ func applyEmbeddedSQL(ctx context.Context, t *testing.T, db *Database, path stri
 	}
 }
 
+func prepareLegacySchema(ctx context.Context, t *testing.T, db *Database, version int) {
+	t.Helper()
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	stripV5Columns(ctx, t, db)
+	forceSchemaVersion(ctx, t, db, version)
+}
+
+func stripV5Columns(ctx context.Context, t *testing.T, db *Database) {
+	t.Helper()
+	for _, stmt := range []string{
+		// responses_view depends on posts_view; DROP COLUMN runs a full-schema
+		// integrity check, so dependent views must go first.
+		"DROP VIEW IF EXISTS responses_view;",
+		"DROP VIEW IF EXISTS posts_view;",
+		"DROP VIEW IF EXISTS items_view;",
+		"DROP VIEW IF EXISTS feeds_view;",
+		"DROP VIEW IF EXISTS websites_view;",
+		"DROP INDEX IF EXISTS websites_following_index;",
+		"DROP INDEX IF EXISTS feeds_following_index;",
+		"DROP INDEX IF EXISTS feeds_website_id_following_index;",
+		"DROP INDEX IF EXISTS items_sponsored_index;",
+		"ALTER TABLE websites DROP COLUMN following;",
+		"ALTER TABLE feeds DROP COLUMN following;",
+		"ALTER TABLE items DROP COLUMN sponsored;",
+	} {
+		if _, err := db.DB.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("strip v5 schema %q: %v", stmt, err)
+		}
+	}
+}
+
+func dropCanonicalViews(ctx context.Context, t *testing.T, db *Database) {
+	t.Helper()
+	for _, view := range []string{
+		"responses_view",
+		"posts_view",
+		"items_view",
+		"feeds_view",
+		"websites_view",
+		"attachments_view",
+		"bylines_view",
+		"hot_hyperlinks_view",
+		"links_view",
+		"discovery_view",
+		"activities_view",
+		"subscriptionlists_view",
+	} {
+		if _, err := db.DB.ExecContext(ctx, "DROP VIEW IF EXISTS ["+view+"];"); err != nil {
+			t.Fatalf("drop view %q: %v", view, err)
+		}
+	}
+}
+
+func forceSchemaVersion(ctx context.Context, t *testing.T, db *Database, version int) {
+	t.Helper()
+	if _, err := db.DB.ExecContext(ctx, `DROP TRIGGER IF EXISTS hyperfeed_schema_update_trigger;`); err != nil {
+		t.Fatalf("drop schema update trigger: %v", err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `UPDATE hyperfeed_schema SET version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1;`, version); err != nil {
+		t.Fatalf("force schema version %d: %v", version, err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `
+		CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
+		BEFORE UPDATE ON hyperfeed_schema
+		FOR EACH ROW
+		BEGIN
+			SELECT CASE
+				WHEN NEW.version != OLD.version + 1
+					THEN RAISE(ABORT, 'hyperfeed_schema must increment by 1')
+			END;
+		END;
+	`); err != nil {
+		t.Fatalf("restore schema update trigger: %v", err)
+	}
+}
+
 // scanAllRows steps through every row of a view with all columns selected.
 // SQLite evaluates view expressions (including json()) at step time, so this
 // surfaces lazy errors like "malformed JSON" that count(*) queries skip.
+// TestMigrateV4ToV5 exercises the real v4→v5 migration on a v4-shaped DB
+// (following/sponsored absent): 5_from_4.sql must add the columns, backfill
+// websites.following from feeds, recreate views, and round-trip the rebuilt JSON.
+func TestMigrateV4ToV5(t *testing.T) {
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "migrate_v4_to_v5.db")}
+	if err := db.Destroy(); err != nil {
+		t.Fatalf("destroy: %v", err)
+	}
+	if err := db.Open(ctx); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close(); db.Destroy() })
+
+	// Apply the latest schema, then strip the v5 additions back to a v4 shape so
+	// 5_from_4.sql must add following/sponsored itself.
+	prepareLegacySchema(ctx, t, db, 4)
+
+	// Seed v4-shape rows (no following/sponsored): w1 has a feed (-> following=1),
+	// w2 is an orphan website (-> following=0), one item under f1/w1.
+	for _, stmt := range []string{
+		`INSERT INTO websites (id, html_url) VALUES ('w1', 'https://w1.example');`,
+		`INSERT INTO websites (id, html_url) VALUES ('w2', 'https://w2.example');`,
+		`INSERT INTO feeds (id, url, website_id) VALUES ('f1', 'https://w1.example/feed', 'w1');`,
+		`INSERT INTO items (id, url, feed_id, website_id, published_at, added_at, updated_at, feed_at) VALUES ('i1', 'https://w1.example/1', 'f1', 'w1', '2025-09-09T19:00:00Z', '2025-09-09T19:00:00Z', '2025-09-09T19:00:00Z', '2025-09-09T19:00:00Z');`,
+	} {
+		if _, err := db.DB.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate v4->v5: %v", err)
+	}
+	if v, err := db.SchemaVersion(ctx); err != nil || v != SchemaVersionLatest {
+		t.Fatalf("schema version = %d (err %v); want %d", v, err, SchemaVersionLatest)
+	}
+
+	assertTableColumn(ctx, t, db, "websites", "following")
+	assertTableColumn(ctx, t, db, "feeds", "following")
+	assertTableColumn(ctx, t, db, "items", "sponsored")
+
+	q := func(query string, args ...any) int {
+		var n int
+		if err := db.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+			t.Fatalf("query %q: %v", query, err)
+		}
+		return n
+	}
+	// Backfill: website with a followed feed -> 1; orphan website -> 0.
+	if got := q(`SELECT following FROM websites WHERE id = 'w1';`); got != 1 {
+		t.Errorf("w1 (has a feed) following = %d; want 1", got)
+	}
+	if got := q(`SELECT following FROM websites WHERE id = 'w2';`); got != 0 {
+		t.Errorf("w2 (orphan) following = %d; want 0", got)
+	}
+
+	// Lazy-view guard + JSON round-trip of the v5 columns through the rebuilt views.
+	// responses_view was dropped for the v4 simulation and isn't recreated by the
+	// v5 migration (it doesn't reference following/sponsored; guarded elsewhere).
+	for _, view := range canonicalViews {
+		if view == "responses_view" {
+			continue
+		}
+		if err := scanAllRows(ctx, db, view); err != nil {
+			t.Errorf("scan %s: %v", view, err)
+		}
+	}
+	if got := q(`SELECT json_extract([website], '$.following') FROM websites_view WHERE id = 'w1';`); got != 1 {
+		t.Errorf("websites_view w1 $.following = %d; want 1", got)
+	}
+	if got := q(`SELECT json_extract([feed], '$.following') FROM feeds_view WHERE id = 'f1';`); got != 1 {
+		t.Errorf("feeds_view f1 $.following = %d; want 1", got)
+	}
+	if got := q(`SELECT json_extract([item], '$.sponsored') FROM items_view WHERE id = 'i1';`); got != 0 {
+		t.Errorf("items_view i1 $.sponsored = %d; want 0", got)
+	}
+	if got := q(`SELECT json_extract([post], '$.item.sponsored') FROM posts_view WHERE id = 'i1';`); got != 0 {
+		t.Errorf("posts_view i1 $.item.sponsored = %d; want 0", got)
+	}
+	if got := q(`SELECT json_extract([post], '$.website.following') FROM posts_view WHERE id = 'i1';`); got != 1 {
+		t.Errorf("posts_view i1 $.website.following = %d; want 1", got)
+	}
+}
+
 func scanAllRows(ctx context.Context, db *Database, view string) error {
 	rows, err := db.Query(ctx, "SELECT * FROM "+view)
 	if err != nil {
@@ -300,13 +467,9 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 		db.Destroy()
 	})
 
-	// Apply the base schema, then strip it back to the stale v2 shape.
-	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
-	for _, view := range canonicalViews {
-		if _, err = db.DB.ExecContext(ctx, "DROP VIEW IF EXISTS "+view); err != nil {
-			t.Fatalf("drop view %q: %v", view, err)
-		}
-	}
+	// Apply the current schema, then strip it back to the stale v2 shape.
+	prepareLegacySchema(ctx, t, db, 2)
+	dropCanonicalViews(ctx, t, db)
 	for _, stale := range []string{
 		"ALTER TABLE websites DROP COLUMN following_url;",
 		"ALTER TABLE feeds DROP COLUMN email;",

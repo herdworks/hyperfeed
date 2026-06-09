@@ -35,6 +35,7 @@ type Item struct {
 	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, Atom enclosure Links, JSONFeed attachments, and scraped media (images, videos, audio, documents, and other files)
 	Categories       []string     `json:"categories,omitempty"`
 	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
+	Sponsored        bool         `json:"sponsored,omitempty"`
 
 	// Metadata holds non-standard/extension Item properties
 	Metadata Metadata `json:"metadata,omitempty"`
@@ -264,6 +265,7 @@ func (*Item) DatabaseInsertColumns() (columns []string) {
 		"summary",
 		"content",
 		"is_podcast_episode",
+		"sponsored",
 		"published_at",
 		"modified_at",
 		"added_at",
@@ -291,6 +293,7 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("summary", strings.TrimSpace(item.Summary)))
 	args = append(args, sql.Named("content", strings.TrimSpace(item.Content)))
 	args = append(args, sql.Named("is_podcast_episode", item.IsPodcastEpisode))
+	args = append(args, sql.Named("sponsored", item.Sponsored))
 	args = append(args, sql.Named("published_at", item.PublishedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("modified_at", item.ModifiedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("added_at", item.AddedAt.UTC().Format(time.RFC3339)))
@@ -303,7 +306,11 @@ func (item *Item) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("feed_at", item.FeedAt.UTC().Format(time.RFC3339)))
 	args = append(args, sql.Named("feed_id", item.Feed.Identifier()))
 	args = append(args, sql.Named("website_id", item.Feed.Website.Identifier()))
-	args = append(args, sql.Named("link_id", item.Link.Identifier()))
+	if item.Link == nil {
+		args = append(args, sql.Named("link_id", nil))
+	} else {
+		args = append(args, sql.Named("link_id", item.Link.Identifier()))
+	}
 	return args
 }
 func (item *Item) DatabaseUpdatesSet(_ []string) []string {
@@ -314,6 +321,7 @@ func (item *Item) DatabaseUpdatesSet(_ []string) []string {
 		"summary = excluded.summary",
 		"content = excluded.content",
 		"is_podcast_episode = excluded.is_podcast_episode",
+		"sponsored = excluded.sponsored",
 		"modified_at = excluded.modified_at",
 		"updated_at = excluded.updated_at",
 		"website_id = excluded.website_id",

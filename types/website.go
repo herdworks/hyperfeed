@@ -16,8 +16,9 @@ type Website struct {
 	*DatabaseRecord
 	hypergraph.Entity
 
-	ID     string  `json:"id"`
-	Status *Status `json:"status"`
+	ID        string  `json:"id"`
+	Following bool    `json:"following"`
+	Status    *Status `json:"status"`
 }
 
 // METHODS
@@ -60,6 +61,7 @@ func (*Website) DatabaseInsertColumns() []string {
 		"username",
 		"description",
 		"verified",
+		"following",
 		"status",
 	}
 }
@@ -74,6 +76,7 @@ func (website *Website) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("username", website.Username))
 	values = append(values, sql.Named("description", website.Description))
 	values = append(values, sql.Named("verified", website.Verified))
+	values = append(values, sql.Named("following", website.Following))
 	if website.Status == nil {
 		values = append(values, sql.Named("status", "{}"))
 	} else {
@@ -93,6 +96,7 @@ func (website *Website) DatabaseUpdatesSet(_ []string) []string {
 		"[username] = [excluded].[username]",
 		"[description] = [excluded].[description]",
 		"[verified] = [excluded].[verified]",
+		"[following] = [excluded].[following]",
 	}
 }
 

@@ -94,10 +94,10 @@ func (opml *OPML) ToJSONIndented(prefix string, indent string) ([]byte, error) {
 
 // ============================ Outline Methods ===============================
 
-// Validate checks the outline against the general purpose OPML 2.0 spec, which 
-// requires only the text attribute. 
-// 
-// Rules governing specific OPML patterns (e.g. subscription lists requiring 
+// Validate checks the outline against the general purpose OPML 2.0 spec, which
+// requires only the text attribute.
+//
+// Rules governing specific OPML patterns (e.g. subscription lists requiring
 // type and xmlUrl) belong to the consumers of those patterns.
 func (outline *Outline) Validate() error {
 	if outline.Text == "" {

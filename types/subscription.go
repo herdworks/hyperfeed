@@ -114,6 +114,10 @@ func (sl *SubscriptionList) InitFeeds(w io.Writer) (feeds []*Feed, err error) {
 			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
 			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
 		}
+		// Imported feeds are followed. `following` is a written column now, so a
+		// missing (zero-value false) would otherwise persist as unfollowed.
+		feed.Following = true
+		feed.Website.Following = true
 		feed.Status.LastStatusCodes = []int{}
 		feeds = append(feeds, feed)
 	}

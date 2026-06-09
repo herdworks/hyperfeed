@@ -141,18 +141,24 @@ func (db *Database) Configure(ctx context.Context) (err error) {
 }
 
 func (db *Database) Initialize(ctx context.Context) (err error) {
+	var initializeSchema bool
 	var schemaBytes []byte
 	var schemaPath string = "sql/schema/schema.sql"
-	if schemaBytes, err = db.Embedded(schemaPath); err != nil {
-		return fmt.Errorf("database %q schema load error: %w", schemaPath, err)
-	}
 	if err := db.DB.PingContext(ctx); err != nil {
 		return err
 	}
 
-	// schema
-	if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
-		return fmt.Errorf("database %q schema apply error: %w", db.Path, err)
+	// schema: only bootstrap genuinely fresh databases. Existing databases must
+	// migrate from their recorded version without first applying latest schema.
+	if initializeSchema, err = db.needsSchemaInitialization(ctx); err != nil {
+		return fmt.Errorf("database %q schema inspect error: %w", db.Path, err)
+	} else if initializeSchema {
+		if schemaBytes, err = db.Embedded(schemaPath); err != nil {
+			return fmt.Errorf("database %q schema load error: %w", schemaPath, err)
+		}
+		if _, err = db.DB.ExecContext(ctx, string(schemaBytes)); err != nil {
+			return fmt.Errorf("database %q schema apply error: %w", db.Path, err)
+		}
 	}
 
 	// migration
@@ -166,6 +172,31 @@ func (db *Database) Initialize(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+func (db *Database) needsSchemaInitialization(ctx context.Context) (bool, error) {
+	rows, err := db.DB.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	hasUserTables := false
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return false, err
+		}
+		if name == "hyperfeed_schema" {
+			return false, nil
+		}
+		hasUserTables = true
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+
+	return !hasUserTables, nil
 }
 
 // Migrate applies any pending migration scripts to the database.
@@ -213,7 +244,7 @@ func (db *Database) Migrate(ctx context.Context) (err error) {
 	}
 
 	if err := db.withImmediateTransaction(ctx, fmt.Sprintf("migration %q", db.Path), func(ctx context.Context, conn *sql.Conn) error {
-		if err := prepareMigration(ctx, conn, nextVersion); err != nil {
+		if err := prepareLegacyMigration(ctx, conn, nextVersion); err != nil {
 			return err
 		}
 		for _, script := range scripts {
@@ -277,10 +308,13 @@ func (db *Database) Maintenance(ctx context.Context) (err error) {
 	return nil
 }
 
-func prepareMigration(ctx context.Context, conn *sql.Conn, version int) error {
+// prepareLegacyMigration repairs known pre-v4 schema drift before the matching
+// SQL migration runs. New migrations should be pure SQL and must not add Go
+// preflight hooks here.
+func prepareLegacyMigration(ctx context.Context, conn *sql.Conn, version int) error {
 	switch version {
 	case 4:
-		return prepareSchemaV4Migration(ctx, conn)
+		return prepareLegacySchemaV4Migration(ctx, conn)
 	default:
 		return nil
 	}
@@ -291,7 +325,9 @@ type migrationColumn struct {
 	definition string
 }
 
-func prepareSchemaV4Migration(ctx context.Context, conn *sql.Conn) error {
+// prepareLegacySchemaV4Migration bridges databases that reached v3 through the
+// old maintenance-script era, where version and physical table shape could drift.
+func prepareLegacySchemaV4Migration(ctx context.Context, conn *sql.Conn) error {
 	for _, table := range []struct {
 		name    string
 		columns []migrationColumn
@@ -345,7 +381,6 @@ func prepareSchemaV4Migration(ctx context.Context, conn *sql.Conn) error {
 
 	return nil
 }
-
 func ensureMigrationColumns(ctx context.Context, conn *sql.Conn, table string, migrations []migrationColumn) error {
 	rows, err := conn.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
 	if err != nil {
@@ -572,7 +607,7 @@ func (db *Database) RelateRows(ctx context.Context, transaction *sql.Tx, table s
 
 // ============================ Helper Methods ===================================
 
-// Databse.RecordsMatch()
+// Database.RecordsMatch()
 // TODO: For testing purposes only?
 func (Database) RecordsMatch(a, b DatabaseRow) bool {
 	if a == nil || b == nil {

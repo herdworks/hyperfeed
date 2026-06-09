@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added schema migration version 5 with read/write `Website.Following`, `Feed.Following`, and `Item.Sponsored` fields, rebuilt view JSON output, and filter indexes for following/sponsored queries.
+* Added `Post` as the timeline envelope and `subscriber.SavePost` for transactional generated-post persistence across website, feed, item, bylines, attachments, and links.
+* Added `subscriber.Unfollow` as the explicit soft-delete path: it deletes the feed's items and marks the feed unfollowed, while ordinary `following=false` upserts remain non-destructive.
+* Changed database initialization to apply `schema.sql` only to genuinely fresh databases, leaving existing databases to migrate through versioned scripts without first applying the latest schema.
+* Changed OPML import/export and no-argument refresh to respect feed follow-state: imports create followed feeds, exports exclude unfollowed/generated feeds, and refresh skips unfollowed feeds unless passed explicitly.
+* Changed generated/local `file://` feed refreshes to skip HyperGraph website scraping, preserving authored website metadata for generated feeds.
+* Fixed item writes without a primary link to store a NULL `link_id` instead of the `unknown` sentinel identifier.
+* Added regression coverage for fresh schema initialization, fresh-vs-migrated view parity, v4-to-v5 migrations, generated post persistence/readback, soft-delete invariants, follow-state import/export/refresh behavior, and local generated feed scrape skipping.
+
 ## v0.23.0 (2026-06-07)
 
 * Added schema migration version 4 to rebuild the `discovery` table at the canonical shape with best-effort preservation of existing rows.
