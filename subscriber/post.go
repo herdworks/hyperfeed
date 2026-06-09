@@ -114,4 +114,3 @@ func SavePost(ctx context.Context, db *database.Database, post *hyperfeed.Post) 
 	err = tx.Commit()
 	return err
 }
-
