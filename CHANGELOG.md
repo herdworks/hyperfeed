@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.24.1 (2026-06-09)
+
+* Fix whitespace
+
 ## v0.24.0 (2026-06-09)
 
 * Added schema migration version 5 with read/write `Website.Following`, `Feed.Following`, and `Item.Sponsored` fields, rebuilt view JSON output, and filter indexes for following/sponsored queries.
