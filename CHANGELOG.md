@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.24.0 (2026-06-09)
+
 * Added schema migration version 5 with read/write `Website.Following`, `Feed.Following`, and `Item.Sponsored` fields, rebuilt view JSON output, and filter indexes for following/sponsored queries.
 * Added `Post` as the timeline envelope and `subscriber.SavePost` for transactional generated-post persistence across website, feed, item, bylines, attachments, and links.
 * Added `subscriber.Unfollow` as the explicit soft-delete path: it deletes the feed's items and marks the feed unfollowed, while ordinary `following=false` upserts remain non-destructive.
