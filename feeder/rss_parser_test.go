@@ -179,6 +179,67 @@ func TestRSSParserUsesSourceURLAsLinkAttachment(t *testing.T) {
 	t.Fatalf("source attachment not found; attachments: %s", attachmentURLs(item.Attachments))
 }
 
+// TestRSSParserToleratesMalformedItemContent ensures a single malformed link
+// (in show-note HTML) or a single bad enclosure does not abort the whole feed:
+// the item must still be parsed, with the bad pieces skipped.
+func TestRSSParserToleratesMalformedItemContent(t *testing.T) {
+	feedURL, err := href.Parse("https://example.com/rss.xml")
+	if err != nil {
+		t.Fatalf("href.Parse() error = %v", err)
+	}
+	// content:encoded holds an <a href> whose value contains a newline (the
+	// Daring Fireball "The Talk Show" case). The first enclosure has a
+	// non-numeric length; the second has an unparseable url (invalid port).
+	parser := &RSSFeedParser{
+		Bytes: []byte("<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+			"<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">" +
+			"<channel>" +
+			"<title>Example</title>" +
+			"<link>https://example.com/</link>" +
+			"<description>Example feed</description>" +
+			"<item>" +
+			"<title>First</title>" +
+			"<link>https://example.com/posts/first/</link>" +
+			"<guid>first</guid>" +
+			"<enclosure url=\"https://example.com/ep.mp3\" type=\"audio/mpeg\" length=\"notanumber\" />" +
+			"<enclosure url=\"https://example.com:notaport/bad.mp3\" type=\"audio/mpeg\" length=\"5\" />" +
+			"<content:encoded><![CDATA[<ul><li><a href=\"https://example.com/a\nb\">bad</a></li></ul>]]></content:encoded>" +
+			"<pubDate>Wed, 03 Jun 2026 00:00:00 GMT</pubDate>" +
+			"</item>" +
+			"</channel>" +
+			"</rss>"),
+		Feed: &hyperfeed.Feed{URL: feedURL},
+	}
+
+	parsed, err := parser.Parse(io.Discard)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil (malformed link/enclosure should be skipped)", err)
+	}
+	if len(parsed.Items) != 1 {
+		t.Fatalf("items length = %d, want 1", len(parsed.Items))
+	}
+	item := parsed.Items[0]
+
+	var foundGoodEnclosure bool
+	for _, a := range item.Attachments {
+		if a.Href == nil {
+			t.Fatalf("attachment with nil href survived: %#v", a)
+		}
+		if a.Href.String() == "https://example.com/ep.mp3" {
+			foundGoodEnclosure = true
+			if a.Size != 0 {
+				t.Fatalf("enclosure size = %d, want 0 (non-numeric length tolerated)", a.Size)
+			}
+		}
+		if strings.Contains(a.Href.String(), "notaport") {
+			t.Fatalf("enclosure with unparseable url should have been skipped: %s", a.Href.String())
+		}
+	}
+	if !foundGoodEnclosure {
+		t.Fatalf("valid enclosure was dropped; attachments: %s", attachmentURLs(item.Attachments))
+	}
+}
+
 func attachmentURLs(attachments []hyperfeed.Attachment) string {
 	urls := []string{}
 	for _, attachment := range attachments {

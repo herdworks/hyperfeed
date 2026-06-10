@@ -205,15 +205,15 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 	// attachment enclosures
 	for _, enclosure := range rssitem.Enclosures {
 		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
-		if attachment.Href, err = href.Parse(enclosure.URL); err != nil {
-			return nil, err
+		// Skip (don't fail the whole feed for) an enclosure with an unparseable URL.
+		if attachment.Href, _ = href.Parse(enclosure.URL); attachment.Href == nil {
+			fmt.Fprintf(w, "skipping enclosure with unparseable url %q\n", enclosure.URL)
+			continue
 		}
 		if enclosure.Length == "" {
 			enclosure.Length = "0"
 		}
-		if attachment.Size, err = strconv.ParseInt(enclosure.Length, 10, 64); err != nil {
-			return nil, err
-		}
+		attachment.Size, _ = strconv.ParseInt(enclosure.Length, 10, 64) // tolerate a non-numeric length (defaults to 0)
 		if duration := rss.GetPodcastEpisodeDurationSeconds(rssitem); duration > 0 {
 			attachment.Duration = int64(duration)
 		}
@@ -228,8 +228,9 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 			continue
 		}
 		attachment := hyperfeed.Attachment{Sources: []hyperfeed.Source{}, Enclosure: true, Rank: len(attachments) + 1}
-		if attachment.Href, err = href.Parse(link.Href); err != nil {
-			return nil, err
+		if attachment.Href, _ = href.Parse(link.Href); attachment.Href == nil {
+			fmt.Fprintf(w, "skipping enclosure link with unparseable href %q\n", link.Href)
+			continue
 		}
 		attachment.Title = link.Title
 		attachment.Size = int64(link.Length)

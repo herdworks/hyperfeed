@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Fixed RSS refreshes to tolerate malformed item content by skipping unparseable show-note links and enclosure URLs, defaulting non-numeric enclosure lengths to zero, and preserving valid feed items and attachments.
+* Added regression coverage for malformed show-note links, invalid enclosure URLs, and non-numeric RSS enclosure lengths.
+
 ## v0.24.1 (2026-06-09)
 
 * Fix whitespace

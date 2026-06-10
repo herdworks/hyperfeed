@@ -31,6 +31,7 @@ type HyperLink struct {
 func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, err error) {
 	var document hypergraph.Document = hypergraph.Document{}
 	var ctx context.Context = context.Background()
+	var perr error // failable parser errors
 	if item.URL != nil {
 		document.Href = item.URL.String()
 		if h, e := href.Parse(item.URL.String()); e == nil {
@@ -54,35 +55,39 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 		link.Weight = 1.00
 		links = append(links, link)
 	}
-	if document.HTML, err = html.Parse(bytes.NewReader(htmlBytes)); err == nil {
-		document.Root = document.HTML
-	} else {
-		return links, err
+	if document.HTML, perr = html.Parse(bytes.NewReader(htmlBytes)); perr != nil {
+		fmt.Fprintf(w, "skipping link extraction, unparseable HTML: %v\n", perr)
+		return links, nil
 	}
-	if err = document.Scrape(ctx, true, nil, 5, w); err != nil {
-		return links, err
+	document.Root = document.HTML
+	if perr = document.Scrape(ctx, true, nil, 5, w); perr != nil {
+		fmt.Fprintf(w, "skipping link extraction, scrape error: %v\n", perr)
+		return links, nil
 	}
 	for _, i := range document.Metadata.HyperLinks.Hrefs {
-		var h *href.Href
-		var website *Website
-		if h, err = href.Parse(i); err != nil {
+		// NOTE: use a local error here to avoid returning the named `err` after a continue
+		h, e := href.Parse(i)
+		if e != nil {
+			// log errors and continue
+			fmt.Fprintf(w, "skipping unparseable link %q: %v\n", i, e)
 			continue
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
-		website = &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
 		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.75})
 	}
 	for _, i := range document.Metadata.HyperLinks.SameOrigin {
-		var h *href.Href
-		var website *Website
-		if h, err = href.Parse(i); err != nil {
+		h, e := href.Parse(i)
+		if e != nil {
+			// log errors and continue
+			fmt.Fprintf(w, "skipping unparseable link %q: %v\n", i, e)
 			continue
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
-		website = &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
 		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
 	}
-	return links, err
+	return links, nil
 }
 
 func (link *HyperLink) Identifier() string {
