@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.25.0 (2026-06-12)
+
 * Added schema migration version 6 with searchable `websites_view.search` and `hot_hyperlinks_view.search` columns, plus flat hot-link `title` and `description` columns, so consumers can issue unified in-database `LIKE` search queries.
 * Added fresh-vs-migrated schema parity coverage for views, triggers, indexes, and table column signatures, and documented the deferred FTS5 search migration constraints.
 * Changed CI to run Go tests with the `sqlite_fts5` build tag, continuously verifying FTS5-enabled builds ahead of the planned search index.
