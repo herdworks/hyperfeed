@@ -91,10 +91,17 @@ var (
 // (via hyperfeed.SubscriptionList.MarshalOPML).
 func (subscriber *Subscriber) Export(ctx context.Context, redacted bool, w io.Writer) (out []byte, err error) {
 	var feeds []*hyperfeed.Feed
-	if err = subscriber.Database.Open(ctx); err != nil {
-		return nil, err
-	} else {
+	if subscriber.Database == nil {
+		return nil, ErrDatabase
+	}
+	if subscriber.Database.DB == nil {
+		if err = subscriber.Database.Open(ctx); err != nil {
+			return nil, err
+		}
 		defer subscriber.Database.Close()
+	}
+	if err = subscriber.Database.PingContext(ctx); err != nil {
+		return nil, err
 	}
 	if feeds, err = database.ListRecords[*hyperfeed.Feed](ctx, subscriber.Database); err != nil {
 		return nil, err

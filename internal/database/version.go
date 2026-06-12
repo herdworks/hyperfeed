@@ -1,3 +1,3 @@
 package database
 
-var SchemaVersionLatest int = 5
+var SchemaVersionLatest int = 6

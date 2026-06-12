@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added schema migration version 6 with searchable `websites_view.search` and `hot_hyperlinks_view.search` columns, plus flat hot-link `title` and `description` columns, so consumers can issue unified in-database `LIKE` search queries.
+* Added fresh-vs-migrated schema parity coverage for views, triggers, indexes, and table column signatures, and documented the deferred FTS5 search migration constraints.
+* Changed CI to run Go tests with the `sqlite_fts5` build tag, continuously verifying FTS5-enabled builds ahead of the planned search index.
+* Fixed `feeder.Tick` to close HTTP response bodies on successful and error responses.
+* Fixed `Subscriber.Export` to validate an existing database connection instead of always reopening it.
+* Fixed `subscriber.Unfollow` to clear feed status history when marking a feed unfollowed.
+
 ## v0.24.2 (2026-06-09)
 
 * Fixed RSS refreshes to tolerate malformed item content by skipping unparseable show-note links and enclosure URLs, defaulting non-numeric enclosure lengths to zero, and preserving valid feed items and attachments.

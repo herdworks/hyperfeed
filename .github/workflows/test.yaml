@@ -44,6 +44,9 @@ jobs:
           fi
 
       - name: Run go tests
+        # sqlite_fts5: not yet required by the schema, but kept so FTS5
+        # builds stay continuously verified ahead of the planned items_fts
+        # migration (see internal/database/MIGRATION.md "Full-text search").
         run: |
-          go test ./... -v
+          go test -tags sqlite_fts5 ./... -v
 

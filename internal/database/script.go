@@ -54,6 +54,12 @@ func (DatabaseScript) List(root string, match func(path string, d fs.DirEntry) b
 	return scripts, nil
 }
 
+// IsTransaction reports whether the script contains transaction-control
+// statements (BEGIN/COMMIT/ROLLBACK). The runner manages transactions, so
+// scripts must not. Only keywords at a STATEMENT BOUNDARY (start of script or
+// after a `;`) count: transaction control can occupy no other position, and a
+// `BEGIN` in the middle of a statement is a CREATE TRIGGER body, which
+// migrations are allowed (and documented in MIGRATION.md) to contain.
 func (script *DatabaseScript) IsTransaction() bool {
 	var token []rune
 	var inLineComment bool
@@ -61,6 +67,8 @@ func (script *DatabaseScript) IsTransaction() bool {
 	var inSingleQuote bool
 	var inDoubleQuote bool
 	var inBracketQuote bool
+	var atStatementStart bool = true
+	var tokenStartsStatement bool
 
 	flushToken := func() bool {
 		if len(token) == 0 {
@@ -68,6 +76,11 @@ func (script *DatabaseScript) IsTransaction() bool {
 		}
 		word := strings.ToLower(string(token))
 		token = token[:0]
+		startsStatement := tokenStartsStatement
+		atStatementStart = false
+		if !startsStatement {
+			return false
+		}
 		switch word {
 		case "begin", "commit", "rollback":
 			return true
@@ -136,6 +149,7 @@ func (script *DatabaseScript) IsTransaction() bool {
 			if flushToken() {
 				return true
 			}
+			atStatementStart = false
 			inSingleQuote = true
 			continue
 		}
@@ -143,6 +157,7 @@ func (script *DatabaseScript) IsTransaction() bool {
 			if flushToken() {
 				return true
 			}
+			atStatementStart = false
 			inDoubleQuote = true
 			continue
 		}
@@ -150,16 +165,23 @@ func (script *DatabaseScript) IsTransaction() bool {
 			if flushToken() {
 				return true
 			}
+			atStatementStart = false
 			inBracketQuote = true
 			continue
 		}
 
 		if unicode.IsLetter(rune(ch)) {
+			if len(token) == 0 {
+				tokenStartsStatement = atStatementStart
+			}
 			token = append(token, rune(ch))
 			continue
 		}
 		if flushToken() {
 			return true
+		}
+		if ch == ';' {
+			atStatementStart = true
 		}
 	}
 

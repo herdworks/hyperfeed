@@ -17,8 +17,8 @@ BEFORE INSERT ON hyperfeed_schema
 FOR EACH ROW
 BEGIN
     SELECT CASE
-        WHEN NEW.version != 5 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
-            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 5')
+        WHEN NEW.version != 6 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 6')
     END;
 END;
 CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
@@ -32,7 +32,7 @@ BEGIN
 END;
 
 -- Initialize hyperfeed_schema with the latest schema version if not already set
-INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (5);
+INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (6);
 
 -- Scripts table
 CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
@@ -408,7 +408,22 @@ SELECT
     [websites].[html_url],
     [websites].[username],
     [websites].[email],
-    [websites].[following]
+    [websites].[following],
+    COALESCE([websites].[username], '') || ' ' ||
+    COALESCE([websites].[name], '') || ' ' ||
+    COALESCE([websites].[description], '') || ' ' ||
+    COALESCE([websites].[html_url], '') || ' ' ||
+    COALESCE((
+        SELECT group_concat(
+            COALESCE([feeds].[url], '') || ' ' ||
+            COALESCE([feeds].[html_url], '') || ' ' ||
+            COALESCE([feeds].[title], '') || ' ' ||
+            COALESCE([feeds].[description], ''),
+            ' '
+        )
+        FROM [feeds]
+        WHERE [feeds].[website_id] = [websites].[id] AND [feeds].[following] = 1
+    ), '') AS [search]
 FROM
     [websites]
 ;
@@ -636,7 +651,12 @@ SELECT
     [links].[href],
     [link_counts].[website_count],
     [link_counts].[item_count],
-    [link_counts].[score]
+    [link_counts].[score],
+    [links].[title],
+    [links].[description],
+    COALESCE([links].[title], '') || ' ' ||
+    COALESCE([links].[description], '') || ' ' ||
+    [links].[href] AS [search]
 FROM
     [links]
     JOIN (

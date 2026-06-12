@@ -3,6 +3,7 @@ package subscriber
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/herdworks/hyperfeed-go/internal/database"
@@ -28,6 +29,10 @@ func Unfollow(ctx context.Context, db *database.Database, feed *hyperfeed.Feed) 
 	if feed.ID == "" && (feed.URL == nil || feed.URL.URL() == nil) {
 		return errors.Join(hyperfeed.ErrFeed, errors.New("Unfollow requires a feed id or url"))
 	}
+	statusJSON, err := json.Marshal(hyperfeed.Status{LastStatusCodes: []int{}})
+	if err != nil {
+		return err
+	}
 	var tx *sql.Tx
 	if tx, err = db.BeginTransaction(ctx, nil); err != nil {
 		return err
@@ -41,7 +46,7 @@ func Unfollow(ctx context.Context, db *database.Database, feed *hyperfeed.Feed) 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM items WHERE feed_id = ?;`, id); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE feeds SET following = 0 WHERE id = ?;`, id); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE feeds SET following = 0, status = ? WHERE id = ?;`, string(statusJSON), id); err != nil {
 		return err
 	}
 	err = tx.Commit()

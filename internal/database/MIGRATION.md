@@ -215,19 +215,56 @@ BEGIN
 END;
 ```
 
-### Full-text search
+### Full-text search (planned, not yet in the schema)
+
+An `items_fts` FTS5 index over items is planned but deliberately deferred.
+Cross-platform XCFramework builds with FTS5 enabled were verified on
+2026-06-10; CI and `libhypertexting/scripts/build.sh` keep `-tags
+sqlite_fts5` so that capability stays continuously verified. The migration
+that introduces `items_fts` must honor all of the following (learned the
+hard way; do not relearn):
+
+* `mattn/go-sqlite3` only compiles FTS5 behind the `sqlite_fts5` build tag.
+  Once the schema contains FTS5 objects, EVERY binary that opens a hyperfeed
+  database must build with the tag or fails with `no such module: fts5` —
+  the schema change and any consumer that lacks the tag cannot ship
+  separately.
+* Use an external-content table (`content='items'`, `content_rowid='rowid'`;
+  `items.content` is large, a contentful FTS table would roughly double the
+  database). `items` has a TEXT primary key, so the index is keyed on its
+  IMPLICIT rowid — see the rowid hazards below.
+* Pin the tokenizer explicitly in the DDL (e.g.
+  `tokenize = 'unicode61 remove_diacritics 2'`). Changing tokenizers later
+  requires a full index rebuild on every device; do not inherit defaults by
+  omission.
+* Backfill with `INSERT INTO items_fts(items_fts) VALUES('rebuild');`
+  (idempotent). `INSERT ... SELECT` with a `WHERE NOT EXISTS (SELECT 1 FROM
+  items_fts)` guard does NOT work: scanning an external-content table reads
+  through to the content table even when the index is empty.
+* Keep the index in sync with the FTS5 'delete'-command trigger pattern, and
+  guard the UPDATE trigger with both an `OF column, ...` list and a
+  `WHEN old.x IS NOT new.x ...` clause — refresh cycles upsert every item on
+  every run and would otherwise reindex the whole corpus each refresh.
+* Rowid hazards: VACUUM and rebuild-style migrations on `items` (CREATE new
+  table → INSERT SELECT → DROP → RENAME, documented above) renumber implicit
+  rowids and SILENTLY corrupt the index — no test can catch it because index
+  contents are not schema. `Database.Vacuum` and any rowid-disturbing
+  migration must end with the `'rebuild'` command.
+* Measure the migration on a production-sized database before release: the
+  backfill runs in one `BEGIN IMMEDIATE` transaction on the app-launch path,
+  with a WAL spike comparable to the final index size.
 
 ```sql
-CREATE VIRTUAL TABLE items_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
     title,
+    summary,
     content,
     content='items',
-    content_rowid='rowid'
+    content_rowid='rowid',
+    tokenize = 'unicode61 remove_diacritics 2'
 );
 
-INSERT INTO items_fts(rowid, title, content)
-SELECT rowid, title, content
-FROM items;
+INSERT INTO items_fts(items_fts) VALUES('rebuild');
 ```
 
 ## Testing

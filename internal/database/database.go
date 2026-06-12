@@ -520,6 +520,11 @@ func (db *Database) Query(ctx context.Context, query string, args ...any) (*sql.
 }
 
 // Vacuum compacts the database.
+//
+// NOTE: VACUUM may renumber the implicit rowids of tables without an INTEGER
+// PRIMARY KEY (items has a TEXT primary key). If a rowid-keyed index over
+// items ever lands (e.g. the planned external-content items_fts — see
+// MIGRATION.md "Full-text search"), Vacuum must rebuild it after compacting.
 func (db *Database) Vacuum(ctx context.Context) error {
 	return db.Exec(ctx, "VACUUM")
 }

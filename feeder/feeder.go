@@ -88,7 +88,11 @@ func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, at time.Tim
 	if response, err = client.Do(request); err != nil {
 		feeder.Log(response, errors.Join(ErrFetch, err), w)
 		return err
-	} else if response.StatusCode >= 400 {
+	}
+	if response.Body != nil {
+		defer response.Body.Close()
+	}
+	if response.StatusCode >= 400 {
 		err = fmt.Errorf("HTTP %d %s", response.StatusCode, http.StatusText(response.StatusCode))
 		feeder.Log(response, errors.Join(ErrResponse, err), w)
 		return err

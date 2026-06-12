@@ -265,12 +265,17 @@ func TestFeedUnfollow(t *testing.T) {
 	}
 
 	drop := newSponsoredPost(t, "2025-09-10")
+	drop.Feed.Status.LastStatusCode = 304
+	drop.Feed.Status.LastStatusCodes = []int{304, 200}
 	if err := SavePost(ctx, s.Database, drop); err != nil {
 		t.Fatalf("SavePost(drop) error = %v", err)
 	}
 
 	if got := count(t, s, `SELECT COUNT(*) FROM items;`); got != 2 {
 		t.Fatalf("items before unfollow = %d; want 2", got)
+	}
+	if got := count(t, s, `SELECT json_extract(status, '$.last_status_code') FROM feeds WHERE id = ?;`, drop.Feed.Identifier()); got != 304 {
+		t.Fatalf("dropped feed status before unfollow = %d; want 304", got)
 	}
 
 	if err := Unfollow(ctx, s.Database, drop.Feed); err != nil {
@@ -282,6 +287,12 @@ func TestFeedUnfollow(t *testing.T) {
 	}
 	if got := count(t, s, `SELECT following FROM feeds WHERE id = ?;`, drop.Feed.Identifier()); got != 0 {
 		t.Errorf("dropped feed following = %d; want 0", got)
+	}
+	if got := count(t, s, `SELECT json_extract(status, '$.last_status_code') FROM feeds WHERE id = ?;`, drop.Feed.Identifier()); got != 0 {
+		t.Errorf("dropped feed status after unfollow = %d; want 0", got)
+	}
+	if got := count(t, s, `SELECT json_array_length(status, '$.last_status_codes') FROM feeds WHERE id = ?;`, drop.Feed.Identifier()); got != 0 {
+		t.Errorf("dropped feed status history after unfollow = %d; want 0", got)
 	}
 	if got := count(t, s, `SELECT COUNT(*) FROM items WHERE feed_id = ?;`, keep.Feed.Identifier()); got != 1 {
 		t.Errorf("kept feed items = %d; want 1 (must not be deleted)", got)
