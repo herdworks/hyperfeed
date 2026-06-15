@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Updated `github.com/herdworks/hypergraph-go` to `v0.22.0` and added `RecommendedFeeds`, `RecommendedFeedsForURLs`, and `RecommendationsOPML` utilities for resolving Ghost-compatible recommendations into feed candidates and OPML subscription lists.
+
 ## v0.25.0 (2026-06-12)
 
 * Added schema migration version 6 with searchable `websites_view.search` and `hot_hyperlinks_view.search` columns, plus flat hot-link `title` and `description` columns, so consumers can issue unified in-database `LIKE` search queries.
