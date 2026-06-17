@@ -35,6 +35,7 @@ func RecommendedFeeds(ctx context.Context, source string, timeout int, workers i
 // RecommendedFeedsForURLs discovers feed URLs for an already-parsed list of
 // recommended website URLs.
 func RecommendedFeedsForURLs(ctx context.Context, recommendations []string, timeout int, workers int, verbose bool, w io.Writer) (feeds []*Feed, err error) {
+	feeds = []*Feed{}
 	if ctx == nil {
 		ctx = context.Background()
 	}

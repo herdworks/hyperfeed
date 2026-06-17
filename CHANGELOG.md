@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.26.1 (2026-06-17)
+
+* Fixed recommended feed discovery to return an empty JSON array when a site does not publish `/.well-known/recommendations.json`, avoiding downstream top-level `null` decode failures.
+
 ## v0.26.0 (2026-06-15)
 
 * Updated `github.com/herdworks/hypergraph-go` to `v0.22.0` and added `RecommendedFeeds`, `RecommendedFeedsForURLs`, and `RecommendationsOPML` utilities for resolving Ghost-compatible recommendations into feed candidates and OPML subscription lists.

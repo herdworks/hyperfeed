@@ -2,6 +2,7 @@ package hyperfeed
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +33,31 @@ func TestRecommendedFeedsDiscoversFeedsForRecommendations(t *testing.T) {
 		if feed.Website.HTMLURL == "" {
 			t.Fatalf("feed %q missing website HTMLURL", feed.URL.String())
 		}
+	}
+}
+
+func TestRecommendedFeedsReturnsEmptyJSONArrayWhenUnavailable(t *testing.T) {
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(source.Close)
+
+	feeds, err := RecommendedFeeds(context.Background(), source.URL, 2, 2, false, io.Discard)
+	if err != nil {
+		t.Fatalf("RecommendedFeeds() error = %v", err)
+	}
+	if feeds == nil {
+		t.Fatal("RecommendedFeeds() returned nil; want empty slice")
+	}
+	if len(feeds) != 0 {
+		t.Fatalf("RecommendedFeeds() returned %d feeds; want 0", len(feeds))
+	}
+	bytes, err := json.Marshal(feeds)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if string(bytes) != "[]" {
+		t.Fatalf("json.Marshal() = %s; want []", bytes)
 	}
 }
 
