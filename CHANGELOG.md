@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.26.2 (2026-06-18)
+
+* Fixed OPML subscription-list imports to trim whitespace around `xmlUrl` and `htmlUrl` outline attributes before parsing, avoiding failures on externally hosted lists with leading or trailing URL whitespace.
+
 ## v0.26.1 (2026-06-17)
 
 * Fixed recommended feed discovery to return an empty JSON array when a site does not publish `/.well-known/recommendations.json`, avoiding downstream top-level `null` decode failures.

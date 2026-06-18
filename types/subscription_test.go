@@ -55,6 +55,33 @@ func TestSubscriptionListInitFeeds(t *testing.T) {
 	}
 }
 
+func TestSubscriptionListInitFeedsTrimsOutlineURLs(t *testing.T) {
+	const opmlDoc = `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+	<head><title>Whitespace</title></head>
+	<body>
+		<outline text="SCOTUSblog" type="rss" xmlUrl=" https://scotusblog.com/feed" htmlUrl=" https://www.scotusblog.com/"/>
+	</body>
+</opml>`
+	var subscriptionList SubscriptionList
+	if err := subscriptionList.Parse([]byte(opmlDoc)); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	feeds, err := subscriptionList.InitFeeds(io.Discard)
+	if err != nil {
+		t.Fatalf("InitFeeds() error = %v", err)
+	}
+	if len(feeds) != 1 {
+		t.Fatalf("InitFeeds() feeds = %d; want 1", len(feeds))
+	}
+	if got := feeds[0].URL.String(); got != "https://scotusblog.com/feed" {
+		t.Errorf("feed url = %q; want %q", got, "https://scotusblog.com/feed")
+	}
+	if got := feeds[0].HTMLURL.String(); got != "https://www.scotusblog.com/" {
+		t.Errorf("feed htmlUrl = %q; want %q", got, "https://www.scotusblog.com/")
+	}
+}
+
 // TestSubscriptionListMarshalOPML verifies the export side of the pattern:
 // Feeds render as subscription outlines, and the output round-trips through
 // Parse.

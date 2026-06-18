@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
@@ -100,18 +101,19 @@ func (sl *SubscriptionList) InitFeeds(w io.Writer) (feeds []*Feed, err error) {
 		w = os.Stdout
 	}
 	for _, outline := range sl.OPML.Body.Outlines {
+		xmlURL := strings.TrimSpace(outline.XMLURL)
 		var feed *Feed = &Feed{
 			Title: outline.Text,
 		}
-		if feed.URL, err = href.Parse(outline.XMLURL); err != nil {
+		if feed.URL, err = href.Parse(xmlURL); err != nil {
 			return feeds, err
 		}
 		if s := feed.URL.URL().Scheme; s != "http" && s != "https" {
-			fmt.Fprintf(w, "subscription skipped: non-web feed URL %q (OPML feeds must be http/https)\n", outline.XMLURL)
+			fmt.Fprintf(w, "subscription skipped: non-web feed URL %q (OPML feeds must be http/https)\n", xmlURL)
 			continue
 		}
-		if outline.HTMLURL != "" {
-			feed.HTMLURL, _ = href.Parse(outline.HTMLURL)
+		if htmlURL := strings.TrimSpace(outline.HTMLURL); htmlURL != "" {
+			feed.HTMLURL, _ = href.Parse(htmlURL)
 			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
 		}
 		// Imported feeds are followed. `following` is a written column now, so a
