@@ -17,8 +17,8 @@ BEFORE INSERT ON hyperfeed_schema
 FOR EACH ROW
 BEGIN
     SELECT CASE
-        WHEN NEW.version != 6 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
-            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 6')
+        WHEN NEW.version != 7 AND (SELECT COUNT(*) FROM hyperfeed_schema) = 0
+            THEN RAISE(ABORT, 'hyperfeed_schema must start at version 7')
     END;
 END;
 CREATE TRIGGER IF NOT EXISTS hyperfeed_schema_update_trigger
@@ -32,7 +32,7 @@ BEGIN
 END;
 
 -- Initialize hyperfeed_schema with the latest schema version if not already set
-INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (6);
+INSERT OR IGNORE INTO hyperfeed_schema (version) VALUES (7);
 
 -- Scripts table
 CREATE TABLE IF NOT EXISTS hyperfeed_scripts (
@@ -251,6 +251,7 @@ CREATE TABLE IF NOT EXISTS discovery (
     [id] TEXT DEFAULT( lower(hex(randomblob(4))) ),
     [created_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     [updated_at] TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [website_id] TEXT,
     [origin] TEXT,
     [url] TEXT,
     [html_url] TEXT,
@@ -269,6 +270,7 @@ CREATE TABLE IF NOT EXISTS discovery (
 
     PRIMARY KEY ([id])
 );
+CREATE INDEX IF NOT EXISTS discovery_website_id_index ON discovery([website_id]);
 
 -- Activity table
 --
@@ -765,6 +767,7 @@ CREATE VIEW IF NOT EXISTS discovery_view AS
 SELECT
     json_object(
         'id', [discovery].[id],
+        'website_id', [discovery].[website_id],
         'origin', [discovery].[origin],
         'url', [discovery].[url],
         'html_url', [discovery].[html_url],
@@ -784,6 +787,7 @@ SELECT
         'updated_at', [discovery].[updated_at]
     ) AS 'discovery',
     [discovery].[id],
+    [discovery].[website_id],
     [discovery].[url],
     [discovery].[html_url],
     [discovery].[username],

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.26.3 (2026-06-19)
+
+* Added schema migration version 7 with `discovery.website_id` and matching `discovery_view.website_id` output, allowing consumers to scope discovered feeds by canonical website identity instead of feed-host matching.
+
 ## v0.26.2 (2026-06-18)
 
 * Fixed OPML subscription-list imports to trim whitespace around `xmlUrl` and `htmlUrl` outline attributes before parsing, avoiding failures on externally hosted lists with leading or trailing URL whitespace.

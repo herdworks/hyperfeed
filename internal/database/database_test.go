@@ -259,8 +259,22 @@ func applyEmbeddedSQL(ctx context.Context, t *testing.T, db *Database, path stri
 func prepareLegacySchema(ctx context.Context, t *testing.T, db *Database, version int) {
 	t.Helper()
 	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	stripV7Columns(ctx, t, db)
 	stripV5Columns(ctx, t, db)
 	forceSchemaVersion(ctx, t, db, version)
+}
+
+func stripV7Columns(ctx context.Context, t *testing.T, db *Database) {
+	t.Helper()
+	for _, stmt := range []string{
+		"DROP VIEW IF EXISTS discovery_view;",
+		"DROP INDEX IF EXISTS discovery_website_id_index;",
+		"ALTER TABLE discovery DROP COLUMN website_id;",
+	} {
+		if _, err := db.DB.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("strip v7 schema %q: %v", stmt, err)
+		}
+	}
 }
 
 func stripV5Columns(ctx context.Context, t *testing.T, db *Database) {
@@ -420,6 +434,64 @@ func TestMigrateV4ToV5(t *testing.T) {
 	}
 }
 
+func TestMigrateV6ToV7AddsDiscoveryWebsiteID(t *testing.T) {
+	ctx := context.Background()
+	db := &Database{Path: filepath.Join("testdata", "migrate_v6_to_v7.db")}
+	if err := db.Destroy(); err != nil {
+		t.Fatalf("destroy: %v", err)
+	}
+	if err := db.Open(ctx); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close(); db.Destroy() })
+
+	applyEmbeddedSQL(ctx, t, db, "sql/schema/schema.sql")
+	stripV7Columns(ctx, t, db)
+	forceSchemaVersion(ctx, t, db, 6)
+
+	if _, err := db.DB.ExecContext(ctx, `
+		INSERT INTO discovery (id, url, html_url, username, occurrences)
+		VALUES ('f1', 'https://feeds.example.com/rss.xml', 'https://example.com/', '@example.com', 2);
+	`); err != nil {
+		t.Fatalf("seed discovery: %v", err)
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate v6->v7: %v", err)
+	}
+	if v, err := db.SchemaVersion(ctx); err != nil || v != SchemaVersionLatest {
+		t.Fatalf("schema version = %d (err %v); want %d", v, err, SchemaVersionLatest)
+	}
+
+	assertTableColumn(ctx, t, db, "discovery", "website_id")
+
+	var websiteID any
+	if err := db.DB.QueryRowContext(ctx, `SELECT website_id FROM discovery WHERE id = 'f1';`).Scan(&websiteID); err != nil {
+		t.Fatalf("select discovery.website_id: %v", err)
+	}
+	if websiteID != nil {
+		t.Fatalf("migrated existing discovery website_id = %#v; want nil", websiteID)
+	}
+
+	if _, err := db.DB.ExecContext(ctx, `
+		UPDATE discovery SET website_id = 'w1' WHERE id = 'f1';
+	`); err != nil {
+		t.Fatalf("update discovery.website_id: %v", err)
+	}
+
+	var flat, jsonValue string
+	if err := db.DB.QueryRowContext(ctx, `
+		SELECT website_id, json_extract(discovery, '$.website_id')
+		FROM discovery_view
+		WHERE id = 'f1';
+	`).Scan(&flat, &jsonValue); err != nil {
+		t.Fatalf("select discovery_view.website_id: %v", err)
+	}
+	if flat != "w1" || jsonValue != "w1" {
+		t.Fatalf("discovery_view website_id flat/json = %q/%q; want w1/w1", flat, jsonValue)
+	}
+}
+
 func scanAllRows(ctx context.Context, db *Database, view string) error {
 	rows, err := db.Query(ctx, "SELECT * FROM "+view)
 	if err != nil {
@@ -501,6 +573,7 @@ func TestInitializeHealsStaleV2Database(t *testing.T) {
 		{table: "websites", column: "following_url"},
 		{table: "feeds", column: "email"},
 		{table: "items", column: "comments_url"},
+		{table: "discovery", column: "website_id"},
 		{table: "discovery", column: "origin"},
 		{table: "discovery", column: "snooze"},
 	} {
