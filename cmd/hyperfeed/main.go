@@ -71,6 +71,20 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if slices.Contains(args, "parse") {
+		if opmlURI == "" {
+			opmlURI = commandValue(args, "parse")
+		}
+		if opmlURI == "" {
+			fmt.Fprintln(os.Stderr, "Error parsing OPML: parse requires -o/--opml <uri> or parse <uri>")
+			os.Exit(1)
+		}
+		if err = printParsedFeeds(ctx, opmlURI, os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing OPML: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Initialize the Subscriber
 	if err = subscriber.Init(ctx, &config); err != nil {
@@ -164,8 +178,54 @@ func get(args []string, flags ...string) (value string, err error) {
 	return value, err
 }
 
+func commandValue(args []string, command string) string {
+	if !slices.Contains(args, command) {
+		return ""
+	}
+	index := slices.Index(args, command)
+	if index+1 >= len(args) {
+		return ""
+	}
+	value := args[index+1]
+	if len(value) > 0 && value[0] == '-' {
+		return ""
+	}
+	return value
+}
+
+func printParsedFeeds(ctx context.Context, opmlURI string, out io.Writer, logs io.Writer) error {
+	if out == nil {
+		out = io.Discard
+	}
+	if logs == nil {
+		logs = io.Discard
+	}
+	subscriptions, err := subscriber.LoadSubscriptionList(ctx, opmlURI)
+	if err != nil {
+		return err
+	}
+	feeds, err := subscriptions.InitFeeds(logs)
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds {
+		var feedURL, htmlURL string
+		if feed.URL != nil {
+			feedURL = feed.URL.String()
+		}
+		if feed.HTMLURL != nil {
+			htmlURL = feed.HTMLURL.String()
+		}
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\n", feed.Title, feedURL, htmlURL); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func usage() (usage string) {
 	var commands [][2]string = [][2]string{
+		{"parse", "Parse OPML and print discovered feeds without writing to the database"},
 		{"refresh", "Refresh feeds in the subscriber database"},
 	}
 	var options [][2]string = [][2]string{

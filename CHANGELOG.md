@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added `hyperfeed parse`, a read-only CLI test harness command that parses an OPML subscription list from `-o/--opml <uri>` or `parse <uri>` and prints discovered feeds as TSV without opening or creating a database.
+* Fixed OPML subscription-list imports to recurse through nested folder/category outlines, so blogrolls that group feed outlines under a top-level folder are imported instead of yielding zero feeds.
+
 ## v0.26.3 (2026-06-19)
 
 * Added schema migration version 7 with `discovery.website_id` and matching `discovery_view.website_id` output, allowing consumers to scope discovered feeds by canonical website identity instead of feed-host matching.

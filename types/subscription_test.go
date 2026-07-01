@@ -55,6 +55,45 @@ func TestSubscriptionListInitFeeds(t *testing.T) {
 	}
 }
 
+func TestSubscriptionListInitFeedsNestedOutlines(t *testing.T) {
+	const opmlDoc = `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.0">
+	<head><title>Blogroll</title></head>
+	<body>
+		<outline text="Blogroll" title="Blogroll">
+			<outline text="First" type="rss" xmlUrl="https://example.com/first.xml" htmlUrl="https://example.com/"/>
+			<outline text="Nested Local" type="rss" xmlUrl="file:///etc/passwd"/>
+			<outline text="Folder">
+				<outline text="Second" type="rss" xmlUrl="https://example.org/second.xml" htmlUrl="https://example.org/"/>
+			</outline>
+		</outline>
+	</body>
+</opml>`
+	var subscriptionList SubscriptionList
+	if err := subscriptionList.Parse([]byte(opmlDoc)); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	feeds, err := subscriptionList.InitFeeds(io.Discard)
+	if err != nil {
+		t.Fatalf("InitFeeds() error = %v", err)
+	}
+	if len(feeds) != 2 {
+		t.Fatalf("InitFeeds() feeds = %d; want 2", len(feeds))
+	}
+	if got := feeds[0].Title; got != "First" {
+		t.Errorf("feeds[0].Title = %q; want %q", got, "First")
+	}
+	if got := feeds[0].URL.String(); got != "https://example.com/first.xml" {
+		t.Errorf("feeds[0].URL = %q; want %q", got, "https://example.com/first.xml")
+	}
+	if got := feeds[1].Title; got != "Second" {
+		t.Errorf("feeds[1].Title = %q; want %q", got, "Second")
+	}
+	if got := feeds[1].URL.String(); got != "https://example.org/second.xml" {
+		t.Errorf("feeds[1].URL = %q; want %q", got, "https://example.org/second.xml")
+	}
+}
+
 func TestSubscriptionListInitFeedsTrimsOutlineURLs(t *testing.T) {
 	const opmlDoc = `<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">

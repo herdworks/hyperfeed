@@ -92,36 +92,54 @@ func (sl *SubscriptionList) Parse(data []byte) (err error) {
 // subscription-list rules live, as distinct from the OPML spec (which is a
 // general-purpose outlining format).
 //
-// Subscription-list feeds are always http/https. Outlines whose feed URL is
-// not http/https (e.g. file://) are skipped, so OPML import can never
-// introduce a local-file feed regardless of where the OPML itself was read
-// from. Local feeds enter the system only via direct database access.
+// Subscription-list feeds are always http/https. Outlines without xmlUrl are
+// treated as folders/categories and descended into. Outlines whose feed URL is
+// not http/https (e.g. file://) are skipped, so OPML import can never introduce
+// a local-file feed regardless of where the OPML itself was read from. Local
+// feeds enter the system only via direct database access.
 func (sl *SubscriptionList) InitFeeds(w io.Writer) (feeds []*Feed, err error) {
 	if w == nil {
 		w = os.Stdout
 	}
-	for _, outline := range sl.OPML.Body.Outlines {
-		xmlURL := strings.TrimSpace(outline.XMLURL)
-		var feed *Feed = &Feed{
-			Title: outline.Text,
+	var walk func(outline *opml.Outline) error
+	walk = func(outline *opml.Outline) error {
+		if outline == nil {
+			return nil
 		}
-		if feed.URL, err = href.Parse(xmlURL); err != nil {
+		xmlURL := strings.TrimSpace(outline.XMLURL)
+		if xmlURL != "" {
+			var feed *Feed = &Feed{
+				Title: outline.Text,
+			}
+			if feed.URL, err = href.Parse(xmlURL); err != nil {
+				return err
+			}
+			if s := feed.URL.URL().Scheme; s != "http" && s != "https" {
+				fmt.Fprintf(w, "subscription skipped: non-web feed URL %q (OPML feeds must be http/https)\n", xmlURL)
+			} else {
+				if htmlURL := strings.TrimSpace(outline.HTMLURL); htmlURL != "" {
+					feed.HTMLURL, _ = href.Parse(htmlURL)
+					feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
+				}
+				// Imported feeds are followed. `following` is a written column now, so a
+				// missing (zero-value false) would otherwise persist as unfollowed.
+				feed.Following = true
+				feed.Website.Following = true
+				feed.Status.LastStatusCodes = []int{}
+				feeds = append(feeds, feed)
+			}
+		}
+		for i := range outline.Outlines {
+			if err := walk(&outline.Outlines[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, outline := range sl.OPML.Body.Outlines {
+		if err = walk(outline); err != nil {
 			return feeds, err
 		}
-		if s := feed.URL.URL().Scheme; s != "http" && s != "https" {
-			fmt.Fprintf(w, "subscription skipped: non-web feed URL %q (OPML feeds must be http/https)\n", xmlURL)
-			continue
-		}
-		if htmlURL := strings.TrimSpace(outline.HTMLURL); htmlURL != "" {
-			feed.HTMLURL, _ = href.Parse(htmlURL)
-			feed.HTMLURL = href.ResolveHref(feed.URL, feed.HTMLURL, w)
-		}
-		// Imported feeds are followed. `following` is a written column now, so a
-		// missing (zero-value false) would otherwise persist as unfollowed.
-		feed.Following = true
-		feed.Website.Following = true
-		feed.Status.LastStatusCodes = []int{}
-		feeds = append(feeds, feed)
 	}
 	return feeds, nil
 }
