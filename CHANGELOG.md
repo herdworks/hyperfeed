@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.26.5 (2026-07-02)
+
 * Updated `github.com/herdworks/hypergraph-go` to `v0.22.3` for `Entity.FollowingURL` (`following_url`) metadata support, using HyperGraph's first discovered following/blogroll link as the source of truth.
 * Added `Website` database persistence and hash coverage for embedded `Entity.FollowingURL` via `websites.following_url`.
 * Changed website metadata persistence to carry HyperGraph `Entity.FollowingURL` values into saved website rows.
