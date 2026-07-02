@@ -56,6 +56,7 @@ func (*Website) DatabaseInsertColumns() []string {
 		"favicon_url",
 		"cover_url",
 		"mentions_url",
+		"following_url",
 		"email",
 		"name",
 		"username",
@@ -71,6 +72,7 @@ func (website *Website) DatabaseInsertValues() (values []any) {
 	values = append(values, sql.Named("favicon_url", website.FaviconURL))
 	values = append(values, sql.Named("cover_url", website.CoverURL))
 	values = append(values, sql.Named("mentions_url", website.MentionsURL))
+	values = append(values, sql.Named("following_url", website.FollowingURL))
 	values = append(values, sql.Named("email", website.Email))
 	values = append(values, sql.Named("name", website.Name))
 	values = append(values, sql.Named("username", website.Username))
@@ -91,6 +93,7 @@ func (website *Website) DatabaseUpdatesSet(_ []string) []string {
 		"[favicon_url] = [excluded].[favicon_url]",
 		"[cover_url] = [excluded].[cover_url]",
 		"[mentions_url] = [excluded].[mentions_url]",
+		"[following_url] = [excluded].[following_url]",
 		"[email] = [excluded].[email]",
 		"[name] = [excluded].[name]",
 		"[username] = [excluded].[username]",
@@ -102,10 +105,11 @@ func (website *Website) DatabaseUpdatesSet(_ []string) []string {
 
 func (website *Website) Hash() string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s|%v|%s",
+		"%s|%s|%s|%s|%s|%s|%s|%v|%s",
 		website.HTMLURL,
 		website.FaviconURL,
 		website.CoverURL,
+		website.FollowingURL,
 		website.Username,
 		website.Name,
 		website.Description,
