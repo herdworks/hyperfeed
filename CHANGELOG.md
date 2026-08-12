@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.27.0 (2026-08-11)
+
 * **BREAKING:** Renamed the module to `github.com/herdworks/hyperfeed` and promoted the public API from `hyperfeed-go/types` to the root `hyperfeed` package. Format and helper packages now live directly beneath the module, such as `hyperfeed/href` and `hyperfeed/atom`.
 * Updated the scraping dependency to `github.com/herdworks/hq` v0.24.0.
 
