@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 var cacheTime = time.Now()

@@ -26,7 +26,7 @@ Represents a user’s subscriptions as sourced from an OPML file.
 - Contents: `Feeds []*Feed`
 - Behavior: `Load()` populates fields from OPML head values and timestamps.
 
-Source: `github.com/herdworks/hyperfeed-go/types/subscription.go`
+Source: `github.com/herdworks/hyperfeed/subscription.go`
 
 ## `Feed`
 
@@ -40,7 +40,7 @@ Represents a single RSS/Atom/JSON feed endpoint.
   - `Identify()` populates `Domain` and `ID` using normalization helpers
   - `CanonicalID() *url.URL` returns a stable host/path
 
-Source: `github.com/herdworks/hyperfeed-go/types/feed.go`
+Source: `github.com/herdworks/hyperfeed/feed.go`
 
 ### `FeedKind`
 
@@ -63,7 +63,7 @@ A single entry in a feed.
 - Extensions: `Metadata Metadata`
 - Behavior: `CanonicalID()` returns ID → GUID → URL fallback
 
-Source: `github.com/herdworks/hyperfeed-go/types/item.go`
+Source: `github.com/herdworks/hyperfeed/item.go`
 
 ## `Attachment`
 
@@ -83,7 +83,7 @@ Cross‑format mapping guidance:
 - Atom `link@title` or extensions → `Title`
 - Non‑standard labels/tags → `Labels`
 
-Source: `github.com/herdworks/hyperfeed-go/types/attachment.go`
+Source: `github.com/herdworks/hyperfeed/attachment.go`
 
 ## Supporting Types
 
@@ -95,7 +95,7 @@ Generic bag for non‑standard properties on SubscriptionList, Feed, and Item.
 - Property: `{ Namespace, Name, Value, RawValue }`
 - XML capture: `Extension` preserves unknown namespaced XML (name, attrs, text, inner XML) for RSS/Atom parsing.
 
-Source: `github.com/herdworks/hyperfeed-go/types/metadata.go`
+Source: `github.com/herdworks/hyperfeed/metadata.go`
 
 ### `RSS`
 
@@ -107,7 +107,7 @@ Wire model for RSS 0.9x/2.0 parsing with extension preservation.
 - Enclosure: `{ URL, Length, Type }` attributes
 - Helpers: `RSSDetect([]byte) bool`, `ParseRSS([]byte) (*RSS, error)` with `charset.NewReaderLabel` for non‑UTF8 encodings
 
-Source: `github.com/herdworks/hyperfeed-go/types/rss.go`
+Source: `github.com/herdworks/hyperfeed/rss/rss.go`
 
 ### `Atom`
 
@@ -131,7 +131,7 @@ Detection and parsing for JSON Feed 1.x.
 - Options: `BaseURL`, `Now func() time.Time`, `AllowExtensions`
 - Mapping highlights: `attachments[]` → `Attachment` (`url`, `mime_type`, `size_in_bytes`, `duration_in_seconds`)
 
-Source: `github.com/herdworks/hyperfeed-go/types/jsonfeed.go`
+Source: `github.com/herdworks/hyperfeed/jsonfeed/jsonfeed.go`
 
 ## Serialization
 

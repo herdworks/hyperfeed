@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/internal/filesystem"
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/internal/filesystem"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 // ============================= Package Types ================================

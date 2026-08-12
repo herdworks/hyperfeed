@@ -15,9 +15,9 @@ import (
 
 	"golang.org/x/net/http2"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	version "github.com/herdworks/hyperfeed-go/types/version"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/version"
 )
 
 // TYPES

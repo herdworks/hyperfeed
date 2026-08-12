@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/types/hosted"
-	xmlns "github.com/herdworks/hyperfeed-go/types/xmlns"
+	"github.com/herdworks/hyperfeed/hosted"
+	"github.com/herdworks/hyperfeed/xmlns"
 	"golang.org/x/net/html/charset"
 )
 

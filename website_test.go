@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
 )
 
 func TestEntitySerialization(t *testing.T) {
@@ -15,7 +15,7 @@ func TestEntitySerialization(t *testing.T) {
 	var err error
 	website := &Website{
 		ID: "website-123",
-		Entity: hypergraph.Entity{
+		Entity: hq.Entity{
 			HTMLURL:     "https://calebhailey.com",
 			FaviconURL:  "https://calebhailey.com/favicon.ico",
 			CoverURL:    "https://calebhailey.com/cover.jpg",
@@ -39,7 +39,7 @@ func TestEntitySerialization(t *testing.T) {
 func TestWebsiteFollowingURLSerializationAndDatabaseMapping(t *testing.T) {
 	website := &Website{
 		ID: "website-123",
-		Entity: hypergraph.Entity{
+		Entity: hq.Entity{
 			FollowingURL: "https://example.com/following.opml",
 		},
 	}

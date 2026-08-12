@@ -16,11 +16,11 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/herdworks/hyperfeed-go/feeder"
-	"github.com/herdworks/hyperfeed-go/internal/database"
-	reader "github.com/herdworks/hyperfeed-go/reader"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/feeder"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/internal/database"
+	"github.com/herdworks/hyperfeed/reader"
 )
 
 // TYPES

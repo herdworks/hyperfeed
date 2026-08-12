@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 func TestOpenAndSchema(t *testing.T) {
@@ -699,8 +699,8 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 		},
 		{
 			name:   "Website record",
-			writer: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com", FaviconURL: "https://example.com/favicon.ico"}},
-			reader: &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+			writer: &hyperfeed.Website{Entity: hq.Entity{HTMLURL: "https://example.com", FaviconURL: "https://example.com/favicon.ico"}},
+			reader: &hyperfeed.Website{Entity: hq.Entity{HTMLURL: "https://example.com"}},
 			err:    nil,
 		},
 		{
@@ -709,11 +709,11 @@ func TestDatabaseRecordCRUD(t *testing.T) {
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
 				HTMLURL: &href.Href{Scheme: "https", Host: "example.com"},
 				Title:   "Example Feed",
-				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+				Website: hyperfeed.Website{Entity: hq.Entity{HTMLURL: "https://example.com"}},
 			},
 			reader: &hyperfeed.Feed{
 				URL:     &href.Href{Scheme: "https", Host: "example.com", Path: "/feed"},
-				Website: hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://example.com"}},
+				Website: hyperfeed.Website{Entity: hq.Entity{HTMLURL: "https://example.com"}},
 			},
 			err: nil,
 		},
@@ -771,7 +771,7 @@ func TestReadRowPopulatesProvidedStruct(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	writer := &hyperfeed.Website{
-		Entity: hypergraph.Entity{
+		Entity: hq.Entity{
 			HTMLURL:    "https://example.com",
 			FaviconURL: "https://example.com/favicon.ico",
 			Name:       "Example",
@@ -782,7 +782,7 @@ func TestReadRowPopulatesProvidedStruct(t *testing.T) {
 	}
 
 	reader := &hyperfeed.Website{
-		Entity: hypergraph.Entity{
+		Entity: hq.Entity{
 			HTMLURL: "https://example.com",
 		},
 	}

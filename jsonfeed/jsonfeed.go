@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 // TYPES

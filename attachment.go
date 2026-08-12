@@ -14,10 +14,10 @@ import (
 	"slices"
 	"strings"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	"github.com/herdworks/hyperfeed-go/types/xmlns"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
+	"github.com/herdworks/hyperfeed/xmlns"
 	"golang.org/x/net/html"
 )
 
@@ -79,7 +79,7 @@ func ParseItemLinkAttachments(item *Item, urls []*url.URL, w io.Writer) (attachm
 
 // ParseItemMediaAttachments() extracts media from an item's HTML content
 func ParseItemMediaAttachments(item *Item, htmlBytes []byte, w io.Writer) (attachments []Attachment) {
-	var document hypergraph.Document = hypergraph.Document{}
+	var document hq.Document = hq.Document{}
 	var ctx context.Context = context.Background()
 	var err error
 	if item.URL != nil {

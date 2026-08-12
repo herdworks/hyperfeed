@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	"github.com/herdworks/hyperfeed"
 )
 
 // TestSubscriberInit tests the Init and Ready methods of the Subscriber.

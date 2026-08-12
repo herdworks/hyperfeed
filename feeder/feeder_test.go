@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 type closeTrackingBody struct {

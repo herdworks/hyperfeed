@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 func TestJSONFeedParserDistinguishesExternalURLsAndAttachments(t *testing.T) {

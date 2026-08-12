@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/herdworks/hyperfeed-go/types/hosted"
-	"github.com/herdworks/hyperfeed-go/types/xmlns"
+	"github.com/herdworks/hyperfeed/hosted"
+	"github.com/herdworks/hyperfeed/xmlns"
 )
 
 // This file is a derivative work of "golang.org/x/tools/blog/atom" and is

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 func TestRSSParserDistinguishesAtomLinksAndEnclosures(t *testing.T) {

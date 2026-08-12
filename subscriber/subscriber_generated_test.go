@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 // writeGeneratedFeed writes a minimal single-item JSON Feed file to path (used

@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/herdworks/hyperfeed-go/types/hosted/medium.com"
+	"github.com/herdworks/hyperfeed/hosted/medium.com"
 )
 
 func URL(in *url.URL) (out *url.URL) {

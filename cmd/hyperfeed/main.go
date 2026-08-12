@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/herdworks/hyperfeed-go/internal/database"
-	"github.com/herdworks/hyperfeed-go/subscriber"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	version "github.com/herdworks/hyperfeed-go/types/version"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/internal/database"
+	"github.com/herdworks/hyperfeed/subscriber"
+	"github.com/herdworks/hyperfeed/version"
 )
 
 // ============================ Package Variables ============================

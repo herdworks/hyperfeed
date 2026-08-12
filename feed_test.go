@@ -4,10 +4,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/herdworks/hyperfeed-go/types/atom"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	"github.com/herdworks/hyperfeed-go/types/jsonfeed"
-	"github.com/herdworks/hyperfeed-go/types/rss"
+	"github.com/herdworks/hyperfeed/atom"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/jsonfeed"
+	"github.com/herdworks/hyperfeed/rss"
 )
 
 func TestDetectKind(t *testing.T) {

@@ -1,10 +1,10 @@
-module github.com/herdworks/hyperfeed-go
+module github.com/herdworks/hyperfeed
 
 go 1.23.5
 
 // direct dependencies
 require (
-	github.com/herdworks/hypergraph-go v0.22.3
+	github.com/herdworks/hq v0.24.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
@@ -13,7 +13,7 @@ require (
 // local development dependencies (replacements)
 //
 // uncomment to use local dependencies
-// replace github.com/herdworks/hypergraph-go => ../hypergraph-go
+// replace github.com/herdworks/hq => ../hq
 
 // transitive dependencies
 require (
