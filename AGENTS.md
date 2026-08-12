@@ -12,7 +12,7 @@
 * Always review database migration and maintenance scripts for potential idempotency issues
 * This library is consumed by `../libhypertexting` (Go -> C API) and ultimately by the HyperTexting iOS/macOS app
 * This library is also consumed transitively by `../hyperctl` (CLI / static site generator)
-* After committing changes, downstream repos pull updates via `go get github.com/herdworks/hyperfeed-go@<branch>`; for local testing, downstream repos can use `replace` directives in `go.mod`
-* This library depends on `../hypergraph-go` for web scraping (website metadata enrichment); use the same `replace` directive pattern for local cross-repo development
+* After committing changes, downstream repos pull updates via `go get github.com/herdworks/hyperfeed@<branch>`; for local testing, downstream repos can use `replace` directives in `go.mod`
+* This library depends on `../hq` for web scraping (website metadata enrichment); use the same `replace` directive pattern for local cross-repo development
 
 <!-- See https://agents.md for more information -->

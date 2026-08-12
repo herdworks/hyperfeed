@@ -31,7 +31,7 @@ go build ./cmd/hyperfeed
 Or embed HyperFeed into an existing go app:
 
 ```go
-import "github.com/herdworks/hyperfeed-go/subscriber"
+import "github.com/herdworks/hyperfeed/subscriber"
 
 var s subscriber.Subscriber
 var config subscriber.Config = subscriber.Config{DatabasePath: "./hyperfeed.db"}

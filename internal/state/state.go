@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/internal/filesystem"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/internal/filesystem"
 )
 
 // ============================= Package Types ================================

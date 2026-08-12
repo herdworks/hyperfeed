@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	atom "github.com/herdworks/hyperfeed-go/types/atom"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	jsonfeed "github.com/herdworks/hyperfeed-go/types/jsonfeed"
-	markdown "github.com/herdworks/hyperfeed-go/types/markdown"
-	rss "github.com/herdworks/hyperfeed-go/types/rss"
-	xmlns "github.com/herdworks/hyperfeed-go/types/xmlns"
-	username "github.com/herdworks/hypergraph-go/username"
+	"github.com/herdworks/hq/username"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/atom"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/jsonfeed"
+	"github.com/herdworks/hyperfeed/markdown"
+	"github.com/herdworks/hyperfeed/rss"
+	"github.com/herdworks/hyperfeed/xmlns"
 )
 
 // TYPES

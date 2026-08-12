@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	reader "github.com/herdworks/hyperfeed-go/reader"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/reader"
 )
 
 const fileTestRSS = `<?xml version="1.0" encoding="utf-8"?>

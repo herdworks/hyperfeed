@@ -1,6 +1,6 @@
 # HyperFeed Filesystem
 
-The `github.com/herdworks/hyperfeed-go/internal/filesystem` package implements
+The `github.com/herdworks/hyperfeed/internal/filesystem` package implements
 shared filesystem primitives used by higher-level packages (cache, state, etc.).
 
 ## Goals

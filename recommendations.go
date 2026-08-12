@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	hgdiscovery "github.com/herdworks/hypergraph-go/discovery"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hq/discovery"
 	"golang.org/x/sync/errgroup"
 
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 const defaultRecommendationWorkers = 4
@@ -28,7 +28,7 @@ func RecommendedFeeds(ctx context.Context, source string, timeout int, workers i
 	if timeout <= 0 {
 		timeout = 10
 	}
-	recommendations := hgdiscovery.Recommendations(ctx, source, timeout, nil, verbose, writer(w))
+	recommendations := discovery.Recommendations(ctx, source, timeout, nil, verbose, writer(w))
 	return RecommendedFeedsForURLs(ctx, recommendations, timeout, workers, verbose, w)
 }
 
@@ -100,18 +100,18 @@ func discoverRecommendedFeeds(ctx context.Context, recommendation string, timeou
 	}
 
 	feedHrefs := []string{}
-	document := &hypergraph.Document{Href: recommendation}
+	document := &hq.Document{Href: recommendation}
 	if err := document.Download(ctx, verbose, nil, timeout, w); err != nil {
 		if verbose {
 			fmt.Fprintf(w, "recommendation %q download error: %v\n", recommendation, err)
 		}
 	} else {
-		hyperlinks := &hypergraph.HyperLinkMetadata{}
+		hyperlinks := &hq.HyperLinkMetadata{}
 		hyperlinks.Scrape(ctx, document, verbose, nil, 0, w)
 		feedHrefs = append(feedHrefs, hyperlinks.Feeds...)
 	}
 	if len(feedHrefs) == 0 {
-		if feed := hgdiscovery.Crawl(ctx, recommendation, timeout, nil, verbose, w); feed != "" {
+		if feed := discovery.Crawl(ctx, recommendation, timeout, nil, verbose, w); feed != "" {
 			feedHrefs = append(feedHrefs, feed)
 		}
 	}
@@ -143,7 +143,7 @@ func recommendedFeed(feedHref string, recommendation string) *Feed {
 	feed.ID = feed.Identifier()
 	if websiteHref != "" {
 		feed.Website = Website{
-			Entity: hypergraph.Entity{
+			Entity: hq.Entity{
 				Href:    websiteHref,
 				HTMLURL: websiteHref,
 			},

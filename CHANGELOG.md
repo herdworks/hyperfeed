@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* **BREAKING:** Renamed the module to `github.com/herdworks/hyperfeed` and promoted the public API from `hyperfeed-go/types` to the root `hyperfeed` package. Format and helper packages now live directly beneath the module, such as `hyperfeed/href` and `hyperfeed/atom`.
+* Updated the scraping dependency to `github.com/herdworks/hq` v0.24.0.
+
 ## v0.26.5 (2026-07-02)
 
 * Updated `github.com/herdworks/hypergraph-go` to `v0.22.3` for `Entity.FollowingURL` (`following_url`) metadata support, using HyperGraph's first discovered following/blogroll link as the source of truth.

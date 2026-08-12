@@ -3,7 +3,7 @@ package hyperfeed
 import (
 	"testing"
 
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 func TestItemDeduplicateAttachmentsMergesDuplicateMetadata(t *testing.T) {

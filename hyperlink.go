@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/url"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 	"golang.org/x/net/html"
 )
 
@@ -29,7 +29,7 @@ type HyperLink struct {
 
 // ParseLinks() extracts links from an item's HTML content
 func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, err error) {
-	var document hypergraph.Document = hypergraph.Document{}
+	var document hq.Document = hq.Document{}
 	var ctx context.Context = context.Background()
 	var perr error // failable parser errors
 	if item.URL != nil {
@@ -50,7 +50,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 		}
 		link := &HyperLink{Href: attachment.Href}
 		websiteURL := url.URL{Scheme: attachment.Href.URL().Scheme, Host: attachment.Href.URL().Host, Path: "/"}
-		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
 		link.WebsiteID = website.Identifier()
 		link.Weight = 1.00
 		links = append(links, link)
@@ -73,7 +73,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 			continue
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
-		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
 		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.75})
 	}
 	for _, i := range document.Metadata.HyperLinks.SameOrigin {
@@ -84,7 +84,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 			continue
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
-		website := &Website{Entity: hypergraph.Entity{HTMLURL: websiteURL.String()}}
+		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
 		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
 	}
 	return links, nil

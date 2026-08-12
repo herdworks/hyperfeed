@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 // TYPES

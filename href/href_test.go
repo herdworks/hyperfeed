@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/herdworks/hyperfeed-go/internal/normalization"
+	"github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 func TestHref_UnmarshalJSON(t *testing.T) {

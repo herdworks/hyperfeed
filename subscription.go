@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	opml "github.com/herdworks/hyperfeed-go/types/opml"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
+	"github.com/herdworks/hyperfeed/opml"
 )
 
 type SubscriptionList struct {

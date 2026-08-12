@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed/href"
 )
 
 // TestParseLinksSkipsUnparseableLink reproduces the Daring Fireball "The Talk

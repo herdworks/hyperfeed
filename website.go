@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"net/url"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 // TYPES
 // =============================================================================
 type Website struct {
 	*DatabaseRecord
-	hypergraph.Entity
+	hq.Entity
 
 	ID        string  `json:"id"`
 	Following bool    `json:"following"`

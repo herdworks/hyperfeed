@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/herdworks/hyperfeed-go/internal/database"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/href"
+	"github.com/herdworks/hyperfeed/internal/database"
 )
 
 func mustParse(t *testing.T, raw string) *href.Href {
@@ -31,7 +31,7 @@ func newSponsoredPost(t *testing.T, day string) *hyperfeed.Post {
 	}
 	return &hyperfeed.Post{
 		Website: &hyperfeed.Website{
-			Entity:    hypergraph.Entity{HTMLURL: "https://hypertexting.com", Name: "HyperTexting", FaviconURL: "https://hypertexting.com/favicon.png"},
+			Entity:    hq.Entity{HTMLURL: "https://hypertexting.com", Name: "HyperTexting", FaviconURL: "https://hypertexting.com/favicon.png"},
 			Following: false,
 		},
 		Feed: &hyperfeed.Feed{
@@ -256,7 +256,7 @@ func TestFeedUnfollow(t *testing.T) {
 	keep := newSponsoredPost(t, "2025-09-09")
 	keep.Feed.URL = mustParse(t, "https://keep.example/feed.json")
 	keep.Feed.HTMLURL = mustParse(t, "https://keep.example")
-	keep.Website = &hyperfeed.Website{Entity: hypergraph.Entity{HTMLURL: "https://keep.example"}, Following: true}
+	keep.Website = &hyperfeed.Website{Entity: hq.Entity{HTMLURL: "https://keep.example"}, Following: true}
 	keep.Feed.Following = true
 	keep.Item.URL = mustParse(t, "https://keep.example/post1")
 	keep.Item.Sponsored = false

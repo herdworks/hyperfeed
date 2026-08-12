@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/herdworks/hyperfeed-go/internal/database"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/internal/database"
 )
 
 // Unfollow soft-deletes a feed: it deletes the feed's items (cascading to the

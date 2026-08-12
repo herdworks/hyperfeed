@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/herdworks/hyperfeed-go/internal/database"
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	"github.com/herdworks/hyperfeed"
+	"github.com/herdworks/hyperfeed/internal/database"
 )
 
 // SavePost persists a one-off post — its website, feed, item, and the item's

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	hyperfeed "github.com/herdworks/hyperfeed-go/types"
+	"github.com/herdworks/hyperfeed"
 )
 
 func TestSubscriberIntegration(t *testing.T) {

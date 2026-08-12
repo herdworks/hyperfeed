@@ -12,9 +12,9 @@ import (
 	"slices"
 	"time"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	href "github.com/herdworks/hyperfeed-go/types/href"
-	hypergraph "github.com/herdworks/hypergraph-go/types"
+	"github.com/herdworks/hq"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 // TYPES
@@ -142,7 +142,7 @@ func (feed *Feed) WebsiteMetadata(ctx context.Context, timeout int, w io.Writer)
 	if scheme := feed.HTMLURL.URL().Scheme; scheme != "http" && scheme != "https" {
 		return nil // local/non-web feeds have nothing to scrape
 	}
-	var document *hypergraph.Document = &hypergraph.Document{Href: feed.HTMLURL.String()}
+	var document *hq.Document = &hq.Document{Href: feed.HTMLURL.String()}
 	if w == nil {
 		w = os.Stdout
 	}

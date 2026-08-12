@@ -1,6 +1,6 @@
 # HyperFeed State
 
-The `github.com/herdworks/hyperfeed-go/state` package caches subscriber and scheduler state.
+The `github.com/herdworks/hyperfeed/internal/state` package caches subscriber and scheduler state.
 It is distinct from the `database` (feed metadata & item content) and `cache` (item assets) packages.
 
 ## Goals
@@ -49,4 +49,3 @@ All state files are encoded as JSON.
 ## State File Locking Policy
 
 * Exclusive locks are required for all state file write operations
-

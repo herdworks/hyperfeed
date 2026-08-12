@@ -1,6 +1,6 @@
 # HyperFeed Cache
 
-The `github.com/herdworks/hyperfeed-go/cache` package caches `hyperfeed.Item` asset files, including images, videos, audio, and other enclosures.
+The `github.com/herdworks/hyperfeed/internal/cache` package caches `hyperfeed.Item` asset files, including images, videos, audio, and other enclosures.
 It is distinct from the `database` (feed metadata & item content) and `state` (subscription & scheduler status) packages.
 
 ## Goals

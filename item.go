@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	normalized "github.com/herdworks/hyperfeed-go/internal/normalization"
-	href "github.com/herdworks/hyperfeed-go/types/href"
+	"github.com/herdworks/hyperfeed/href"
+	normalized "github.com/herdworks/hyperfeed/internal/normalization"
 )
 
 // ============================ Package Types =================================
