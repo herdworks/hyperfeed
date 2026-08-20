@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Changed `Subscriber.Refresh` to propagate cancellation, stop scheduling feeds, drain active workers, and skip subsequent metadata and persistence phases. Refreshes now use four concurrent workers when no positive worker limit is supplied.
+* Changed `Feeder.Tick` and `Feeder.Parse` to observe cancellation before and after their per-feed fetch and parse boundaries.
+* Added a 16 MiB maximum feed-response body size in `Feeder.Tick`, preventing unbounded buffering of remote feed responses.
+
 ## v0.27.0 (2026-08-11)
 
 * **BREAKING:** Renamed the module to `github.com/herdworks/hyperfeed` and promoted the public API from `hyperfeed-go/types` to the root `hyperfeed` package. Format and helper packages now live directly beneath the module, such as `hyperfeed/href` and `hyperfeed/atom`.

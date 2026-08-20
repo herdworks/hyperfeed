@@ -2,8 +2,10 @@ package feeder
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +75,43 @@ func TestTickClosesResponseBodyOnHTTPError(t *testing.T) {
 	}
 	if !body.closed {
 		t.Fatalf("Tick() did not close error response body")
+	}
+}
+
+func TestTickCancellationUnblocksResponseRead(t *testing.T) {
+	started := make(chan struct{})
+	requestCancelled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		writer.(http.Flusher).Flush()
+		close(started)
+		<-request.Context().Done()
+		close(requestCancelled)
+	}))
+	defer server.Close()
+	feedURL, err := href.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan error, 1)
+	go func() {
+		results <- (&Feeder{Feed: &hyperfeed.Feed{URL: feedURL}}).Tick(ctx, http.DefaultClient, time.Now().UTC(), io.Discard)
+	}()
+	<-started
+	cancel()
+	select {
+	case err := <-results:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Tick() error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Tick() did not return after cancellation")
+	}
+	select {
+	case <-requestCancelled:
+	case <-time.After(time.Second):
+		t.Fatal("HTTP handler did not observe request cancellation")
 	}
 }
 

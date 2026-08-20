@@ -28,6 +28,8 @@ type Feeder struct {
 	*hyperfeed.Feed
 }
 
+const maxFeedResponseBytes = 16 << 20
+
 // VARIABLES
 // ============================================================================
 
@@ -75,6 +77,9 @@ func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, at time.Tim
 	if w == nil {
 		w = os.Stdout
 	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	feeder.Feed.Status.UpdatedAt = at
 	if ready, err = feeder.Ready(); !ready {
 		feeder.Log(nil, errors.Join(ErrReadiness, err), w)
@@ -98,8 +103,16 @@ func (feeder *Feeder) Tick(ctx context.Context, client *http.Client, at time.Tim
 		return err
 	}
 	feeder.Apply(response, w) // apply response to feed status
-	if body, err = io.ReadAll(response.Body); err != nil {
+	if body, err = io.ReadAll(io.LimitReader(response.Body, maxFeedResponseBytes+1)); err != nil {
 		feeder.Log(response, errors.Join(ErrResponse, err), w)
+		return err
+	}
+	if len(body) > maxFeedResponseBytes {
+		err = fmt.Errorf("feed response exceeds %d bytes", maxFeedResponseBytes)
+		feeder.Log(response, errors.Join(ErrResponse, err), w)
+		return err
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	return feeder.Parse(ctx, request.URL, body, w)
@@ -305,10 +318,16 @@ func (feeder *Feeder) Parse(ctx context.Context, u *url.URL, bytes []byte, w io.
 	if w == nil {
 		w = os.Stdout
 	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if parser, err = NewFeedParser(feeder.Feed, bytes); err != nil || parser == nil {
 		return err
 	}
 	if _, err = parser.Parse(w); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	// feeder.Feed = parser.Feed

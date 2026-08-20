@@ -137,13 +137,13 @@ func (subscriber *Subscriber) Backup(ctx context.Context, destinationPath string
 // Refresh refreshes all subscribed feeds concurrently
 func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Feed, timeout int, workers int, w io.Writer) (err error) {
 	var client *http.Client
-	var ticker *errgroup.Group
-	var cancellation context.Context
 	var start time.Time = time.Now().UTC()
 	subscriber.Status = &Status{UpdatedAt: start}
-	ticker, cancellation = errgroup.WithContext(ctx)
-	if workers > 0 {
-		ticker.SetLimit(workers)
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if workers <= 0 {
+		workers = 4
 	}
 	if w == nil {
 		w = os.Stdout
@@ -181,70 +181,33 @@ func (subscriber *Subscriber) Refresh(ctx context.Context, feeds []*hyperfeed.Fe
 		})
 	}
 
-	// Refresh all feeds concurrently
-	for _, feed := range feeds {
-		feed := feed
-		ff := &feeder.Feeder{Feed: feed}
-		if ff.Feed.Interval == 0 {
-			ff.Feed.Interval = 5 * time.Minute // default interval
-		}
-		ticker.Go(func() (e error) {
-			ff.Tick(cancellation, client, start, w) // ignore tick errors; they are recorded in f.Feed.Status
-			// Skip the HyperGraph website-metadata scrape for local generated
-			// feeds (file:// scheme): their website metadata is authored in the
-			// feed file, and scraping would issue a pointless network request and
-			// could clobber the authored (e.g. sponsor) card.
-			local := ff.Feed.URL != nil && ff.Feed.URL.URL() != nil && ff.Feed.URL.URL().Scheme == "file"
-			if !local && ff.Feed.Status.LastStatusCode == 200 && time.Since(ff.Feed.Status.LastEntityUpdateAt) > 24*time.Hour {
-				if e = ff.Feed.WebsiteMetadata(ctx, timeout, w); e != nil {
-					fmt.Fprintf(w, "graph %q website error: %v\n", ff.Feed.HTMLURL.String(), e)
-					ff.Feed.Status.LastEntityError = e.Error()
-				}
-				ff.Feed.Status.LastEntityUpdateAt = start
-			}
-			subscriber.Status.Log(ff.Feed, e, w)
-			return nil
-		})
+	// fetch feeds
+	if err = subscriber.forEachFeed(ctx, feeds, workers, func(workerContext context.Context, feed *hyperfeed.Feed) (feedErr error) {
+		return subscriber.refreshFeed(ctx, workerContext, feed, client, start, w)
+	}); err != nil {
+		return err
 	}
-	if err = ticker.Wait(); err != nil {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "fetch complete in %v\n", time.Since(start).Truncate(time.Millisecond))
-	if err = subscriber.SaveWebsites(ctx, w, feeds); err != nil {
+
+	// refresh feed metadata
+	if err = subscriber.forEachFeed(ctx, feeds, workers, func(_ context.Context, feed *hyperfeed.Feed) (metadataErr error) {
+		return subscriber.refreshFeedMetadata(ctx, feed, timeout, start, w)
+	}); err != nil {
 		return err
 	}
-	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
-		return err
-	} else {
-		// only count items if we successfully saved them
-		if a, u, err := subscriber.RefreshedItemCounts(ctx, w, start); err != nil {
-			fmt.Fprintf(w, "error counting refreshed items: %v\n", err)
-		} else {
-			subscriber.Status.ItemsAdded.Increment(a)
-			subscriber.Status.ItemsUpdated.Increment(u)
-		}
-	}
-	if err = subscriber.SaveBylines(ctx, w, feeds); err != nil {
+
+	// write feeds
+	if err = subscriber.persistFeeds(ctx, feeds, start, w); err != nil {
 		return err
 	}
-	if err = subscriber.SaveBylineRelations(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveLinks(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
-		return err
-	}
-	if err = subscriber.SaveAttachmentRelations(ctx, w, feeds); err != nil {
-		return err
-	}
+
+	// return
 	subscriber.Status.Duration = time.Since(start)
 	fmt.Fprintln(w, subscriber.Status.Print())
 	return nil
@@ -654,6 +617,143 @@ func (subscriber *Subscriber) RefreshedItemCounts(ctx context.Context, w io.Writ
 		return 0, 0, errors.Join(ErrDatabase, errors.New("counting updated items"), err)
 	}
 	return addedCount, updatedCount, nil
+}
+
+// forEachFeed runs work for every feed in one bounded worker queue. It stops
+// dispatching on cancellation, closes the queue, and joins all workers before
+// returning.
+func (subscriber *Subscriber) forEachFeed(ctx context.Context, feeds []*hyperfeed.Feed, workers int, work func(context.Context, *hyperfeed.Feed) error) (err error) {
+	var jobs chan *hyperfeed.Feed
+	var group *errgroup.Group
+	var workerContext context.Context
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if workers <= 0 {
+		workers = 4
+	}
+	group, workerContext = errgroup.WithContext(ctx)
+	jobs = make(chan *hyperfeed.Feed)
+	for range workers {
+		group.Go(func() (workerErr error) {
+			for feed := range jobs {
+				if workerErr = ctx.Err(); workerErr != nil {
+					return workerErr
+				}
+				if workerErr = work(workerContext, feed); workerErr != nil {
+					return workerErr
+				}
+			}
+			return nil
+		})
+	}
+	for _, feed := range feeds {
+		select {
+		case <-ctx.Done():
+			close(jobs)
+			_ = group.Wait()
+			return ctx.Err()
+		case jobs <- feed:
+		}
+	}
+	close(jobs)
+	if err = group.Wait(); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
+func (subscriber *Subscriber) refreshFeed(ctx context.Context, workerContext context.Context, feed *hyperfeed.Feed, client *http.Client, start time.Time, w io.Writer) (err error) {
+	ff := &feeder.Feeder{Feed: feed}
+	if ff.Feed.Interval == 0 {
+		ff.Feed.Interval = 5 * time.Minute // default interval
+	}
+	if err = ff.Tick(workerContext, client, start, w); err != nil {
+		if rootErr := ctx.Err(); rootErr != nil {
+			return rootErr
+		}
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	subscriber.Status.Log(ff.Feed, err, w)
+	return nil
+}
+
+func (subscriber *Subscriber) refreshFeedMetadata(ctx context.Context, feed *hyperfeed.Feed, timeout int, start time.Time, w io.Writer) (err error) {
+	local := feed.URL != nil && feed.URL.URL() != nil && feed.URL.URL().Scheme == "file"
+	if local || feed.Status.LastStatusCode != http.StatusOK || time.Since(feed.Status.LastEntityUpdateAt) <= 24*time.Hour {
+		return nil
+	}
+	if err = feed.WebsiteMetadata(ctx, timeout, w); err != nil {
+		fmt.Fprintf(w, "graph %q website error: %v\n", feed.HTMLURL.String(), err)
+		feed.Status.LastEntityError = err.Error()
+	}
+	if rootErr := ctx.Err(); rootErr != nil {
+		return rootErr
+	}
+	feed.Status.LastEntityUpdateAt = start
+	return nil
+}
+
+func (subscriber *Subscriber) persistFeeds(ctx context.Context, feeds []*hyperfeed.Feed, start time.Time, w io.Writer) (err error) {
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveWebsites(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveFeeds(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveItems(ctx, w, feeds); err != nil {
+		return err
+	} else if a, u, countErr := subscriber.RefreshedItemCounts(ctx, w, start); countErr != nil {
+		fmt.Fprintf(w, "error counting refreshed items: %v\n", countErr)
+	} else {
+		subscriber.Status.ItemsAdded.Increment(a)
+		subscriber.Status.ItemsUpdated.Increment(u)
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveBylines(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveBylineRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinks(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveLinkRelations(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = subscriber.SaveAttachments(ctx, w, feeds); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	return subscriber.SaveAttachmentRelations(ctx, w, feeds)
 }
 
 // ============================ Status Methods =================================

@@ -2,6 +2,7 @@ package subscriber
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,6 +76,216 @@ func TestRefreshFileFeedSkipsScrape(t *testing.T) {
 	if got := atomic.LoadInt32(&hits); got != 0 {
 		t.Errorf("home_page_url was fetched %d time(s); want 0 (file:// feeds must skip the scrape)", got)
 	}
+}
+
+func TestRefreshContinuesAfterFeedTimeout(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	subscriber := &Subscriber{}
+	if err := subscriber.Init(ctx, &Config{DatabasePath: filepath.Join(dir, "hyperfeed.db")}); err != nil {
+		t.Fatal(err)
+	}
+	slowStarted := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/slow.xml":
+			close(slowStarted)
+			<-request.Context().Done()
+		case "/fast.xml":
+			_, _ = fmt.Fprintf(writer, `<?xml version="1.0"?><rss version="2.0"><channel><title>Fast</title><link>%s</link><description>Fast feed</description><item><title>Post</title><link>%s/post</link><guid>post</guid><description>Post</description></item></channel></rss>`, serverURL(request), serverURL(request))
+		default:
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	slowURL, err := href.Parse(server.URL + "/slow.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fastURL, err := href.Parse(server.URL + "/fast.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slow := &hyperfeed.Feed{URL: slowURL, Following: true}
+	fast := &hyperfeed.Feed{URL: fastURL, Following: true}
+	for _, feed := range []*hyperfeed.Feed{slow, fast} {
+		feed.ID = feed.Identifier()
+		if err := subscriber.Database.UpsertRow(ctx, nil, feed); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refresh := make(chan error, 1)
+	go func() { refresh <- subscriber.Refresh(ctx, []*hyperfeed.Feed{slow, fast}, 501, 2, io.Discard) }()
+	<-slowStarted
+	if err := <-refresh; err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if got, want := fast.Status.LastStatusCode, http.StatusOK; got != want {
+		t.Fatalf("fast feed status = %d, want %d", got, want)
+	}
+	var count int
+	if err := subscriber.Database.QueryRowContext(ctx, `SELECT COUNT(*) FROM items WHERE feed_id = ?`, fast.Identifier()).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("fast feed item count = %d, want 1", count)
+	}
+}
+
+func TestCancelledMetadataAndPersistenceAfterFetch(t *testing.T) {
+	directory := t.TempDir()
+	subscriber := &Subscriber{}
+	config := &Config{DatabasePath: filepath.Join(directory, "hyperfeed.db")}
+	if err := subscriber.Init(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	metadataRequested := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/feed.xml":
+			_, _ = fmt.Fprintf(writer, `<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title><link>%s/website</link><description>Feed</description><item><title>Post</title><link>%s/post</link><guid>post</guid><description>Post</description></item></channel></rss>`, serverURL(request), serverURL(request))
+		case "/website":
+			metadataRequested <- struct{}{}
+			writer.WriteHeader(http.StatusInternalServerError)
+		default:
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	feedURL, err := href.Parse(server.URL + "/feed.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed := &hyperfeed.Feed{URL: feedURL, Following: true}
+	start := time.Now().UTC()
+	subscriber.Status = &Status{UpdatedAt: start}
+	if err := subscriber.refreshFeed(context.Background(), context.Background(), feed, http.DefaultClient, start, io.Discard); err != nil {
+		t.Fatalf("refreshFeed() error = %v", err)
+	}
+	if got, want := len(feed.Items), 1; got != want {
+		t.Fatalf("parsed item count = %d, want %d", got, want)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := subscriber.refreshFeedMetadata(ctx, feed, 10, start, io.Discard); !errors.Is(err, context.Canceled) {
+		t.Fatalf("refreshFeedMetadata() error = %v, want context cancellation", err)
+	}
+	if err := subscriber.persistFeeds(ctx, []*hyperfeed.Feed{feed}, start, io.Discard); !errors.Is(err, context.Canceled) {
+		t.Fatalf("persistFeeds() error = %v, want context cancellation", err)
+	}
+	select {
+	case <-metadataRequested:
+		t.Fatal("Refresh() requested website metadata after cancellation")
+	default:
+	}
+	for _, table := range []string{
+		"websites",
+		"feeds",
+		"items",
+		"bylines",
+		"links",
+		"attachments",
+		"metadata",
+		"item_bylines",
+		"item_links",
+		"item_attachments",
+	} {
+		var count int
+		if err := subscriber.Database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+			t.Fatalf("counting %s: %v", table, err)
+		}
+		if count != 0 {
+			t.Errorf("%s count = %d, want 0 after cancelled refresh", table, count)
+		}
+	}
+	if err := subscriber.Database.Close(); err != nil {
+		t.Fatalf("closing cancelled refresh database: %v", err)
+	}
+	reopened := &Subscriber{}
+	if err := reopened.Init(context.Background(), config); err != nil {
+		t.Fatalf("reopening cancelled refresh database: %v", err)
+	}
+	defer reopened.Database.Close()
+	if err := reopened.Database.PingContext(context.Background()); err != nil {
+		t.Fatalf("pinging reopened database: %v", err)
+	}
+}
+
+func TestRefreshCancellationStopsSaturatedQueueAndDrainsWorkers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	directory := t.TempDir()
+	subscriber := &Subscriber{}
+	config := &Config{DatabasePath: filepath.Join(directory, "hyperfeed.db")}
+	if err := subscriber.Init(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	firstStarted := make(chan struct{})
+	firstCancelled := make(chan struct{})
+	var laterRequests int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/first.xml":
+			writer.WriteHeader(http.StatusOK)
+			writer.(http.Flusher).Flush()
+			close(firstStarted)
+			<-request.Context().Done()
+			close(firstCancelled)
+		default:
+			atomic.AddInt32(&laterRequests, 1)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	feeds := make([]*hyperfeed.Feed, 0, 3)
+	for _, path := range []string{"/first.xml", "/second.xml", "/third.xml"} {
+		feedURL, err := href.Parse(server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		feeds = append(feeds, &hyperfeed.Feed{URL: feedURL, Following: true})
+	}
+	results := make(chan error, 1)
+	go func() {
+		results <- subscriber.Refresh(ctx, feeds, 10, 1, io.Discard)
+	}()
+	<-firstStarted
+	cancel()
+	select {
+	case err := <-results:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Refresh() error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Refresh() did not return after cancellation")
+	}
+	select {
+	case <-firstCancelled:
+	case <-time.After(time.Second):
+		t.Fatal("active worker did not cancel its HTTP request")
+	}
+	if got := atomic.LoadInt32(&laterRequests); got != 0 {
+		t.Fatalf("queued feeds received %d HTTP request(s) after cancellation, want 0", got)
+	}
+	if err := subscriber.Database.Close(); err != nil {
+		t.Fatalf("closing cancelled refresh database: %v", err)
+	}
+	reopened := &Subscriber{}
+	if err := reopened.Init(context.Background(), config); err != nil {
+		t.Fatalf("reopening cancelled refresh database: %v", err)
+	}
+	defer reopened.Database.Close()
+	if err := reopened.Database.PingContext(context.Background()); err != nil {
+		t.Fatalf("pinging reopened database: %v", err)
+	}
+}
+
+func serverURL(request *http.Request) string {
+	return "http://" + request.Host
 }
 
 // TestImportFeedsAreFollowed verifies OPML import marks feeds followed
