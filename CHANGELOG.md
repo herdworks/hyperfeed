@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.28.1 (2026-09-17)
+
 * Added `AtomFeedParser.Comments` to populate item comments URLs from Atom entry
   links, preferring `rel="replies"` and falling back to `rel="comments"`. Empty
   and malformed URLs are skipped; feed-level discussion links are not inherited.
