@@ -373,12 +373,12 @@ func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		if item.Content, err = markdown.Convert(atom.HTML(entry.Content)); err != nil {
 			fmt.Fprintf(w, "markdown Atom entry.content error: %v\n", err)
 		}
-		item.CommentsURL = nil // Atom entries do not have a comments field
 		item.PublishedAt = hyperfeed.Earliest(publishedTime, modifiedTime)
 		item.ModifiedAt = hyperfeed.Latest(modifiedTime, publishedTime)
 		item.AddedAt = added
 		item.UpdatedAt = added
 		item.FeedAt = item.TimelineAt(-index) // use the index as a negative offset to preserve the original feed order of items
+		item.CommentsURL = parser.Comments(entry, w)
 		if item.Bylines, err = parser.Bylines(entry, item, w); err != nil {
 			return nil, err
 		}
@@ -397,6 +397,21 @@ func (parser *AtomFeedParser) Items(added time.Time, w io.Writer) (items []*hype
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+// Comments returns the first usable replies URL, falling back to comments.
+func (parser *AtomFeedParser) Comments(entry *atom.Entry, w io.Writer) (commentsURL *href.Href) {
+	for _, rel := range []string{"replies", "comments"} {
+		for _, link := range entry.Links {
+			if !strings.EqualFold(link.Rel, rel) || strings.TrimSpace(link.Href) == "" {
+				continue
+			}
+			if commentsURL, _ = href.Parse(link.Href); commentsURL != nil {
+				return commentsURL
+			}
+		}
+	}
+	return nil
 }
 
 // AtomFeedParser.Bylines()

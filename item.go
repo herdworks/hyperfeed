@@ -86,6 +86,9 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 	if item.URL != nil {
 		item.URL = href.ResolveHref(base, item.URL, w)
 	}
+	if item.CommentsURL != nil {
+		item.CommentsURL = href.ResolveHref(base, item.CommentsURL, w)
+	}
 	for i, b := range item.Bylines {
 		if b.Href != nil {
 			b.Href = href.ResolveHref(base, b.Href, w)

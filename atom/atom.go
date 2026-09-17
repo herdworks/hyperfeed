@@ -172,7 +172,7 @@ func (entry *Entry) Link(rel string) *Link {
 // returns the first link whose host matches the base URL host
 func (entry *Entry) InternalLink(base *url.URL) *Link {
 	for _, l := range entry.Links {
-		if strings.EqualFold(l.Rel, "enclosure") {
+		if strings.EqualFold(l.Rel, "enclosure") || strings.EqualFold(l.Rel, "replies") || strings.EqualFold(l.Rel, "comments") {
 			continue
 		}
 		if l.URL() == nil {
@@ -187,7 +187,7 @@ func (entry *Entry) InternalLink(base *url.URL) *Link {
 		}
 	}
 	for _, l := range entry.Links {
-		if strings.EqualFold(l.Rel, "enclosure") {
+		if strings.EqualFold(l.Rel, "enclosure") || strings.EqualFold(l.Rel, "replies") || strings.EqualFold(l.Rel, "comments") {
 			continue
 		}
 		if l.Rel == "alternate" || l.Rel == "" {
@@ -195,7 +195,7 @@ func (entry *Entry) InternalLink(base *url.URL) *Link {
 		}
 	}
 	for _, l := range entry.Links {
-		if !strings.EqualFold(l.Rel, "enclosure") {
+		if !(strings.EqualFold(l.Rel, "enclosure") || strings.EqualFold(l.Rel, "replies") || strings.EqualFold(l.Rel, "comments")) {
 			return &l
 		}
 	}

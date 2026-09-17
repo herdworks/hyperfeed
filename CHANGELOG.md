@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added `AtomFeedParser.Comments` to populate item comments URLs from Atom entry
+  links, preferring `rel="replies"` and falling back to `rel="comments"`. Empty
+  and malformed URLs are skipped; feed-level discussion links are not inherited.
+* Fixed Atom entry URL selection to exclude `replies` and `comments` links so
+  discussion URLs cannot replace the entry's main URL.
+* Fixed relative item comments URLs to resolve against the item URL, or the feed
+  URL when an absolute item URL is unavailable.
+
 ## v0.28.0 (2026-08-20)
 
 * Changed `Subscriber.Refresh` to propagate cancellation, stop scheduling feeds, drain active workers, and skip subsequent metadata and persistence phases. Refreshes now use four concurrent workers when no positive worker limit is supplied.
