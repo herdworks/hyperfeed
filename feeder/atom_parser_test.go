@@ -135,6 +135,8 @@ func TestAtomParserCommentsURL(t *testing.T) {
 		want  string
 	}{
 		{"replies", `<link rel="replies" type="text/html" href="https://social.example/thread"/>`, "https://social.example/thread"},
+		{"mixed case comments", `<link rel="CoMmEnTs" href="https://social.example/thread"/>`, "https://social.example/thread"},
+		{"mixed case replies", `<link rel="RePlIeS" href="https://social.example/thread"/>`, "https://social.example/thread"},
 		{"same host discussion", `<link rel="replies" href="https://example.com/discussion"/>`, "https://example.com/discussion"},
 		{"comments fallback", `<link rel="comments" href="https://social.example/legacy"/>`, "https://social.example/legacy"},
 		{"prefer replies", `<link rel="comments" href="https://social.example/legacy"/><link rel="replies" href="#replies"/>`, "https://example.com/post/#replies"},
@@ -167,6 +169,9 @@ func TestAtomParserCommentsURL(t *testing.T) {
 			}
 			if got := feed.Items[0].URL.String(); got != "https://example.com/post/" {
 				t.Fatalf("item URL = %q", got)
+			}
+			if len(feed.Items[0].Attachments) != 0 {
+				t.Fatalf("discussion links became attachments: %#v", feed.Items[0].Attachments)
 			}
 			got := ""
 			if feed.Items[0].CommentsURL != nil {

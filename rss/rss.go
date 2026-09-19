@@ -256,7 +256,7 @@ func (item *Item) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		}
 	}
 	for _, link := range item.Links {
-		if link.IsEnclosure() {
+		if link.IsEnclosure() || strings.EqualFold(link.Rel, "comments") || strings.EqualFold(link.Rel, "replies") {
 			continue
 		}
 		if u := link.URL(); u != nil && link.IsExternal(base) {

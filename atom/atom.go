@@ -145,7 +145,7 @@ func (entry *Entry) ExternalURLs(base *url.URL) (urls []*url.URL) {
 		return urls
 	}
 	for _, link := range entry.Links {
-		if strings.EqualFold(link.Rel, "enclosure") {
+		if strings.EqualFold(link.Rel, "enclosure") || strings.EqualFold(link.Rel, "comments") || strings.EqualFold(link.Rel, "replies") {
 			continue
 		}
 		if u := link.URL(); u != nil && link.IsExternal(base) {

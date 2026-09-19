@@ -27,6 +27,8 @@ func TestRSSParserDistinguishesAtomLinksAndEnclosures(t *testing.T) {
 			<atom:link rel="Enclosure" type="image/png" title="Photo" length="5" href="https://example.com/posts/first/photo.png" />
 			<link>https://example.com/posts/first/</link>
 			<atom:link rel="related" type="text/html" href="https://external.example/article" />
+			<atom:link rel="CoMmEnTs" href="https://discussion.example/comments" />
+			<atom:link rel="RePlIeS" href="https://discussion.example/replies" />
 			<guid>first</guid>
 			<description>Summary</description>
 			<pubDate>Wed, 03 Jun 2026 00:00:00 GMT</pubDate>
@@ -48,6 +50,11 @@ func TestRSSParserDistinguishesAtomLinksAndEnclosures(t *testing.T) {
 		t.Fatalf("item.URL = %q, want %q", got, want)
 	}
 
+	for _, attachment := range item.Attachments {
+		if attachment.Href != nil && strings.Contains(attachment.Href.String(), "discussion.example") {
+			t.Fatalf("discussion link became an attachment: %#v", attachment)
+		}
+	}
 	var enclosureCount, relatedCount, duplicatedEnclosureLinks int
 	for _, attachment := range item.Attachments {
 		if attachment.Href == nil {
@@ -248,4 +255,43 @@ func attachmentURLs(attachments []hyperfeed.Attachment) string {
 		}
 	}
 	return strings.Join(urls, ",")
+}
+
+// This fixture follows https://news.ycombinator.com/rss: an external article
+// link, a local comments URL, and no GUID.
+func TestRSSParserPreservesHackerNewsArticleAttachment(t *testing.T) {
+	feedURL, _ := href.Parse("https://news.ycombinator.com/rss")
+	parser := &RSSFeedParser{
+		Feed: &hyperfeed.Feed{URL: feedURL},
+		Bytes: []byte(`<rss version="2.0"><channel>
+			<title>Hacker News</title><link>https://news.ycombinator.com/</link>
+			<description>Links for the intellectually curious, ranked by readers.</description>
+			<item><title>Example article</title><link>https://external.example/article</link>
+			<pubDate>Sat, 19 Sep 2026 10:46:58 +0000</pubDate>
+			<comments>https://news.ycombinator.com/item?id=49765348</comments>
+			<description><![CDATA[<a href="https://news.ycombinator.com/item?id=49765348">Comments</a>]]></description>
+			</item></channel></rss>`),
+	}
+	feed, err := parser.Parse(io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feed.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(feed.Items))
+	}
+	item := feed.Items[0]
+	const discussionURL = "https://news.ycombinator.com/item?id=49765348"
+	if item.URL == nil || item.URL.String() != discussionURL {
+		t.Fatalf("item URL = %v, want %s", item.URL, discussionURL)
+	}
+	if item.CommentsURL == nil || item.CommentsURL.String() != discussionURL {
+		t.Fatalf("comments URL = %v, want %s", item.CommentsURL, discussionURL)
+	}
+	if len(item.Attachments) != 1 {
+		t.Fatalf("attachments = %#v, want one article link", item.Attachments)
+	}
+	attachment := item.Attachments[0]
+	if attachment.Href == nil || attachment.Href.String() != "https://external.example/article" || attachment.Mimetype != "text/x-url" || attachment.Enclosure {
+		t.Fatalf("article attachment = %#v", attachment)
+	}
 }

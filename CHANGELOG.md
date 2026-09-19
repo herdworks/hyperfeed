@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Fixed link attachment extraction to exclude `rel="comments"` and `rel="replies"`
+  case-insensitively in Atom entries and Atom-style links in RSS feeds. Comments
+  URL parsing and ordinary article link attachments, including Hacker News RSS
+  article links, are preserved.
+* Added regression coverage for discussion link exclusions, mixed-case relations,
+  and Hacker News-style RSS article attachments.
+
 ## v0.28.1 (2026-09-17)
 
 * Added `AtomFeedParser.Comments` to populate item comments URLs from Atom entry
