@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.28.2 (2026-09-19)
+
 * Fixed link attachment extraction to exclude `rel="comments"` and `rel="replies"`
   case-insensitively in Atom entries and Atom-style links in RSS feeds. Comments
   URL parsing and ordinary article link attachments, including Hacker News RSS
