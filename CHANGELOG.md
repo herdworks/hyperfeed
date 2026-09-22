@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.29.0 (2026-09-22)
+
 * Added `hyperfeed/generator` with `Generator`, zero-value `AtomGenerator`, and
   `Atom` APIs for Atom 1.0 serialization from normalized `Feed`, `Item`,
   `Byline`, `Link`, and `Attachment` values. Atom now supports feed-level
