@@ -2,6 +2,11 @@
 
 Core domain and wire types for HyperFeed. This package defines a normalized model used by higher‑level packages (discovery, subscriber, scheduler, database) and format‑specific shims for RSS/Atom/JSON Feed parsing.
 
+`generator` serializes caller-supplied normalized values without importing CMS,
+filesystem, or application types. Its initial Atom implementation accepts a
+`Feed` graph and returns XML bytes; format-specific caller conversion remains
+outside HyperFeed.
+
 * `SubscriptionList`
   * `Owner`
   * `Metadata`
@@ -14,6 +19,32 @@ Core domain and wire types for HyperFeed. This package defines a normalized mode
   * `JSONFeed`
   * `Metadata`
 * `Attachment`
+
+## Publishing data additions
+
+The domain model can carry publishing data in memory and JSON. This does not
+change subscriber parsing, Markdown conversion, database storage, or ranking.
+
+| Type | Fields | Meaning |
+| --- | --- | --- |
+| `Feed` | `Bylines`, `Links`, `ModifiedAt` | Optional feed attribution, links, and source modification time (`modified_at`). |
+| `Item` | `GUID` | Source/publishing identifier serialized as `guid`, separate from database `ID`. |
+| `Byline` | `Role`, `Order` | Contextual attribution role and one-based position; empty role and zero order are unspecified. |
+| `Link` (formerly `HyperLink`) | `Rel`, `Mimetype`, `HrefLang`, `Length`, `Origin` | Optional syndication attributes; `href_lang` is snake case, `length` is bytes, and nil length differs from zero. Origin can describe content or metadata links. |
+
+New fields are omitted from JSON when unspecified. Role and order describe an
+attribution occurrence, not the shared person's identity. They are retained
+exactly as supplied; no ordering or role inference is performed. Existing
+parser assignments, including GUID assignment, are unchanged; parsers leave
+the newly added feed, byline, and link fields unspecified. Database reloads
+likewise leave those fields unspecified because existing tables and views are
+unchanged.
+
+`Item.Content` and `Item.Summary` are existing strings. Subscriber workflows
+continue producing Markdown; publishing callers may supply HTML. Conversion
+between these uses belongs to the caller. `Feed.URL` is the planned Atom feed
+identifier; database identity methods remain unchanged.
+
 
 ## `SubscriptionList`
 

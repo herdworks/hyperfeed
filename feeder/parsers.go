@@ -433,7 +433,9 @@ func (parser *AtomFeedParser) Attachments(entry *atom.Entry, item *hyperfeed.Ite
 		}
 		attachment.Href, _ = href.Parse(link.Href)
 		attachment.Title = link.Title
-		attachment.Size = int64(link.Length)
+		if link.Length != nil {
+			attachment.Size = int64(*link.Length)
+		}
 		attachment.Mimetype = link.Type
 		attachment.Duration = 0 // Atom links do not have a duration field
 		attachment.Mimetype = link.Type

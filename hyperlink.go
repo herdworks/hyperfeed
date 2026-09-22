@@ -14,8 +14,9 @@ import (
 	"golang.org/x/net/html"
 )
 
-// HyperLink represents an external link found in an item.
-type HyperLink struct {
+// Link represents a content or syndication link. Existing extraction and
+// persistence continue to use its destination and enrichment fields.
+type Link struct {
 	*DatabaseRecord
 
 	WebsiteID   string     `json:"website_id,omitempty"`
@@ -25,17 +26,24 @@ type HyperLink struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Weight      float32    `json:"same_origin,omitempty"`
+
+	// Syndication attributes are carried in memory and JSON only.
+	Rel      string `json:"rel,omitempty"`
+	Mimetype string `json:"mimetype,omitempty"`
+	HrefLang string `json:"href_lang,omitempty"`
+	Length   *int64 `json:"length,omitempty"` // bytes; nil means unspecified
+	Origin   string `json:"origin,omitempty"` // content or metadata; empty means unspecified
 }
 
 // ParseLinks() extracts links from an item's HTML content
-func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, err error) {
+func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*Link, err error) {
 	var document hq.Document = hq.Document{}
 	var ctx context.Context = context.Background()
 	var perr error // failable parser errors
 	if item.URL != nil {
 		document.Href = item.URL.String()
 		if h, e := href.Parse(item.URL.String()); e == nil {
-			item.Link = &HyperLink{Href: h, Weight: 0.25}
+			item.Link = &Link{Href: h, Weight: 0.25}
 			if item.Feed != nil {
 				item.Link.WebsiteID = item.Feed.Website.Identifier()
 			}
@@ -48,7 +56,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 		if attachment.Mimetype != "text/x-url" {
 			continue
 		}
-		link := &HyperLink{Href: attachment.Href}
+		link := &Link{Href: attachment.Href}
 		websiteURL := url.URL{Scheme: attachment.Href.URL().Scheme, Host: attachment.Href.URL().Host, Path: "/"}
 		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
 		link.WebsiteID = website.Identifier()
@@ -74,7 +82,7 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
 		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
-		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.75})
+		links = append(links, &Link{Href: h, WebsiteID: website.Identifier(), Weight: 0.75})
 	}
 	for _, i := range document.Metadata.HyperLinks.SameOrigin {
 		h, e := href.Parse(i)
@@ -85,12 +93,12 @@ func ParseLinks(item *Item, htmlBytes []byte, w io.Writer) (links []*HyperLink, 
 		}
 		websiteURL := url.URL{Scheme: h.URL().Scheme, Host: h.URL().Host, Path: "/"}
 		website := &Website{Entity: hq.Entity{HTMLURL: websiteURL.String()}}
-		links = append(links, &HyperLink{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
+		links = append(links, &Link{Href: h, WebsiteID: website.Identifier(), Weight: 0.50})
 	}
 	return links, nil
 }
 
-func (link *HyperLink) Identifier() string {
+func (link *Link) Identifier() string {
 	if link == nil {
 		return normalized.Identifier("") // the unknown identifier
 	}
@@ -101,16 +109,16 @@ func (link *HyperLink) Identifier() string {
 	return link.ID
 }
 
-func (*HyperLink) DatabaseObject() string {
+func (*Link) DatabaseObject() string {
 	return "link"
 }
-func (*HyperLink) DatabaseTable() string {
+func (*Link) DatabaseTable() string {
 	return "links"
 }
-func (*HyperLink) DatabaseView() string {
+func (*Link) DatabaseView() string {
 	return "links_view"
 }
-func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
+func (link *Link) DatabaseInsertColumns() (columns []string) {
 	return []string{
 		"website_id",
 		"id",
@@ -120,7 +128,7 @@ func (link *HyperLink) DatabaseInsertColumns() (columns []string) {
 		"description",
 	}
 }
-func (link *HyperLink) DatabaseInsertValues() (args []any) {
+func (link *Link) DatabaseInsertValues() (args []any) {
 	args = append(args, sql.Named("website_id", link.WebsiteID))
 	args = append(args, sql.Named("id", link.Identifier()))
 	args = append(args, sql.Named("href", link.Href.String()))
@@ -134,7 +142,7 @@ func (link *HyperLink) DatabaseInsertValues() (args []any) {
 	return args
 }
 
-func (link *HyperLink) DatabaseUpdatesSet(_ []string) (columns []string) {
+func (link *Link) DatabaseUpdatesSet(_ []string) (columns []string) {
 	return []string{
 		"cover_href = excluded.cover_href",
 		"title = excluded.title",
@@ -142,7 +150,7 @@ func (link *HyperLink) DatabaseUpdatesSet(_ []string) (columns []string) {
 	}
 }
 
-func (link *HyperLink) Hash() string {
+func (link *Link) Hash() string {
 	return fmt.Sprintf(
 		"%s|%s",
 		link.Href.String(),

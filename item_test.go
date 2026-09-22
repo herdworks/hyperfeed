@@ -1,10 +1,34 @@
 package hyperfeed
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/herdworks/hyperfeed/href"
 )
+
+func TestItemGUIDJSON(t *testing.T) {
+	assertJSONOmitted(t, Item{}, "guid")
+	item := Item{
+		GUID:        "urn:example:item",
+		PublishedAt: time.Date(2026, 9, 22, 12, 30, 0, 0, time.UTC),
+		Summary:     "<p>HTML</p>",
+		Content:     "**Markdown**",
+	}
+	data, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Item
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(item, decoded) {
+		t.Fatalf("round trip changed supplied values:\n%s\n%#v", data, decoded)
+	}
+}
 
 func TestItemDeduplicateAttachmentsMergesDuplicateMetadata(t *testing.T) {
 	primaryHref, err := href.Parse("https://example.com/photo.png?utm_source=newsletter")

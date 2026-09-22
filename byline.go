@@ -20,6 +20,10 @@ type Byline struct {
 	Name    string     `json:"name,omitempty"`
 	Email   string     `json:"email,omitempty"`
 	Favicon *href.Href `json:"favicon,omitempty"`
+
+	// Attribution-specific metadata; excluded from shared identity and persistence.
+	Role  string `json:"role,omitempty"`
+	Order int    `json:"order,omitempty"` // one-based position; zero means unspecified
 }
 
 // METHODS

@@ -40,7 +40,10 @@ type Feed struct {
 	Website     Website       `json:"website,omitempty"` // the Website this feed is associated with
 	Status      Status        `json:"status,omitempty"`  // fetch status
 
-	// TODO: add feed.Byline or feed.Bylines
+	// Publishing metadata is carried in memory and JSON, not database rows.
+	Bylines    []Byline  `json:"bylines,omitempty"`
+	Links      []*Link   `json:"links,omitempty"`
+	ModifiedAt time.Time `json:"modified_at,omitempty"` // source feed modification time
 
 	Items []*Item `json:"items,omitempty"` // the most recent items for this feed
 	Bytes []byte  `json:"-"`               // the most recent contents (raw bytes) for this feed
@@ -75,6 +78,19 @@ var (
 
 // METHODS
 // =============================================================================
+
+// MarshalJSON omits an unspecified source modification time.
+func (feed Feed) MarshalJSON() ([]byte, error) {
+	type feedJSON Feed
+	var modifiedAt *time.Time
+	if !feed.ModifiedAt.IsZero() {
+		modifiedAt = &feed.ModifiedAt
+	}
+	return json.Marshal(struct {
+		feedJSON
+		ModifiedAt *time.Time `json:"modified_at,omitempty"`
+	}{feedJSON: feedJSON(feed), ModifiedAt: modifiedAt})
+}
 
 // Domain returns the feed's domain (host) portion of its URL.
 func (feed *Feed) Domain() string {

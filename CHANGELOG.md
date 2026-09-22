@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added `hyperfeed/generator` with `Generator`, zero-value `AtomGenerator`, and
+  `Atom` APIs for Atom 1.0 serialization from normalized `Feed`, `Item`,
+  `Byline`, `Link`, and `Attachment` values. Atom now supports feed-level
+  contributors and preserves explicit zero link lengths.
+* Renamed the public `HyperLink` type to `Link`; callers must use the new name.
+  Existing extraction, identity, ranking, and database behavior is retained.
+* Added optional feed bylines, links, and source modification time; attribution
+  role and one-based order; and link relation, MIME type, language, byte length,
+  and origin fields. Exposed item GUIDs in JSON. These additions are data-only:
+  existing parser assignments are unchanged, and database rows do not retain
+  the new publishing fields.
+* Content and summary retain existing subscriber-side Markdown behavior.
+  Publishing callers may supply HTML in the same fields.
+* Added regression coverage for publishing-field JSON omission and round trips,
+  plus identity and database-write invariants.
+
 ## v0.28.2 (2026-09-19)
 
 * Fixed link attachment extraction to exclude `rel="comments"` and `rel="replies"`

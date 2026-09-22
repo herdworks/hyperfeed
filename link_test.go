@@ -1,12 +1,45 @@
 package hyperfeed
 
 import (
+	"encoding/json"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/herdworks/hyperfeed/href"
 )
+
+func TestLinkPublishingFieldsJSON(t *testing.T) {
+	assertJSONOmitted(t, Link{}, "rel", "mimetype", "href_lang", "length", "origin")
+	zero := int64(0)
+	link := Link{Rel: "alternate", Mimetype: "text/html", HrefLang: "en", Length: &zero, Origin: "metadata"}
+	data, err := json.Marshal(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Link
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(link, decoded) {
+		t.Fatalf("round trip changed supplied values:\n%s\n%#v", data, decoded)
+	}
+}
+
+func TestLinkPublishingFieldsDoNotChangeIdentityOrDatabaseValues(t *testing.T) {
+	u, err := href.Parse("https://example.com/person")
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := Link{Href: u, Title: "Person", Weight: 0.75}
+	linkID, linkHash, linkValues := link.Identifier(), link.Hash(), link.DatabaseInsertValues()
+	length := int64(42)
+	link.Rel, link.Mimetype, link.HrefLang, link.Length, link.Origin = "alternate", "text/html", "en", &length, "metadata"
+	if link.Identifier() != linkID || link.Hash() != linkHash || !reflect.DeepEqual(linkValues, link.DatabaseInsertValues()) {
+		t.Fatal("syndication attributes changed link identity or persistence")
+	}
+}
 
 // TestParseLinksSkipsUnparseableLink reproduces the Daring Fireball "The Talk
 // Show" failure: a malformed <a href="..."> in an item's show notes (an
@@ -52,7 +85,7 @@ func TestParseLinksSkipsUnparseableLink(t *testing.T) {
 	}
 }
 
-func linkURLs(links []*HyperLink) string {
+func linkURLs(links []*Link) string {
 	var urls []string
 	for _, l := range links {
 		if l != nil && l.Href != nil {

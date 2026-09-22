@@ -49,7 +49,7 @@ func newSponsoredPost(t *testing.T, day string) *hyperfeed.Post {
 			PublishedAt: published,
 			Bylines:     []hyperfeed.Byline{{Name: "Team Herd Works", Href: mustParse(t, "https://herd.works"), Email: "sales@herd.works"}},
 			Attachments: []hyperfeed.Attachment{{Href: mustParse(t, "https://hypertexting.com/sponsors/cover.png"), Mimetype: "image/png", Title: "cover"}},
-			Links:       []*hyperfeed.HyperLink{{Href: mustParse(t, "https://hypertexting.com/sponsors/learn-more"), Weight: 0.25}},
+			Links:       []*hyperfeed.Link{{Href: mustParse(t, "https://hypertexting.com/sponsors/learn-more"), Weight: 0.25}},
 		},
 	}
 }

@@ -31,7 +31,7 @@ type Item struct {
 	Bylines          []Byline     `json:"bylines,omitempty"`
 	Summary          string       `json:"summary,omitempty"`
 	Content          string       `json:"content,omitempty"`
-	Links            []*HyperLink `json:"links,omitempty"`
+	Links            []*Link      `json:"links,omitempty"`
 	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, Atom enclosure Links, JSONFeed attachments, and scraped media (images, videos, audio, documents, and other files)
 	Categories       []string     `json:"categories,omitempty"`
 	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
@@ -41,12 +41,12 @@ type Item struct {
 	Metadata Metadata `json:"metadata,omitempty"`
 
 	// GUID is the original feed-provided unique identifier for the item
-	// GUID is only used as Identifier() material
-	GUID string `json:"-"`
+	// GUID is also available to publishing callers, independently of the database ID.
+	GUID string `json:"guid,omitempty"`
 
 	// Feed is the parent feed this item belongs to
-	Feed *Feed      `json:"-"` // parent feed (not serialized)
-	Link *HyperLink `json:"-"` // primary link (not serialized)
+	Feed *Feed `json:"-"` // parent feed (not serialized)
+	Link *Link `json:"-"` // primary link (not serialized)
 }
 
 // ============================ Item Methods ==================================

@@ -55,15 +55,16 @@ import (
 //
 // reference: https://www.ietf.org/rfc/rfc4287.txt
 type Atom struct {
-	XMLName  xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
-	XMLNS    string    `xml:"xmlns:hypergraph,attr"`
-	Title    string    `xml:"title"`
-	Subtitle string    `xml:"subtitle,omitempty"`
-	ID       string    `xml:"id"`
-	Links    []Link    `xml:"link"`
-	Authors  []*Author `xml:"author,omitempty"`
-	Entries  []*Entry  `xml:"entry"`
-	Updated  TimeStamp `xml:"updated"`
+	XMLName      xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
+	XMLNS        string    `xml:"xmlns:hypergraph,attr"`
+	Title        string    `xml:"title"`
+	Subtitle     string    `xml:"subtitle,omitempty"`
+	ID           string    `xml:"id"`
+	Links        []Link    `xml:"link"`
+	Authors      []*Author `xml:"author,omitempty"`
+	Contributors []*Author `xml:"contributor,omitempty"`
+	Entries      []*Entry  `xml:"entry"`
+	Updated      TimeStamp `xml:"updated"`
 
 	Origin     *url.URL         `xml:"-" json:"-"`
 	Extensions xmlns.Extensions `xml:",any"`
@@ -89,7 +90,7 @@ type Link struct {
 	Type     string `xml:"type,attr,omitempty"`
 	HrefLang string `xml:"hreflang,attr,omitempty"`
 	Title    string `xml:"title,attr,omitempty"`
-	Length   uint   `xml:"length,attr,omitempty"`
+	Length   *uint  `xml:"length,attr,omitempty"`
 }
 
 type Author struct {
