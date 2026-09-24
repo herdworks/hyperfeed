@@ -10,12 +10,20 @@ import (
 )
 
 func TestItemGUIDJSON(t *testing.T) {
-	assertJSONOmitted(t, Item{}, "guid")
+	assertJSONOmitted(t, Item{}, "guid", "categories", "cover_url", "explicit")
+	explicit := true
+	coverURL, err := href.Parse("https://example.com/cover.png")
+	if err != nil {
+		t.Fatal(err)
+	}
 	item := Item{
 		GUID:        "urn:example:item",
 		PublishedAt: time.Date(2026, 9, 22, 12, 30, 0, 0, time.UTC),
 		Summary:     "<p>HTML</p>",
 		Content:     "**Markdown**",
+		Categories:  []Category{NewCategory("Open Source")},
+		CoverURL:    coverURL,
+		Explicit:    &explicit,
 	}
 	data, err := json.Marshal(item)
 	if err != nil {

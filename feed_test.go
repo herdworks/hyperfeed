@@ -93,15 +93,22 @@ func TestFeedPublishingFieldsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"url":"https://example.com/feed.xml"}`), &feed); err != nil {
 		t.Fatal(err)
 	}
-	if !feed.ModifiedAt.IsZero() || feed.Bylines != nil || feed.Links != nil {
+	if !feed.ModifiedAt.IsZero() || feed.Bylines != nil || feed.Links != nil || feed.CoverURL != nil || feed.Categories != nil || feed.Medium != "" {
 		t.Fatal("legacy JSON must leave feed publishing fields unspecified")
 	}
-	assertJSONOmitted(t, feed, "modified_at", "bylines", "links")
+	assertJSONOmitted(t, feed, "modified_at", "bylines", "links", "cover_url", "categories", "medium")
 
 	zero := int64(0)
 	feed.ModifiedAt = time.Date(2026, 9, 22, 12, 30, 0, 0, time.UTC)
 	feed.Bylines = []Byline{{Name: "Editor", Role: "editor", Order: 7}}
 	feed.Links = []*Link{{Rel: "self", Mimetype: "application/atom+xml", HrefLang: "en", Length: &zero, Origin: "metadata"}}
+	feed.Categories = []Category{NewCategory("Open Source")}
+	feed.Medium = "podcast"
+	coverURL, err := href.Parse("https://example.com/cover.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed.CoverURL = coverURL
 	data, err := json.Marshal(feed)
 	if err != nil {
 		t.Fatal(err)
@@ -125,6 +132,12 @@ func TestFeedPublishingFieldsDoNotChangeIdentityOrDatabaseValues(t *testing.T) {
 	feed.Bylines = []Byline{{Name: "Editor", Role: "editor", Order: 1}}
 	feed.Links = []*Link{{Href: u, Rel: "self", Mimetype: "application/atom+xml"}}
 	feed.ModifiedAt = time.Date(2026, 9, 22, 12, 30, 0, 0, time.UTC)
+	feed.Categories = []Category{NewCategory("Open Source")}
+	feed.Medium = "podcast"
+	feed.CoverURL, err = href.Parse("https://example.com/cover.png")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if feed.Identifier() != feedID || feed.Hash() != feedHash || !reflect.DeepEqual(feedValues, feed.DatabaseInsertValues()) {
 		t.Fatal("publishing metadata changed feed identity or persistence")
 	}

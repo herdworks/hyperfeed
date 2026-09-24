@@ -3,9 +3,10 @@
 Core domain and wire types for HyperFeed. This package defines a normalized model used by higher‑level packages (discovery, subscriber, scheduler, database) and format‑specific shims for RSS/Atom/JSON Feed parsing.
 
 `generator` serializes caller-supplied normalized values without importing CMS,
-filesystem, or application types. Its initial Atom implementation accepts a
-`Feed` graph and returns XML bytes; format-specific caller conversion remains
-outside HyperFeed.
+filesystem, or application types. Its Atom and RSS implementations accept a
+`Feed` graph and return XML bytes; format-specific caller conversion remains
+outside HyperFeed. RSS uses the `rss` package's bidirectional wire types and
+the shared `xmlns.Extensions` XML extension model.
 
 * `SubscriptionList`
   * `Owner`
@@ -27,18 +28,28 @@ change subscriber parsing, Markdown conversion, database storage, or ranking.
 
 | Type | Fields | Meaning |
 | --- | --- | --- |
-| `Feed` | `Bylines`, `Links`, `ModifiedAt` | Optional feed attribution, links, and source modification time (`modified_at`). |
-| `Item` | `GUID` | Source/publishing identifier serialized as `guid`, separate from database `ID`. |
+| `Feed` | `Bylines`, `Links`, `ModifiedAt`, `CoverURL`, `Categories`, `Medium` | Optional attribution, links, source modification time (`modified_at`), artwork, categories, and Podcasting 2.0 medium. |
+| `Item` | `GUID`, `Categories`, `CoverURL`, `Explicit` | Source/publishing identifier serialized as `guid`, separate from database `ID`, plus optional categories, artwork, and explicitness. |
 | `Byline` | `Role`, `Order` | Contextual attribution role and one-based position; empty role and zero order are unspecified. |
 | `Link` (formerly `HyperLink`) | `Rel`, `Mimetype`, `HrefLang`, `Length`, `Origin` | Optional syndication attributes; `href_lang` is snake case, `length` is bytes, and nil length differs from zero. Origin can describe content or metadata links. |
+| `Category` | `Tag`, `Label` | Category identifier and display label. `NewCategory` derives a tag from a supplied label by retaining ASCII letters, digits, and underscores. |
 
 New fields are omitted from JSON when unspecified. Role and order describe an
 attribution occurrence, not the shared person's identity. They are retained
 exactly as supplied; no ordering or role inference is performed. Existing
 parser assignments, including GUID assignment, are unchanged; parsers leave
-the newly added feed, byline, and link fields unspecified. Database reloads
+the newly added feed, item, byline, and link fields unspecified. Database reloads
 likewise leave those fields unspecified because existing tables and views are
 unchanged.
+
+`Feed.Categories` and `Item.Categories` are JSON arrays of `Category` objects.
+This is a breaking change from the former item string array; legacy category
+strings do not decode. `Category.Label` is the textual category value used by
+RSS, JSON Feed, Media RSS, and iTunes generation. `CoverURL` is resolved by RSS
+generation from item to feed to website cover to website favicon. `Medium` is
+caller-supplied and emitted as `podcast:medium`; it is not inferred from media.
+`Item.Explicit` is optional. RSS derives its channel-level iTunes explicit value
+from the generated items.
 
 `Item.Content` and `Item.Summary` are existing strings. Subscriber workflows
 continue producing Markdown; publishing callers may supply HTML. Conversion
@@ -90,7 +101,7 @@ A single entry in a feed.
 - People: `Authors []Author`
 - Timestamps: `Published time.Time`, `Updated time.Time`
 - Media: `Attachments []Attachment`, `Image *Image`
-- Taxonomy: `Categories []string`
+- Taxonomy: `Categories []Category`
 - Extensions: `Metadata Metadata`
 - Behavior: `CanonicalID()` returns ID → GUID → URL fallback
 
@@ -136,6 +147,10 @@ Wire model for RSS 0.9x/2.0 parsing with extension preservation.
 - Channel: standard RSS elements (`title`, `link`, `description`, etc.) plus `Items []RSSItem`
 - Item: core RSS fields plus `Enclosures []RSSEnclosure` and `Extensions []Extension`
 - Enclosure: `{ URL, Length, Type }` attributes
+- Serialization: core types also write RSS 2.0 XML. Generated documents set an
+  `rss` root and conditional extension namespaces; parsing retains its lenient
+  root handling. RSS GUIDs default to permalink semantics when
+  `isPermaLink` is absent.
 - Helpers: `RSSDetect([]byte) bool`, `ParseRSS([]byte) (*RSS, error)` with `charset.NewReaderLabel` for non‑UTF8 encodings
 
 Source: `github.com/herdworks/hyperfeed/rss/rss.go`

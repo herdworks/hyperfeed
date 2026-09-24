@@ -233,7 +233,9 @@ func (parser *RSSFeedParser) Attachments(rssitem *rss.Item, item *hyperfeed.Item
 			continue
 		}
 		attachment.Title = link.Title
-		attachment.Size = int64(link.Length)
+		if link.Length != nil {
+			attachment.Size = int64(*link.Length)
+		}
 		attachment.Mimetype = link.Type
 		attachments = append(attachments, attachment)
 	}

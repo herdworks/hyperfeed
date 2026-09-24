@@ -56,7 +56,6 @@ import (
 // reference: https://www.ietf.org/rfc/rfc4287.txt
 type Atom struct {
 	XMLName      xml.Name  `xml:"http://www.w3.org/2005/Atom feed"`
-	XMLNS        string    `xml:"xmlns:hypergraph,attr"`
 	Title        string    `xml:"title"`
 	Subtitle     string    `xml:"subtitle,omitempty"`
 	ID           string    `xml:"id"`
@@ -138,6 +137,25 @@ func (atom *Atom) Link(rel string) (link *Link) {
 		}
 	}
 	return link
+}
+
+// MarshalXML serializes standard Atom author elements without HyperGraph
+// extension elements.
+func (author Author) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if start.Name.Local == "" {
+		start.Name.Local = "author"
+	}
+	return e.EncodeElement(struct {
+		Name     string `xml:"name"`
+		URI      string `xml:"uri,omitempty"`
+		Email    string `xml:"email,omitempty"`
+		InnerXML string `xml:",innerxml"`
+	}{
+		Name:     author.Name,
+		URI:      author.URI,
+		Email:    author.Email,
+		InnerXML: author.InnerXML,
+	}, start)
 }
 
 // Entry.ExternalURLs() returns a slice of external URLs found in the entry's links.

@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+* Added `Feed.CoverURL`, `Feed.Medium`, `Item.CoverURL`, and optional
+  `Item.Explicit` as JSON-only publishing data. These values remain outside
+  parser assignments and database rows.
+* Added `hyperfeed/generator` RSS 2.0 serialization through zero-value
+  `RSSGenerator` and `RSS`. It emits core RSS links, comments, categories,
+  images, dates, GUIDs, and enclosures, plus conditional Atom link, Content,
+  Dublin Core, iTunes, Podcasting 2.0, and Media RSS extensions from
+  normalized feed data. `Item.CommentsURL` serializes as native `<comments>`;
+  the first ordered feed-byline email serializes as `<managingEditor>`.
+  Alternate and discussion links are not duplicated as Atom link extensions;
+  Atom self and related links remain available. RSS now serializes through its
+  existing wire types and shared XML extension model. GUIDs without
+  `isPermaLink` now follow the RSS default of `true`; RSS parsing remains
+  lenient about the document root.
+* Removed the unused HyperGraph namespace declarations and author extension 
+  elements from generated Atom feeds. 
+* Replaced the unused `Item.Categories []string` with rich `[]Category`
+  values and added feed categories. Categories now serialize as `{tag,label}`
+  JSON objects; legacy string categories no longer decode. Added `NewCategory`
+  to derive tags while retaining category labels.
+
 ## v0.29.0 (2026-09-22)
 
 * Added `hyperfeed/generator` with `Generator`, zero-value `AtomGenerator`, and

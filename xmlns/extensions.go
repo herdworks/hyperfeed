@@ -2,6 +2,7 @@ package xmlns
 
 import (
 	"encoding/xml"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,38 @@ func (e *Extension) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	e.InnerXML = payload.Inner
 	e.Extensions = append(e.Extensions[:0], payload.Any...)
 	return nil
+}
+
+// MarshalXML serializes a namespace-qualified extension and its contents.
+func (extension Extension) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if extension.XMLName.Local == "" {
+		return nil
+	}
+	start.Name = extension.XMLName
+	if prefix := Prefix(start.Name.Space); prefix != "" {
+		start.Name = xml.Name{Local: prefix + ":" + start.Name.Local}
+	}
+	start.Attr = append(start.Attr, extension.Attrs...)
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+	if extension.Text != "" {
+		if err := e.EncodeToken(xml.CharData(extension.Text)); err != nil {
+			return err
+		}
+	}
+	if len(extension.Extensions) > 0 {
+		for _, nested := range extension.Extensions {
+			if err := e.Encode(nested); err != nil {
+				return err
+			}
+		}
+	} else if extension.InnerXML != "" {
+		if err := marshalInnerXML(e, extension.InnerXML); err != nil {
+			return err
+		}
+	}
+	return e.EncodeToken(start.End())
 }
 
 func (e *Extension) HasAttribute(name string) (exists bool) {
@@ -110,5 +143,21 @@ func (extensions Extensions) GetPropertyString(namespace string, name string) st
 		return extension.Text
 	} else {
 		return ""
+	}
+}
+
+func marshalInnerXML(e *xml.Encoder, source string) error {
+	decoder := xml.NewDecoder(strings.NewReader(source))
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := e.EncodeToken(token); err != nil {
+			return err
+		}
 	}
 }

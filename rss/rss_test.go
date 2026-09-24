@@ -1,7 +1,10 @@
 package rss
 
 import (
+	"encoding/xml"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +42,59 @@ func TestRSSParse(t *testing.T) {
 	}
 	if rss.Channel.Items[0].Title != "First" {
 		t.Fatalf("Item title = %q; want %q", rss.Channel.Items[0].Title, "First")
+	}
+}
+
+func TestRSSParseAcceptsAlternateRoot(t *testing.T) {
+	feed, err := Parse([]byte(`<not-rss><channel><title>Example</title><link>https://example.com/</link><description>Sample</description></channel></not-rss>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if feed.XMLName.Local != "not-rss" || feed.Channel.Title != "Example" {
+		t.Fatalf("parsed feed = %#v", feed)
+	}
+}
+
+func TestRSSGUIDPermaLinkDefaultsAndSerialization(t *testing.T) {
+	origin, err := url.Parse("https://example.com/feed.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, document := range map[string]string{
+		"absent": `<rss><channel><item><guid>https://example.com/one</guid></item></channel></rss>`,
+		"true":   `<rss><channel><item><guid isPermaLink="true">https://example.com/one</guid></item></channel></rss>`,
+		"false":  `<rss><channel><item><guid isPermaLink="false">https://example.com/one</guid></item></channel></rss>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			feed, err := Parse([]byte(document))
+			if err != nil {
+				t.Fatal(err)
+			}
+			item := feed.Channel.Items[0]
+			if got, want := item.GUID.IsPermaLink, name != "false"; got != want {
+				t.Fatalf("isPermaLink = %t, want %t", got, want)
+			}
+			if name != "false" && feed.ItemLink(&item, origin) == nil {
+				t.Fatal("permalink GUID did not resolve to an item link")
+			}
+		})
+	}
+	feed := RSS{
+		XMLName: xml.Name{Local: "rss"},
+		Version: "2.0",
+		Channel: Channel{Items: []Item{{
+			GUID: RSSGUID{Value: "https://example.com/one", IsPermaLink: true},
+		}, {
+			GUID: RSSGUID{Value: "opaque", IsPermaLink: false},
+		}}},
+	}
+	data, err := xml.Marshal(feed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := string(data)
+	if !strings.Contains(output, `<guid>https://example.com/one</guid>`) || !strings.Contains(output, `<guid isPermaLink="false">opaque</guid>`) {
+		t.Fatalf("GUID XML = %s", output)
 	}
 }
 

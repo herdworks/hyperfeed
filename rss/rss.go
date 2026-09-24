@@ -22,7 +22,16 @@ import (
 // RSS represents an RSS feed (0.91/0.92/2.0).
 // See https://www.rssboard.org/rss-specification
 type RSS struct {
-	Version string  `xml:"version,attr" json:"version,omitempty"`
+	XMLName xml.Name `json:"-"`
+	Version string   `xml:"version,attr" json:"version,omitempty"`
+
+	AtomNS    string `xml:"xmlns:atom,attr,omitempty" json:"-"`
+	ContentNS string `xml:"xmlns:content,attr,omitempty" json:"-"`
+	DublinNS  string `xml:"xmlns:dc,attr,omitempty" json:"-"`
+	ItunesNS  string `xml:"xmlns:itunes,attr,omitempty" json:"-"`
+	MediaNS   string `xml:"xmlns:media,attr,omitempty" json:"-"`
+	PodcastNS string `xml:"xmlns:podcast,attr,omitempty" json:"-"`
+
 	Channel Channel `xml:"channel"`
 
 	Origin *url.URL `xml:"-" json:"-"`
@@ -32,37 +41,37 @@ type Channel struct {
 	Title          string     `xml:"title"`
 	Links          []Link     `xml:"link"`
 	Description    string     `xml:"description"`
-	Language       string     `xml:"language"`
-	PubDate        string     `xml:"pubDate"`
-	LastBuildDate  string     `xml:"lastBuildDate"`
-	Copyright      string     `xml:"copyright"`
-	ManagingEditor string     `xml:"managingEditor"`
-	Webmaster      string     `xml:"webMaster"`
-	Generator      string     `xml:"generator"`
-	Docs           string     `xml:"docs"`
-	TTL            int        `xml:"ttl"`
-	Categories     []Category `xml:"category"`
+	Language       string     `xml:"language,omitempty"`
+	PubDate        string     `xml:"pubDate,omitempty"`
+	LastBuildDate  string     `xml:"lastBuildDate,omitempty"`
+	Copyright      string     `xml:"copyright,omitempty"`
+	ManagingEditor string     `xml:"managingEditor,omitempty"`
+	Webmaster      string     `xml:"webMaster,omitempty"`
+	Generator      string     `xml:"generator,omitempty"`
+	Docs           string     `xml:"docs,omitempty"`
+	TTL            int        `xml:"ttl,omitempty"`
+	Categories     []Category `xml:"category,omitempty"`
 	Cloud          *Cloud     `xml:"cloud"`
 	Image          *Image     `xml:"image"`
 	TextInput      *TextInput `xml:"textInput"`
 	SkipHours      *Hours     `xml:"skipHours"`
 	SkipDays       *Days      `xml:"skipDays"`
-	Items          []Item     `xml:"item"`
+	Items          []Item     `xml:"item,omitempty"`
 
 	Extensions xmlns.Extensions `xml:",any" json:"-"`
 }
 
 type Item struct {
-	Links          []Link      `xml:"link"` // some feeds use multiple <link> elements (see NYT <atom:link> namespace elements)
+	Links          []Link      `xml:"link,omitempty"` // some feeds use multiple <link> elements (see NYT <atom:link> namespace elements)
 	Title          string      `xml:"title"`
-	Description    string      `xml:"description"`
+	Description    string      `xml:"description,omitempty"`
 	ContentEncoded string      `xml:"http://purl.org/rss/1.0/modules/content/ encoded,omitempty"` // RSS Content Module
-	Authors        []string    `xml:"author"`
+	Authors        []string    `xml:"author,omitempty"`
 	Comments       Text        `xml:"comments"`
 	GUID           RSSGUID     `xml:"guid"`
-	PubDate        string      `xml:"pubDate"`
-	Categories     []Category  `xml:"category"`
-	Enclosures     []Enclosure `xml:"enclosure"`
+	PubDate        string      `xml:"pubDate,omitempty"`
+	Categories     []Category  `xml:"category,omitempty"`
+	Enclosures     []Enclosure `xml:"enclosure,omitempty"`
 	Source         *Source     `xml:"source"`
 
 	// Extensions captures additional namespaced elements under <item>.
@@ -70,12 +79,13 @@ type Item struct {
 }
 
 type Link struct {
-	Href   string `xml:",chardata"`
-	Rel    string `xml:"rel,attr,omitempty"` // for Atom links
-	Type   string `xml:"type,attr,omitempty"`
-	Space  string `xml:"xmlns,attr,omitempty"`
-	Title  string `xml:"title,attr,omitempty"`
-	Length uint   `xml:"length,attr,omitempty"`
+	Href     string `xml:",chardata"`
+	Rel      string `xml:"rel,attr,omitempty"` // for Atom links
+	Type     string `xml:"type,attr,omitempty"`
+	HrefLang string `xml:"hreflang,attr,omitempty"`
+	Space    string `xml:"xmlns,attr,omitempty"`
+	Title    string `xml:"title,attr,omitempty"`
+	Length   *uint  `xml:"length,attr,omitempty"`
 
 	uri *url.URL `xml:"-" json:"-"`
 }
@@ -91,7 +101,7 @@ type AtomLink struct {
 	Type     string `xml:"type,attr,omitempty"`
 	HrefLang string `xml:"hreflang,attr,omitempty"`
 	Title    string `xml:"title,attr,omitempty"`
-	Length   uint   `xml:"length,attr,omitempty"`
+	Length   *uint  `xml:"length,attr,omitempty"`
 }
 
 type Enclosure struct {
@@ -102,13 +112,13 @@ type Enclosure struct {
 
 // RSSGUID may include the isPermaLink attribute.
 type RSSGUID struct {
-	IsPermaLink bool   `xml:"isPermaLink,attr" json:"isPermaLink,omitempty"`
+	IsPermaLink bool   `xml:"-" json:"isPermaLink,omitempty"`
 	Value       string `xml:",chardata" json:"value,omitempty"`
 }
 
 // Category allows the optional domain attribute.
 type Category struct {
-	Domain string `xml:"domain,attr" json:"domain,omitempty"`
+	Domain string `xml:"domain,attr,omitempty" json:"domain,omitempty"`
 	Text   string `xml:",chardata" json:"text,omitempty"`
 }
 
@@ -132,9 +142,9 @@ type Image struct {
 	URL         string `xml:"url"`
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
-	Width       int    `xml:"width"`
-	Height      int    `xml:"height"`
-	Description string `xml:"description"`
+	Width       int    `xml:"width,omitempty"`
+	Height      int    `xml:"height,omitempty"`
+	Description string `xml:"description,omitempty"`
 }
 
 // TextInput describes a text input form.
@@ -173,7 +183,7 @@ func (rss *RSS) FeedVersion() string {
 }
 
 func (rss *RSS) ItemLink(item *Item, base *url.URL) *url.URL {
-	if item == nil || item.Links == nil {
+	if item == nil {
 		return nil
 	}
 	for _, link := range item.Links {
@@ -312,6 +322,36 @@ func (link *Link) IsExternal(base *url.URL) bool {
 	return !strings.EqualFold(strings.TrimPrefix(link.URL().Host, "www."), strings.TrimPrefix(base.Host, "www."))
 }
 
+func (link Link) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if link.Space != xmlns.AtomNS {
+		start.Name = xml.Name{Local: "link"}
+		return e.EncodeElement(link.Href, start)
+	}
+	start.Name = xml.Name{Local: "atom:link"}
+	start.Attr = append(start.Attr,
+		xml.Attr{Name: xml.Name{Local: "href"}, Value: link.Href},
+	)
+	if link.Rel != "" {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "rel"}, Value: link.Rel})
+	}
+	if link.Type != "" {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "type"}, Value: link.Type})
+	}
+	if link.HrefLang != "" {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "hreflang"}, Value: link.HrefLang})
+	}
+	if link.Title != "" {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "title"}, Value: link.Title})
+	}
+	if link.Length != nil {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "length"}, Value: strconv.FormatUint(uint64(*link.Length), 10)})
+	}
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+	return e.EncodeToken(start.End())
+}
+
 func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
 	var atomLink AtomLink = AtomLink{}
 	if link == nil {
@@ -326,6 +366,7 @@ func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err erro
 		link.Href = atomLink.Href
 		link.Rel = atomLink.Rel
 		link.Type = atomLink.Type
+		link.HrefLang = atomLink.HrefLang
 		link.Title = atomLink.Title
 		link.Length = atomLink.Length
 		link.Space = start.Name.Space
@@ -339,6 +380,38 @@ func (link *Link) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err erro
 		d.Skip()
 	}
 	return nil
+}
+
+func (guid RSSGUID) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if guid.Value == "" {
+		return nil
+	}
+	start.Name = xml.Name{Local: "guid"}
+	if !guid.IsPermaLink {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "isPermaLink"}, Value: "false"})
+	}
+	return e.EncodeElement(guid.Value, start)
+}
+
+func (guid *RSSGUID) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
+	guid.IsPermaLink = true
+	for _, attribute := range start.Attr {
+		if !strings.EqualFold(attribute.Name.Local, "isPermaLink") {
+			continue
+		}
+		if guid.IsPermaLink, err = strconv.ParseBool(attribute.Value); err != nil {
+			return err
+		}
+		break
+	}
+	return d.DecodeElement(&guid.Value, &start)
+}
+
+func (text Text) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if text.Value == "" {
+		return nil
+	}
+	return e.EncodeElement(text.Value, start)
 }
 
 func (text *Text) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {

@@ -62,3 +62,23 @@ func (extensions Extensions) GetRSSContentMetadata(name string) *Extension {
 func (extensions Extensions) GetDublinCoreMetadata(name string) *Extension {
 	return extensions.GetProperty(DublicCoreMetadataNS, name)
 }
+
+// Prefix returns the conventional XML prefix for a supported extension namespace.
+func Prefix(namespace string) string {
+	switch namespace {
+	case AtomNS:
+		return "atom"
+	case RSSContentNS:
+		return "content"
+	case DublicCoreMetadataNS:
+		return "dc"
+	case ItunesPodcastNS:
+		return "itunes"
+	case YahooMediaRSSNS:
+		return "media"
+	case PodcastIndexNS:
+		return "podcast"
+	default:
+		return ""
+	}
+}

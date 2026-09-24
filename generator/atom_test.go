@@ -27,7 +27,7 @@ func TestAtomGeneratorSerializesNormalizedFeed(t *testing.T) {
 		},
 		Bylines: []hyperfeed.Byline{
 			{Name: "Second", Role: "author", Order: 2},
-			{Name: "First", Href: authorURL, Role: "author", Order: 1},
+			{Name: "First", Href: authorURL, Favicon: generatorHref(t, "https://example.com/authors/first.png"), Role: "author", Order: 1},
 			{Name: "Unspecified", Role: "author"},
 			{Name: "Editor", Role: "contributor", Order: 1},
 		},
@@ -86,6 +86,9 @@ func TestAtomGeneratorSerializesNormalizedFeed(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `length="0"`) {
 		t.Fatalf("generated XML omitted explicit zero length:\n%s", data)
+	}
+	if strings.Contains(string(data), "hypergraph:") || strings.Contains(string(data), "xmlns:hypergraph") {
+		t.Fatalf("generated XML includes a HyperGraph extension:\n%s", data)
 	}
 	if decoded.ID != feedURL.String() || decoded.Updated != "2026-09-22T12:00:00Z" {
 		t.Fatalf("feed identity = %#v", decoded)

@@ -29,12 +29,14 @@ type Item struct {
 
 	Title            string       `json:"title,omitempty"`
 	Bylines          []Byline     `json:"bylines,omitempty"`
+	CoverURL         *href.Href   `json:"cover_url,omitempty"`
 	Summary          string       `json:"summary,omitempty"`
 	Content          string       `json:"content,omitempty"`
 	Links            []*Link      `json:"links,omitempty"`
 	Attachments      []Attachment `json:"attachments,omitempty"` // RSS enclosures, Atom enclosure Links, JSONFeed attachments, and scraped media (images, videos, audio, documents, and other files)
-	Categories       []string     `json:"categories,omitempty"`
+	Categories       []Category   `json:"categories,omitempty"`
 	IsPodcastEpisode bool         `json:"is_podcast_episode,omitempty"`
+	Explicit         *bool        `json:"explicit,omitempty"`
 	Sponsored        bool         `json:"sponsored,omitempty"`
 
 	// Metadata holds non-standard/extension Item properties

@@ -31,9 +31,12 @@ type Feed struct {
 	Email       string        `json:"email,omitempty"`    // contact email address for the feed (if available)
 	Title       string        `json:"title,omitempty"`
 	Description string        `json:"description,omitempty"`
+	CoverURL    *href.Href    `json:"cover_url,omitempty"`
 	Language    string        `json:"language,omitempty"`
 	IsPodcast   bool          `json:"is_podcast,omitempty"`
+	Medium      string        `json:"medium,omitempty"`
 	Following   bool          `json:"following"`
+	Categories  []Category    `json:"categories,omitempty"`
 	Metadata    Metadata      `json:"metadata,omitempty"` // Non-standard/extension properties
 	Interval    time.Duration `json:"interval,omitempty"` // fetch interval in minutes
 	UpdatedAt   time.Time     `json:"updated_at,omitempty"`

@@ -91,7 +91,7 @@ func TestRSSParserDistinguishesAtomLinksAndEnclosures(t *testing.T) {
 	}
 }
 
-func TestRSSParserDoesNotUseAtomEnclosureAsItemURL(t *testing.T) {
+func TestRSSParserUsesPermaLinkGUIDAfterAtomEnclosure(t *testing.T) {
 	feedURL, err := href.Parse("https://example.com/rss.xml")
 	if err != nil {
 		t.Fatalf("href.Parse() error = %v", err)
@@ -123,8 +123,8 @@ func TestRSSParserDoesNotUseAtomEnclosureAsItemURL(t *testing.T) {
 		t.Fatalf("items length = %d, want 1", len(parsed.Items))
 	}
 	item := parsed.Items[0]
-	if item.URL != nil {
-		t.Fatalf("item.URL = %q, want nil", item.URL.String())
+	if item.URL == nil || item.URL.String() != "https://example.com/first" {
+		t.Fatalf("item.URL = %v, want https://example.com/first", item.URL)
 	}
 	if len(item.Attachments) != 1 {
 		t.Fatalf("attachments length = %d, want 1", len(item.Attachments))
