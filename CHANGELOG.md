@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.29.1 (2026-09-23)
+
 * Added `Feed.CoverURL`, `Feed.Medium`, `Item.CoverURL`, and optional
   `Item.Explicit` as JSON-only publishing data. These values remain outside
   parser assignments and database rows.
