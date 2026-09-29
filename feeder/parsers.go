@@ -164,7 +164,9 @@ func (parser *RSSFeedParser) Items(added time.Time, w io.Writer) (items []*hyper
 		if item.Content, err = markdown.Convert(rss.HTML(rssitem.ContentEncoded)); err != nil {
 			fmt.Fprintf(w, "markdown RSS item.content:encoded error: %v\n", err)
 		}
-		item.CommentsURL, _ = href.Parse(rssitem.Comments.Value)
+		if comments := strings.TrimSpace(rssitem.Comments.Value); comments != "" {
+			item.CommentsURL, _ = href.Parse(comments)
+		}
 		item.PublishedAt, _ = rss.Date(rssitem.PubDate)
 		item.ModifiedAt = item.PublishedAt // rss items don't have a modified date
 		item.AddedAt = added

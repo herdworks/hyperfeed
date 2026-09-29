@@ -88,9 +88,7 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 	if item.URL != nil {
 		item.URL = href.ResolveHref(base, item.URL, w)
 	}
-	if item.CommentsURL != nil {
-		item.CommentsURL = href.ResolveHref(base, item.CommentsURL, w)
-	}
+	item.CommentsURL = item.resolvedCommentsURL(base, w)
 	for i, b := range item.Bylines {
 		if b.Href != nil {
 			b.Href = href.ResolveHref(base, b.Href, w)
@@ -113,6 +111,26 @@ func (item *Item) ResolveRelativeURLs(w io.Writer) {
 			}
 		}
 	}
+}
+
+// resolvedCommentsURL returns an absolute comments URL unless it duplicates the item or feed URL.
+func (item *Item) resolvedCommentsURL(base href.Href, w io.Writer) (commentsURL *href.Href) {
+	if item == nil || item.CommentsURL == nil {
+		return nil
+	}
+	if commentsURL = href.ResolveHref(base, item.CommentsURL, w); commentsURL == nil {
+		return nil
+	}
+	candidates := []*href.Href{item.URL}
+	if item.Feed != nil {
+		candidates = append(candidates, item.Feed.URL, item.Feed.HTMLURL)
+	}
+	for _, candidate := range candidates {
+		if candidate != nil && commentsURL.String() == candidate.String() {
+			return nil
+		}
+	}
+	return commentsURL
 }
 
 // TimelineAt computes the HyperFeed default "chronological" timeline timestamp for an item

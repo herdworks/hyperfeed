@@ -284,8 +284,8 @@ func TestRSSParserPreservesHackerNewsArticleAttachment(t *testing.T) {
 	if item.URL == nil || item.URL.String() != discussionURL {
 		t.Fatalf("item URL = %v, want %s", item.URL, discussionURL)
 	}
-	if item.CommentsURL == nil || item.CommentsURL.String() != discussionURL {
-		t.Fatalf("comments URL = %v, want %s", item.CommentsURL, discussionURL)
+	if item.CommentsURL != nil {
+		t.Fatalf("comments URL = %v, want nil", item.CommentsURL)
 	}
 	if len(item.Attachments) != 1 {
 		t.Fatalf("attachments = %#v, want one article link", item.Attachments)
@@ -293,5 +293,47 @@ func TestRSSParserPreservesHackerNewsArticleAttachment(t *testing.T) {
 	attachment := item.Attachments[0]
 	if attachment.Href == nil || attachment.Href.String() != "https://external.example/article" || attachment.Mimetype != "text/x-url" || attachment.Enclosure {
 		t.Fatalf("article attachment = %#v", attachment)
+	}
+}
+
+func TestRSSParserCommentsURL(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		comments string
+		want     string
+	}{
+		{"absent", "", ""},
+		{"whitespace", "<comments> \n\t</comments>", ""},
+		{"same as item", "<comments>https://example.com/post/</comments>", ""},
+		{"same as feed document", "<comments>https://example.com/rss.xml</comments>", ""},
+		{"same as feed HTML", "<comments>https://example.com/</comments>", ""},
+		{"fragment", "<comments>#comments</comments>", "https://example.com/post/#comments"},
+		{"query", "<comments>?comments=1</comments>", "https://example.com/post/?comments=1"},
+		{"discussion page", "<comments>/discussion</comments>", "https://example.com/discussion"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			feedURL, _ := href.Parse("https://example.com/rss.xml")
+			parser := &RSSFeedParser{
+				Feed: &hyperfeed.Feed{URL: feedURL},
+				Bytes: []byte(`<rss version="2.0"><channel>
+					<title>Example</title><link>https://example.com/</link><description>Example feed</description>
+					<item><title>Hello</title><link>https://example.com/post/</link>` + test.comments + `<pubDate>Wed, 03 Jun 2026 00:00:00 GMT</pubDate></item>
+					</channel></rss>`),
+			}
+			feed, err := parser.Parse(io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(feed.Items) != 1 {
+				t.Fatalf("items = %d, want 1", len(feed.Items))
+			}
+			got := ""
+			if feed.Items[0].CommentsURL != nil {
+				got = feed.Items[0].CommentsURL.String()
+			}
+			if got != test.want {
+				t.Fatalf("CommentsURL = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

@@ -143,6 +143,9 @@ func TestAtomParserCommentsURL(t *testing.T) {
 		{"invalid replies fallback", `<link rel="replies" href="%zz"/><link rel="comments" href="/discussion"/>`, "https://example.com/discussion"},
 		{"empty replies fallback", `<link rel="replies" href=""/><link rel="comments" href="#comments"/>`, "https://example.com/post/#comments"},
 		{"later valid replies", `<link rel="replies" href="%zz"/><link rel="replies" href="#valid"/>`, "https://example.com/post/#valid"},
+		{"same as item", `<link rel="comments" href="https://example.com/post/"/>`, ""},
+		{"same as feed document", `<link rel="comments" href="https://example.com/atom.xml"/>`, ""},
+		{"same as feed HTML", `<link rel="comments" href="https://example.com/"/>`, ""},
 		{"absent", "", ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
