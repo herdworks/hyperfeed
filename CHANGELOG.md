@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog], and this project adheres to [Semantic
 
 ## Unreleased
 
+## v0.29.2 (2026-09-29)
+
 * Fixed RSS and Atom parsing to discard absent, whitespace-only, and duplicate
   item comments URLs after resolving relative references. A comments URL must
   differ from the item permalink and the feed document and HTML URLs; distinct
